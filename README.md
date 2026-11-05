@@ -12,6 +12,10 @@ BeBaduy requires iOS 26 or later and Xcode 26 or later. App, unit-test, and UI-t
 
 Next UX priorities: give the 3D field more visible space, keep essential navigation controls easy to reach, and connect meaningful scene interactions to the farming modules. Use native glass for controls selectively while keeping explanation text legible. These are follow-up design priorities, not features automatically enabled by raising the deployment target. Preserve Reduce Motion, large text, accessible alternatives, and camera-free operation.
 
+## Harvest home screen
+
+Home integrates the supplied PoCPadi sunset scene, procedural RealityKit rice, and four visual milestones (Nukuh, Ngaseuk, Ngored, Dibuat). Swipe the field or use the four stage buttons to preview growth. **Mulai belajar / Lanjutkan belajar** opens the saved learning phase; **Perjalanan** opens all eleven modules and About. Previewing or replaying the field does not unlock activities or change saved progress. The card scrolls for larger text, and ambient motion pauses with Reduce Motion, while the app is inactive, and while another screen is open. Only the three required images and the active rice scene were imported; prototype build outputs and alternate scenes are excluded.
+
 ## Camera-free Ngahuma 3D
 
 Choose **Jelajahi huma 3D** from Home to explore the imported Ngahuma scene without opening the camera. Drag to look around and tap plots, or use **Petak berikutnya**. This optional overview leaves learning progress unchanged. See [implementation and resource notes](docs/NGAHUMA_3D.md).

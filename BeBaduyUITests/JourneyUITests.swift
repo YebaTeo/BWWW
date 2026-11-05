@@ -10,6 +10,9 @@ import XCTest
     func tap(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
         if identifier == "start" { nextPage(); return }
         if identifier == "continue" { nextPage(); nextPage(); return }
+        if identifier.hasPrefix("phase_"), app.buttons["home.journey"].exists {
+            app.buttons["home.journey"].tap()
+        }
         let button = app.buttons[identifier].firstMatch
         for _ in 0..<16 {
             if button.exists && button.isHittable { button.tap(); return }
