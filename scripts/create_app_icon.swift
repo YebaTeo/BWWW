@@ -1,0 +1,20 @@
+import AppKit
+import Foundation
+let size = NSSize(width: 1024, height: 1024)
+let image = NSImage(size: size)
+image.lockFocus()
+NSColor(red: 0.19, green: 0.37, blue: 0.25, alpha: 1).setFill()
+NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+NSColor(red: 0.95, green: 0.90, blue: 0.74, alpha: 1).setFill()
+let roof = NSBezierPath()
+roof.move(to: NSPoint(x: 170, y: 550)); roof.line(to: NSPoint(x: 512, y: 820)); roof.line(to: NSPoint(x: 854, y: 550)); roof.close(); roof.fill()
+NSBezierPath(roundedRect: NSRect(x: 256, y: 285, width: 512, height: 248), xRadius: 12, yRadius: 12).fill()
+NSBezierPath(roundedRect: NSRect(x: 290, y: 205, width: 30, height: 100), xRadius: 8, yRadius: 8).fill()
+NSBezierPath(roundedRect: NSRect(x: 704, y: 205, width: 30, height: 100), xRadius: 8, yRadius: 8).fill()
+NSColor(red: 0.19, green: 0.37, blue: 0.25, alpha: 1).setFill()
+NSBezierPath(roundedRect: NSRect(x: 465, y: 325, width: 94, height: 152), xRadius: 47, yRadius: 47).fill()
+image.unlockFocus()
+let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)!
+let rep = NSBitmapImageRep(cgImage: cg)
+let destination = URL(fileURLWithPath: CommandLine.arguments[1])
+try rep.representation(using: .png, properties: [:])!.write(to: destination)
