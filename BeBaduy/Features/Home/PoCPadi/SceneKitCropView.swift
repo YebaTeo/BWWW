@@ -7,7 +7,7 @@
 //   Stage 2  NGASEUK p 0.333 – 0.666  Cleared, plain soil
 //   Stage 3  NGORED  p 0.666 – 0.750  Dibble holes and seeds
 //   Stage 4  DIBUAT  p 0.666 – 0.750  Golden panicles / harvest
-//   Stage 5  LEUIT   p 0.750 – 1.000  Camera pans right to the rice barn
+//   Stage 5  LEUIT   p 0.750 – 1.000  Bamboo rack rises; harvested rice hangs
 
 import SceneKit
 import SwiftUI
@@ -82,11 +82,14 @@ struct SceneKitCropView: UIViewRepresentable {
         private let fireRoot     = SCNNode()
         /// Ash clods on the charred ground
         private let ashRoot      = SCNNode()
-        /// Stage-5: raised rice barn revealed after the harvest
+        /// Stage-5: bamboo drying rack and harvested rice bundles.
         private let leuitRoot    = SCNNode()
+        private var rackPosts: [SCNNode] = []
+        private var rackBraces: [SCNNode] = []
+        private let rackBeam = SCNNode()
+        private var hangingBundles: [SCNNode] = []
 
-        /// The SceneKit overlay pans independently over the static sunset
-        /// image when the final stage reveals the lumbung.
+        /// The camera stays centered as the final bamboo rack rises.
         private let cameraNode   = SCNNode()
 
         // ── Per-tree state ───────────────────────────────────────────────────
@@ -110,7 +113,6 @@ struct SceneKitCropView: UIViewRepresentable {
         private var groundMaterial: SCNMaterial?
         private var targetProgress: CGFloat = 0
         private var displayedProgress: CGFloat = 0
-        private var displayedCameraPan: Float = 0
         private var lastFrameTime: CFTimeInterval = 0
         private var displayLink: CADisplayLink?
 
@@ -142,12 +144,6 @@ struct SceneKitCropView: UIViewRepresentable {
             displayedProgress += (targetProgress - displayedProgress) * blend
             if abs(targetProgress - displayedProgress) < 0.0001 {
                 displayedProgress = targetProgress
-            }
-            let panTarget = smoothstep(0.73, 0.95, Float(displayedProgress))
-            let panBlend = Float(1 - exp(-dt / 0.42))
-            displayedCameraPan += (panTarget - displayedCameraPan) * panBlend
-            if abs(panTarget - displayedCameraPan) < 0.0001 {
-                displayedCameraPan = panTarget
             }
             SCNTransaction.begin()
             SCNTransaction.disableActions = true
@@ -186,7 +182,7 @@ struct SceneKitCropView: UIViewRepresentable {
             buildAsh()           // Post-burn clods
             buildPlantingStage() // Stage 2
             buildRicePlant()     // Stage 3 + 4
-            buildLeuit()         // Stage 5
+            buildLeuitRack()     // Stage 5
             frameTarget.owner = self
             let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
             link.add(to: .main, forMode: .common)
@@ -1049,269 +1045,119 @@ struct SceneKitCropView: UIViewRepresentable {
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // MARK: Stage 5 – Leuit (raised rice barn)
+        // MARK: Stage 5 – Harvested rice on a bamboo rack
         // ════════════════════════════════════════════════════════════════════
 
-        /// A compact low-poly lumbung built from a handful of reusable
-        /// primitives. It is intentionally a single rooted assembly: the
-        /// camera pan reveals volume, while the wood/thatch albedos keep it
-        /// visually consistent with the existing agricultural scene.
-        private func buildLeuit() {
-            leuitRoot.name = "leuit"
-            // Start just outside the portrait camera's right edge; the final
-            // pan brings this x-position into the center of the frame.
-            leuitRoot.position = SCNVector3(0.55, 0, -0.16)
+        /// The field's golden rice becomes three bound sheaves. Posts rise
+        /// from the soil, the crossbar opens, then the sheaves settle below it.
+        private func buildLeuitRack() {
+            leuitRoot.name = "leuitRiceRack"
+            leuitRoot.position = SCNVector3(0, soilY, -0.10)
+            leuitRoot.scale = SCNVector3(0.88, 0.88, 0.88)
             leuitRoot.opacity = 0
             leuitRoot.isHidden = true
             scene.rootNode.addChildNode(leuitRoot)
 
-            let wood = SCNMaterial()
-            wood.name = "leuitWood"
-            wood.lightingModel = .physicallyBased
-            let woodTexture = UIImage(named: "HumaWoodTexture")
-            wood.diffuse.contents = woodTexture
-                ?? UIColor(red: 0.25, green: 0.14, blue: 0.08, alpha: 1)
-            // Keep the albedo bright enough for the grain to read at the
-            // barn's small on-screen scale.
-            wood.multiply.contents = UIColor(red: 0.90, green: 0.78, blue: 0.64, alpha: 1)
-            wood.roughness.contents = 0.92
-            wood.metalness.contents = 0.0
-            wood.diffuse.wrapS = .repeat
-            wood.diffuse.wrapT = .repeat
-            smoothTextureSampling(wood.diffuse)
+            let bamboo = SCNMaterial()
+            bamboo.lightingModel = .physicallyBased
+            bamboo.diffuse.contents = UIColor(red: 0.86, green: 0.58, blue: 0.20, alpha: 1)
+            bamboo.roughness.contents = 0.86
+            bamboo.metalness.contents = 0
 
-            let thatch = SCNMaterial()
-            thatch.name = "leuitThatch"
-            thatch.lightingModel = .physicallyBased
-            let thatchTexture = UIImage(named: "HumaThatchTexture")
-            thatch.diffuse.contents = thatchTexture
-                ?? UIColor(red: 0.48, green: 0.32, blue: 0.16, alpha: 1)
-            thatch.multiply.contents = UIColor(red: 0.90, green: 0.78, blue: 0.52, alpha: 1)
-            thatch.roughness.contents = 1.0
-            thatch.metalness.contents = 0.0
-            thatch.diffuse.wrapS = .repeat
-            thatch.diffuse.wrapT = .repeat
-            smoothTextureSampling(thatch.diffuse)
+            let joint = bamboo.copy() as! SCNMaterial
+            joint.diffuse.contents = UIColor(red: 0.66, green: 0.39, blue: 0.12, alpha: 1)
 
-            let riceStalk = SCNMaterial()
-            riceStalk.name = "leuitDriedRiceStalk"
-            riceStalk.lightingModel = .physicallyBased
-            riceStalk.diffuse.contents = UIColor(red: 0.83, green: 0.57, blue: 0.19, alpha: 1)
-            riceStalk.roughness.contents = 1.0
-            riceStalk.metalness.contents = 0.0
+            let tieMaterial = SCNMaterial()
+            tieMaterial.lightingModel = .physicallyBased
+            tieMaterial.diffuse.contents = UIColor(red: 0.94, green: 0.84, blue: 0.57, alpha: 1)
+            tieMaterial.roughness.contents = 1
 
-            let riceGrain = SCNMaterial()
-            riceGrain.name = "leuitRiceGrain"
-            riceGrain.lightingModel = .physicallyBased
-            riceGrain.diffuse.contents = UIColor(red: 1.0, green: 0.72, blue: 0.25, alpha: 1)
-            riceGrain.roughness.contents = 0.88
-            riceGrain.metalness.contents = 0.0
+            let postHeight: Float = 0.62
+            for x: Float in [-0.245, 0.245] {
+                let postGeometry = SCNCylinder(radius: 0.016, height: CGFloat(postHeight))
+                postGeometry.radialSegmentCount = 12
+                postGeometry.materials = [bamboo]
+                let post = SCNNode(geometry: postGeometry)
+                post.name = x < 0 ? "leftBambooPost" : "rightBambooPost"
+                post.position = SCNVector3(x, postHeight * 0.5, 0)
+                leuitRoot.addChildNode(post)
+                rackPosts.append(post)
 
-            let darkWood = wood.copy() as! SCNMaterial
-            darkWood.name = "leuitDoor"
-            darkWood.multiply.contents = UIColor(red: 0.68, green: 0.40, blue: 0.22, alpha: 1)
-
-            let woven = wood.copy() as! SCNMaterial
-            woven.name = "leuitWovenBamboo"
-            woven.multiply.contents = UIColor(red: 1.0, green: 0.88, blue: 0.62, alpha: 1)
-
-            let stone = SCNMaterial()
-            stone.name = "leuitFootingStone"
-            stone.lightingModel = .physicallyBased
-            stone.diffuse.contents = UIColor(red: 0.44, green: 0.40, blue: 0.34, alpha: 1)
-            stone.roughness.contents = 1.0
-            stone.metalness.contents = 0.0
-
-            let postHeight: Float = 0.20
-            let bodyHeight: Float = 0.26
-
-            // Four short posts lift the storehouse above the soil.
-            for x in [-0.14, 0.14] {
-                for z in [-0.12, 0.12] {
-                    let footingGeometry = SCNSphere(radius: 0.038)
-                    footingGeometry.segmentCount = 10
-                    footingGeometry.materials = [stone]
-                    let footing = SCNNode(geometry: footingGeometry)
-                    footing.scale = SCNVector3(1.15, 0.58, 0.9)
-                    footing.position = SCNVector3(Float(x), soilY - 0.002, Float(z))
-                    leuitRoot.addChildNode(footing)
-
-                    let postGeometry = SCNCylinder(radius: 0.018, height: CGFloat(postHeight))
-                    postGeometry.radialSegmentCount = 10
-                    postGeometry.materials = [woven]
-                    let post = SCNNode(geometry: postGeometry)
-                    post.position = SCNVector3(Float(x), soilY + postHeight * 0.5, Float(z))
-                    leuitRoot.addChildNode(post)
+                // Raised rings make the poles read as segmented bamboo.
+                for y: Float in [-0.20, -0.04, 0.12, 0.28] {
+                    let ringGeometry = SCNCylinder(radius: 0.018, height: 0.009)
+                    ringGeometry.radialSegmentCount = 12
+                    ringGeometry.materials = [joint]
+                    let ring = SCNNode(geometry: ringGeometry)
+                    ring.position.y = y
+                    post.addChildNode(ring)
                 }
             }
 
-            let floorGeometry = SCNBox(width: 0.46, height: 0.035, length: 0.38, chamferRadius: 0.006)
-            floorGeometry.materials = [wood.copy() as! SCNMaterial]
-            let floor = SCNNode(geometry: floorGeometry)
-            floor.position = SCNVector3(0, soilY + postHeight, 0)
-            leuitRoot.addChildNode(floor)
-
-            let bodyGeometry = SCNBox(width: 0.40, height: CGFloat(bodyHeight), length: 0.32, chamferRadius: 0.012)
-            bodyGeometry.materials = [wood]
-            let body = SCNNode(geometry: bodyGeometry)
-            body.position = SCNVector3(0, soilY + postHeight + bodyHeight * 0.5 - 0.008, 0)
-            leuitRoot.addChildNode(body)
-
-            let bodyBaseY = soilY + postHeight - 0.008
-            let bodyTopY = bodyBaseY + bodyHeight
-            let frontZ: Float = 0.166
-
-            // A woven panel fills the triangular gable above the square body.
-            let gablePath = UIBezierPath()
-            gablePath.move(to: CGPoint(x: -0.20, y: 0))
-            gablePath.addLine(to: CGPoint(x: 0.20, y: 0))
-            gablePath.addLine(to: CGPoint(x: 0, y: 0.145))
-            gablePath.close()
-            let gableGeometry = SCNShape(path: gablePath, extrusionDepth: 0.006)
-            gableGeometry.materials = [woven]
-            let gable = SCNNode(geometry: gableGeometry)
-            gable.position = SCNVector3(0, bodyTopY, frontZ - 0.012)
-            leuitRoot.addChildNode(gable)
-
-            // Raised golden rails frame the body like the timber detail in
-            // the reference leuit, while diagonal strips read as woven walls.
-            for y in [bodyBaseY + 0.018, bodyTopY - 0.016] {
-                let beamGeometry = SCNBox(width: 0.44, height: 0.018, length: 0.024, chamferRadius: 0.003)
-                beamGeometry.materials = [woven]
-                let beam = SCNNode(geometry: beamGeometry)
-                beam.position = SCNVector3(0, y, frontZ + 0.008)
-                leuitRoot.addChildNode(beam)
+            let beamGeometry = SCNCylinder(radius: 0.020, height: 0.55)
+            beamGeometry.radialSegmentCount = 12
+            beamGeometry.materials = [bamboo]
+            rackBeam.name = "bambooCrossbar"
+            rackBeam.geometry = beamGeometry
+            rackBeam.eulerAngles.z = .pi / 2
+            rackBeam.position.y = postHeight
+            leuitRoot.addChildNode(rackBeam)
+            for side: Float in [-1, 1] {
+                let brace = branch(
+                    from: SIMD3<Float>(side * 0.245, 0.43, 0),
+                    to: SIMD3<Float>(side * 0.15, postHeight, 0),
+                    radius: 0.009,
+                    material: bamboo
+                )
+                brace.name = side < 0 ? "leftBambooBrace" : "rightBambooBrace"
+                leuitRoot.addChildNode(brace)
+                rackBraces.append(brace)
             }
+            let harvestedPanicles = paniclesRoot.childNodes.filter { $0.geometry != nil }
+            for x: Float in [-0.15, 0, 0.15] {
+                let bundleIndex = hangingBundles.count
+                let bundle = makeHangingRiceBundle(from: harvestedPanicles, tie: tieMaterial)
+                bundle.name = "hangingRiceBundle_\(bundleIndex)"
+                bundle.position = SCNVector3(x, postHeight, 0.025)
+                leuitRoot.addChildNode(bundle)
+                hangingBundles.append(bundle)
+            }
+        }
 
-            for panelCenterX: Float in [-0.13, 0.13] {
-                for slope: Float in [-1, 1] {
-                    for row in 0..<6 {
-                        let stripGeometry = SCNBox(width: 0.145, height: 0.007, length: 0.004, chamferRadius: 0.002)
-                        stripGeometry.materials = [woven]
-                        let strip = SCNNode(geometry: stripGeometry)
-                        strip.position = SCNVector3(
-                            panelCenterX,
-                            bodyBaseY + 0.043 + Float(row) * 0.031,
-                            frontZ + 0.012
-                        )
-                        strip.eulerAngles.z = slope * 0.68
-                        leuitRoot.addChildNode(strip)
-                    }
+        /// Reuses the exact golden panicle geometry grown in DIBUAT, arranged
+        /// into three inverted sheaves. Only the tie is new to the drying rack.
+        private func makeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
+            let bundle = SCNNode()
+            // Three offset layers make each sheaf fuller while every stalk
+            // still uses the same harvested panicle mesh and golden material.
+            for layer in 0..<3 {
+                for index in panicles.indices {
+                    guard let geometry = panicles[index].geometry else { continue }
+                    let stalk = SCNNode(geometry: geometry)
+                    let lane = Float(index % 5 - 2)
+                    let depth = Float(index / 5 - 1)
+                    let layerOffset: Float = layer == 0 ? -0.009 : layer == 2 ? 0.009 : 0
+                    stalk.position = SCNVector3(
+                        lane * 0.019 + layerOffset,
+                        -0.012 - Float((index + layer) % 3) * 0.004,
+                        depth * 0.017 + Float(layer - 1) * 0.012
+                    )
+                    stalk.eulerAngles = SCNVector3(
+                        0,
+                        Float(index) * 0.31 + Float(layer) * 0.42,
+                        .pi + Float((index + layer) % 3 - 1) * 0.07
+                    )
+                    stalk.scale = SCNVector3(0.88, 0.70, 0.86)
+                    bundle.addChildNode(stalk)
                 }
             }
-
-            // A dark front door gives the barn a readable opening without
-            // adding another high-poly mesh.
-            let doorGeometry = SCNBox(width: 0.12, height: 0.18, length: 0.012, chamferRadius: 0.004)
-            doorGeometry.materials = [darkWood]
-            let door = SCNNode(geometry: doorGeometry)
-            door.position = SCNVector3(0, bodyBaseY + 0.102, frontZ + 0.014)
-            leuitRoot.addChildNode(door)
-
-            // Narrow vertical boards make the door read as joined timber.
-            for x: Float in [-0.038, 0, 0.038] {
-                let plankGeometry = SCNBox(width: 0.003, height: 0.17, length: 0.002, chamferRadius: 0)
-                plankGeometry.materials = [wood]
-                let plank = SCNNode(geometry: plankGeometry)
-                plank.position = SCNVector3(x, bodyBaseY + 0.102, frontZ + 0.022)
-                leuitRoot.addChildNode(plank)
-            }
-
-            // A pair of rails and four rungs forms the small access ladder.
-            for side: Float in [-1, 1] {
-                let railGeometry = SCNBox(width: 0.014, height: 0.23, length: 0.016, chamferRadius: 0.004)
-                railGeometry.materials = [woven]
-                let rail = SCNNode(geometry: railGeometry)
-                rail.position = SCNVector3(side * 0.068, soilY + 0.112, 0.245)
-                rail.eulerAngles.z = side < 0 ? -0.13 : 0.13
-                leuitRoot.addChildNode(rail)
-            }
-            for row in 0..<4 {
-                let rungGeometry = SCNBox(width: 0.115, height: 0.012, length: 0.016, chamferRadius: 0.003)
-                rungGeometry.materials = [wood]
-                let rung = SCNNode(geometry: rungGeometry)
-                rung.position = SCNVector3(0, soilY + 0.045 + Float(row) * 0.050, 0.245)
-                leuitRoot.addChildNode(rung)
-            }
-
-            // Two overlapping planes form the roof, layered with visible
-            // dried rice stalk bundles and small hanging grain heads.
-            for side: Float in [-1, 1] {
-                let roofGeometry = SCNBox(width: 0.29, height: 0.055, length: 0.48, chamferRadius: 0.008)
-                roofGeometry.materials = [thatch.copy() as! SCNMaterial]
-                let roof = SCNNode(geometry: roofGeometry)
-                roof.position = SCNVector3(side * 0.12, bodyTopY + 0.068, 0)
-                roof.eulerAngles.z = side < 0 ? 0.55 : -0.55
-                leuitRoot.addChildNode(roof)
-
-                for row in 0..<9 {
-                    let z = -0.19 + Float(row) * 0.047
-                    let stalkGeometry = SCNCylinder(radius: 0.0032, height: 0.34)
-                    stalkGeometry.radialSegmentCount = 5
-                    stalkGeometry.materials = [riceStalk]
-                    let stalk = SCNNode(geometry: stalkGeometry)
-                    stalk.position = SCNVector3(side * 0.12, bodyTopY + 0.068, z)
-                    stalk.eulerAngles.z = side < 0 ? 2.15 : -2.15
-                    leuitRoot.addChildNode(stalk)
-
-                    // A few kernels on each exposed eave make the roof read
-                    // as bundled padi rather than generic straw thatch.
-                    for grainIndex in 0..<3 {
-                        let grainGeometry = SCNSphere(radius: 0.0045)
-                        grainGeometry.segmentCount = 6
-                        grainGeometry.materials = [riceGrain]
-                        let grain = SCNNode(geometry: grainGeometry)
-                        grain.scale = SCNVector3(0.82, 1.65, 0.72)
-                        grain.position = SCNVector3(
-                            side * (0.238 + Float(grainIndex % 2) * 0.008),
-                            bodyTopY - 0.018 - Float(grainIndex) * 0.012,
-                            z + Float(grainIndex - 1) * 0.007
-                        )
-                        leuitRoot.addChildNode(grain)
-                    }
-                }
-            }
-
-            // The gable frame and front beam stay exposed below the thatch.
-            let frontBeamGeometry = SCNBox(width: 0.43, height: 0.018, length: 0.020, chamferRadius: 0.003)
-            frontBeamGeometry.materials = [woven]
-            let frontBeam = SCNNode(geometry: frontBeamGeometry)
-            frontBeam.position = SCNVector3(0, bodyTopY + 0.012, frontZ + 0.006)
-            leuitRoot.addChildNode(frontBeam)
-
-            for side: Float in [-1, 1] {
-                let rafterGeometry = SCNBox(width: 0.018, height: 0.19, length: 0.018, chamferRadius: 0.003)
-                rafterGeometry.materials = [woven]
-                let rafter = SCNNode(geometry: rafterGeometry)
-                rafter.position = SCNVector3(side * 0.095, bodyTopY + 0.068, frontZ + 0.008)
-                rafter.eulerAngles.z = side < 0 ? -0.66 : 0.66
-                leuitRoot.addChildNode(rafter)
-            }
-
-            let ridgeGeometry = SCNCylinder(radius: 0.014, height: 0.45)
-            ridgeGeometry.radialSegmentCount = 10
-            ridgeGeometry.materials = [woven]
-            let ridge = SCNNode(geometry: ridgeGeometry)
-            ridge.position = SCNVector3(0, bodyTopY + 0.142, 0)
-            ridge.eulerAngles.x = .pi / 2
-            leuitRoot.addChildNode(ridge)
-
-            // Tight contact shadow anchors the raised building to the same
-            // photographic soil as the trees and rice.
-            let shadowMaterial = SCNMaterial()
-            shadowMaterial.lightingModel = .constant
-            shadowMaterial.diffuse.contents = particleSprite
-            shadowMaterial.multiply.contents = UIColor(white: 0.035, alpha: 1)
-            shadowMaterial.transparency = 0.36
-            shadowMaterial.writesToDepthBuffer = false
-            let shadowGeometry = SCNPlane(width: 0.52, height: 0.30)
-            shadowGeometry.materials = [shadowMaterial]
-            let shadow = SCNNode(geometry: shadowGeometry)
-            shadow.name = "leuitContactShadow"
-            shadow.position = SCNVector3(0, soilY + 0.0003, 0)
-            shadow.eulerAngles.x = -.pi / 2
-            shadow.castsShadow = false
-            leuitRoot.addChildNode(shadow)
+            let collarGeometry = SCNCylinder(radius: 0.018, height: 0.022)
+            collarGeometry.radialSegmentCount = 12
+            collarGeometry.materials = [tie]
+            let collar = SCNNode(geometry: collarGeometry)
+            collar.position.y = -0.055
+            bundle.addChildNode(collar)
+            return bundle
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -1328,7 +1174,6 @@ struct SceneKitCropView: UIViewRepresentable {
             #endif
             if lastFrameTime == 0 || !isWindEnabled {
                 displayedProgress = targetProgress
-                displayedCameraPan = smoothstep(0.73, 0.95, Float(displayedProgress))
                 applyProgress(displayedProgress)
             }
         }
@@ -1336,8 +1181,8 @@ struct SceneKitCropView: UIViewRepresentable {
         private func applyProgress(_ progress: CGFloat) {
             let fullP = Float(min(1, max(0, progress)))
             // Keep the original farming choreography intact through DIBUAT
-            // at 75% of the timeline. The final quarter is reserved for the
-            // rightward camera move and the leuit reveal.
+            // at 75% of the timeline. The final quarter forms the drying rack
+            // and transfers the harvested rice into hanging bundles.
             let p = min(1, fullP / 0.75)
             let time = Float(CACurrentMediaTime() - animationEpoch)
 
@@ -1497,12 +1342,13 @@ struct SceneKitCropView: UIViewRepresentable {
             // the hole instead of simply fading in at full size.
             let riceGrowth = smoothstep(0.90, 0.98, p)
             leavesRoot.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
-            setVisibility(leavesRoot, opacity: riceGrowth)
+            let transfer = smoothstep(0.80, 0.98, fullP)
+            setVisibility(leavesRoot, opacity: riceGrowth * (1 - transfer))
 
             // ── 8. Panicles – DIBUAT only (p 0.94 → 1.0) ──────────────────
             let panicleGrowth = smoothstep(0.94, 1.0, p)
             paniclesRoot.scale = SCNVector3(panicleGrowth, panicleGrowth, panicleGrowth)
-            setVisibility(paniclesRoot, opacity: panicleGrowth)
+            setVisibility(paniclesRoot, opacity: panicleGrowth * (1 - transfer))
 
             // ── 9. Rice colour-lerp green → gold ────────────────────────────
             let green    = SIMD3<Float>(0.82, 0.94, 0.70)
@@ -1516,21 +1362,29 @@ struct SceneKitCropView: UIViewRepresentable {
                 alpha: 1)
             leafMaterials.forEach { $0.multiply.contents = tint }
 
-            // ── 10. Final pan: harvest field → leuit ──────────────────────
-            // The background is a SwiftUI image, so only the transparent
-            // SceneKit layer moves. Keeping the camera target close to its
-            // starting height preserves the horizon while the barn enters
-            // from the right as a volumetric object.
-            let panT = displayedCameraPan
-            let leuitT = smoothstep(0.12, 0.92, panT)
-            let cameraX = 0.60 * panT
-            cameraNode.position = SCNVector3(cameraX, 0.52, 1.75)
-            cameraNode.look(at: SCNVector3(cameraX * 0.82, 0.10, 0))
-            // Give the detailed roof, woven walls, and ladder enough screen
-            // space to read clearly in the final portrait scene.
-            let leuitScale = 0.68 * (0.94 + 0.06 * leuitT)
-            leuitRoot.scale = SCNVector3(leuitScale, leuitScale, leuitScale)
-            setVisibility(leuitRoot, opacity: leuitT)
+            // ── 10. Bamboo rises; harvested sheaves hang beneath it ───────
+            let postRise = smoothstep(0.76, 0.88, fullP)
+            let beamGrow = smoothstep(0.84, 0.92, fullP)
+            setVisibility(leuitRoot, opacity: postRise)
+            for post in rackPosts {
+                post.scale.y = postRise
+                post.position.y = 0.31 * postRise
+            }
+            rackBeam.scale.y = max(0.001, beamGrow)
+            setVisibility(rackBeam, opacity: beamGrow)
+            for brace in rackBraces {
+                setVisibility(brace, opacity: beamGrow)
+            }
+            for (index, bundle) in hangingBundles.enumerated() {
+                let offset = Float(index) * 0.014
+                let drop = smoothstep(0.88 + offset, 0.96 + offset, fullP)
+                bundle.position.y = 0.62 + 0.10 * (1 - drop)
+                setVisibility(bundle, opacity: drop)
+            }
+            setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p) * (1 - transfer))
+            // Hold the rack in the middle of the open field above the text card.
+            cameraNode.position = SCNVector3(0, 0.52, 1.75)
+            cameraNode.look(at: SCNVector3(0, 0.10 + 0.12 * postRise, 0))
         }
 
         // ════════════════════════════════════════════════════════════════════

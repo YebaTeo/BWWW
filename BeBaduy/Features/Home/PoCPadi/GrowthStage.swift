@@ -69,9 +69,9 @@ struct GrowthStage: Identifiable, Equatable {
             id: 4,
             code: "LEUIT",
             name: "LEUIT",
-            subtitle: "Tempat Penyimpanan Padi",
-            culturalContext: "Lumbung Padi Kanekes",
-            narrative: "Tempat untuk menyimpan hasil panen untuk kebutuhan di masa depan.",
+            subtitle: "Menyiapkan Padi untuk Leuit",
+            culturalContext: "Ikatan Padi pada Bambu",
+            narrative: "Padi hasil panen digantung pada rak bambu.",
             targetProgress: 1.0,
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         )

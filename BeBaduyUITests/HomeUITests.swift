@@ -30,6 +30,11 @@ import XCTest
             app.buttons["home.stage.\(index)"].tap()
             XCTAssertEqual(app.staticTexts["home.stage.title"].label, title)
         }
+        Thread.sleep(forTimeInterval: 1.2)
+        let preview = XCTAttachment(screenshot: app.screenshot())
+        preview.name = "Leuit-hanging-rice"
+        preview.lifetime = .keepAlways
+        add(preview)
         XCTAssertEqual(app.staticTexts["home.progress"].label, "0 dari 5 tahap telah dijelajahi")
         app.buttons["home.preview.next"].tap()
         XCTAssertEqual(app.staticTexts["home.stage.title"].label, "NUKUH")

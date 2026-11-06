@@ -20,7 +20,7 @@ The project uses filesystem-synchronized folders. Add or remove files directly i
 
 Each chapter has an introduction, activity, result, and explanation. An upward swipe on a chapter introduction behaves like **Explore**. It never skips unfinished work. Completed chapters offer **Lewati** and direct access to their explanation. Instructions can be tapped and also have a visible **Lanjut** button. Long text scrolls within the current screen; large-text users have explicit buttons for all navigation.
 
-The first visit shows a two-page introduction. Returning home shows the five-stage PoCPadi field and leuit preview. Swipe the scene or tap a stage dot to inspect it; this preview does not change saved chapter progress. **Mulai menjelajah / Lanjutkan perjalanan** resumes the current chapter, and **Lihat tahapan** opens the chapter menu and About. Restart is in the home menu and asks for confirmation. **Jelajahi ulang** returns home without deleting progress; only **Mulai Ulang** clears it.
+The first visit shows a two-page introduction. Returning home shows the five-stage PoCPadi field. In the Leuit preview, bamboo posts rise from the soil, a crossbar appears, and three harvested rice bundles hang from it. Swipe the scene or tap a stage dot to inspect it; this preview does not change saved chapter progress. **Mulai menjelajah / Lanjutkan perjalanan** resumes the current chapter, and **Lihat tahapan** opens the chapter menu and About. Restart is in the home menu and asks for confirmation. **Jelajahi ulang** returns home without deleting progress; only **Mulai Ulang** clears it.
 
 ## Architecture
 
