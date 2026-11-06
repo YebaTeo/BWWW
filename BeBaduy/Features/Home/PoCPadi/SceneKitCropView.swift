@@ -369,11 +369,11 @@ struct SceneKitCropView: UIViewRepresentable {
             // keep the forest from reading as a repeated row of clones.
             scene.rootNode.addChildNode(stumpRoot)
             let placements: [(x: Float, z: Float, yaw: Float, scale: Float)] = [
-                (-0.34, -0.15, -0.12, 0.78),
-                ( 0.27, -0.20,  0.16, 1.08),
-                (-0.10,  0.03, -0.08, 0.93),
-                ( 0.36,  0.10,  0.11, 0.70),
-                (-0.28,  0.22, -0.18, 1.22)
+                (-0.34, -0.15, -0.12, 1.10),
+                ( 0.27, -0.20,  0.16, 1.50),
+                (-0.10,  0.03, -0.08, 1.32),
+                ( 0.36,  0.10,  0.11, 1.02),
+                (-0.28,  0.22, -0.18, 1.68)
             ]
             for (i, placement) in placements.enumerated() {
                 addTexturedTree(index: i, x: placement.x, z: placement.z,
@@ -383,7 +383,6 @@ struct SceneKitCropView: UIViewRepresentable {
 
         // All rooted objects share this surface, including their contact shadows.
         private let soilY: Float = 0.038
-        private let treeSoilRoot = SCNNode()
         private let riceSoilRoot = SCNNode()
 
         private func addTexturedTree(index: Int, x: Float, z: Float,
@@ -416,7 +415,10 @@ struct SceneKitCropView: UIViewRepresentable {
             plane.materials = solidTreeGeometry.materials.map { $0.copy() as! SCNMaterial }
             let canopy = SCNNode()
             canopy.name = "treeSprite_\(index)"
-            canopy.position.y = 0
+            // Sink the root flare into the shared ground plane. The artwork
+            // includes roots below the trunk; leaving it at local zero makes
+            // the enlarged tree read as if it sits on top of a separate disk.
+            canopy.position.y = -0.035 * scale
             let front = SCNNode(geometry: plane)
             front.name = "treeSilhouette"
             front.position.z = 0
@@ -487,15 +489,16 @@ struct SceneKitCropView: UIViewRepresentable {
             stump.position = SCNVector3(x, soilY + stumpHeight * 0.5 - 0.003, z)
             stumpRoot.addChildNode(stump)
 
-            if treeSoilRoot.parent == nil { scene.rootNode.addChildNode(treeSoilRoot) }
-            addRootContact(to: treeSoilRoot, x: x, z: z, radius: 0.037 * scale)
+            // Keep only a feathered contact shadow at the tree base. A raised
+            // soil lip reads like a hole punched through the photographic field.
             let shadowMaterial = SCNMaterial()
             shadowMaterial.lightingModel = .constant
             shadowMaterial.diffuse.contents = particleSprite
-            shadowMaterial.multiply.contents = UIColor(white: 0.03, alpha: 1)
+            shadowMaterial.multiply.contents = UIColor(white: 0.08, alpha: 1)
+            shadowMaterial.transparency = 0.36
             shadowMaterial.isDoubleSided = true
             shadowMaterial.writesToDepthBuffer = false
-            let shadowGeometry = SCNPlane(width: CGFloat(0.25 * scale), height: CGFloat(0.15 * scale))
+            let shadowGeometry = SCNPlane(width: CGFloat(0.19 * scale), height: CGFloat(0.11 * scale))
             shadowGeometry.materials = [shadowMaterial]
             let shadow = SCNNode(geometry: shadowGeometry)
             shadow.eulerAngles.x = -.pi / 2
@@ -1192,7 +1195,6 @@ struct SceneKitCropView: UIViewRepresentable {
             // cinematic clearing interval.
             let forestOpacity = 1 - smoothstep(0.24, 0.32, p)
             setVisibility(forestRoot, opacity: forestOpacity)
-            setVisibility(treeSoilRoot, opacity: 1 - smoothstep(0.32, 0.39, p))
             setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p))
             shadowRoot.opacity = CGFloat(forestOpacity * (1 - 0.45 * smoothstep(0.02, 0.12, p)))
             setVisibility(wildRoot, opacity: 1 - smoothstep(0.28, 0.37, p))
