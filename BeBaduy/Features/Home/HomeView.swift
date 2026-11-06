@@ -15,7 +15,8 @@ struct HomeView: View {
                         journey: journey,
                         onResume: { model.open(journey.progress.currentPhase, journey: journey) },
                         onJourney: { showsJourney = true },
-                        onCompletion: { model.showsCompletion = true }
+                        onCompletion: { model.showsCompletion = true },
+                        isActive: model.path.isEmpty && !showsJourney && !model.showsCompletion
                     )
                 } else {
                     IntroductionView {
