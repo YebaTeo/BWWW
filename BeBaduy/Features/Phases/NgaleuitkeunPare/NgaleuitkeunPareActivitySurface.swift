@@ -1,0 +1,36 @@
+import SwiftUI
+struct NgaleuitkeunPareActivitySurface: View {
+    let model: NgaleuitkeunPareViewModel
+    @Environment(ActivitySheetState.self) private var sheet
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                ActivityPhoto(asset: model.interiorVisible ? "ngaleuitkeun_pare_after" : "ngaleuitkeun_pare_before")
+                if !model.interiorVisible {
+                    ForEach(0..<3) { index in
+                        if !model.storage.values.contains(index) {
+                            FieldTarget(title: "\(index + 1)", symbol: model.selected == index ? "checkmark.circle.fill" : "laurel.leading") { model.select(index) }
+                                .draggable("bundle-\(index)")
+                                .accessibilityLabel("Ikatan padi \(index + 1)")
+                                .accessibilityIdentifier("field.bundle.\(index)")
+                                .position(x: geometry.size.width * CGFloat(index + 1) / 4, y: geometry.size.height * 0.24)
+                        }
+                        FieldTarget(title: "\(index + 1)", symbol: model.storage[index] == nil ? "house" : "checkmark.circle.fill") { model.place(at: index) }
+                            .accessibilityLabel("Leuit \(index + 1)")
+                            .accessibilityValue(model.storage[index] == nil ? "Kosong" : "Terisi")
+                            .accessibilityIdentifier("field.leuit.\(index)")
+                            .dropDestination(for: String.self) { items, _ in
+                                guard !model.isDemonstrating, let item = items.first, item.hasPrefix("bundle-"), let bundle = Int(item.dropFirst(7)) else { return false }
+                                return model.drop(bundle, at: index)
+                            }
+                            .position(x: geometry.size.width * CGFloat(index + 1) / 4, y: geometry.size.height * 0.43)
+                    }
+                }
+            }.disabled(model.isDemonstrating)
+        }.onChange(of: model.interiorVisible) { _, visible in
+            if visible { sheet.expand() }
+        }.onChange(of: model.storage.count) { _, count in
+            if count == 3 { sheet.expand() }
+        }
+    }
+}

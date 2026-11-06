@@ -1,7 +1,6 @@
 import SwiftUI
 struct DibuatActivityView: View {
     let model: DibuatViewModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(spacing: 18) {
             switch model.step {
@@ -17,9 +16,6 @@ struct DibuatActivityView: View {
             case .balanceInstructions:
                 InstructionCard(title: "Malai sudah terkumpul", message: "Seimbangkan ikatan di bambu. Miringkan ponsel perlahan atau geser pengatur ke tengah. Tahan seimbang selama tiga detik.", identifier: "dibuat.balance", action: model.beginBalance)
             case .balancing:
-                Image("drying_rice_before").resizable().scaledToFit()
-                    .frame(height: 230).rotationEffect(.degrees(reduceMotion ? 0 : model.balance * 12))
-                    .accessibilityLabel("Ikatan padi pada bambu")
                 Text(abs(model.balance) < 0.18 ? "Seimbang · tahan sebentar" : "Arahkan ke tengah")
                 ProgressView(value: model.steadyTime, total: 3).accessibilityLabel("Waktu seimbang")
                 Slider(value: Binding(get: { model.balance }, set: { model.pauseMotion(); model.setBalance($0) }), in: -1...1)
@@ -29,8 +25,6 @@ struct DibuatActivityView: View {
                     if model.motionActive { model.pauseMotion() } else { model.startMotion() }
                 }.frame(minHeight: 44)
             case .drying:
-                Image("drying_rice_after").resizable().scaledToFit().frame(height: 230)
-                    .accessibilityLabel("Padi dijemur pada rak bambu")
                 InstructionCard(title: "Padi dikeringkan", message: "Pengeringan membutuhkan waktu. Setelah cukup kering, padi dapat disimpan di leuit.", identifier: "dibuat.drying", action: model.finishDrying)
             }
         }.disabled(model.isDemonstrating)

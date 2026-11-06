@@ -28,17 +28,29 @@ import XCTest
         XCTAssertTrue(app.buttons["home.stage.0"].waitForExistence(timeout: 15))
         for (index, title) in ["NUKUH", "NGASEUK", "NGORED", "DIBUAT", "LEUIT"].enumerated() {
             app.buttons["home.stage.\(index)"].tap()
-            XCTAssertEqual(app.staticTexts["home.stage.title"].label, title)
+            waitForPreviewTitle(title, in: app)
         }
-        Thread.sleep(forTimeInterval: 1.2)
         let preview = XCTAttachment(screenshot: app.screenshot())
         preview.name = "Leuit-hanging-rice"
         preview.lifetime = .keepAlways
         add(preview)
         XCTAssertEqual(app.staticTexts["home.progress"].label, "0 dari 5 tahap telah dijelajahi")
         app.buttons["home.preview.next"].tap()
-        XCTAssertEqual(app.staticTexts["home.stage.title"].label, "NUKUH")
+        waitForPreviewTitle("NUKUH", in: app)
         app.buttons["resume"].tap()
         XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
     }
+
+    private func waitForPreviewTitle(_ title: String, in app: XCUIApplication,
+                                     file: StaticString = #filePath, line: UInt = #line) {
+        // The title follows the scene's progress, including the 30-second
+        // Ngored–Dibuat transition. Wait for its label instead of a fixed delay.
+        let expectedTitle = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", title),
+            object: app.staticTexts["home.stage.title"]
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [expectedTitle], timeout: 35), .completed,
+                       "Preview did not reach \(title)", file: file, line: line)
+    }
+
 }

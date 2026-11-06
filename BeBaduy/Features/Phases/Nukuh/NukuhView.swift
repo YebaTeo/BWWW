@@ -12,7 +12,7 @@ struct NukuhView: View {
             start: model.start, replay: model.start, demonstrate: { model.demonstrate() },
             restore: model.restore, advance: advance, suspend: model.suspend,
             activityVisibility: model.setVisible,
-            introduction: { NukuhIntroductionView() }, activity: { NukuhActivityView(model: model) },
+            introduction: { NukuhIntroductionView() }, surface: { NukuhActivitySurface(model: model) }, activity: { NukuhActivityView(model: model) },
             description: { NukuhDescriptionView() })
     }
 }

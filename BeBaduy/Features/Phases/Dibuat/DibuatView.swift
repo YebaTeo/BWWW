@@ -12,7 +12,7 @@ struct DibuatView: View {
             start: model.start, replay: model.start, demonstrate: model.demonstrate,
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
             activityVisibility: { if $0 { model.resume() } else { model.suspend() } },
-            introduction: { DibuatIntroductionView() }, activity: { DibuatActivityView(model: model) },
+            introduction: { DibuatIntroductionView() }, surface: { DibuatActivitySurface(model: model) }, activity: { DibuatActivityView(model: model) },
             description: { DibuatDescriptionView() })
     }
 }

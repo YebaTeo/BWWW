@@ -12,7 +12,7 @@ struct NgaseukView: View {
         PhaseContainerView(content: NgaseukContent.value, session: model.session, journey: journey,
             start: model.start, replay: model.start, demonstrate: model.demonstrate,
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
-            introduction: { NgaseukIntroductionView() }, activity: { NgaseukActivityView(model: model) },
+            introduction: { NgaseukIntroductionView() }, surface: { NgaseukActivitySurface(model: model) }, activity: { NgaseukActivityView(model: model) },
             description: { NgaseukDescriptionView() })
         .onDisappear { model.suspend() }
         .onChange(of: scenePhase) { _, phase in if phase != .active { model.suspend() } }

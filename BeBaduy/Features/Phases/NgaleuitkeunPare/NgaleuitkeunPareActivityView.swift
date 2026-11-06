@@ -4,8 +4,6 @@ struct NgaleuitkeunPareActivityView: View {
     var body: some View {
         VStack(spacing: 18) {
             if model.interiorVisible {
-                Image("ngaleuitkeun_pare_after").resizable().scaledToFit().frame(minHeight: 240)
-                    .accessibilityLabel("Ilustrasi padi tersimpan di dalam leuit")
                 InstructionCard(title: "Di dalam leuit", message: "Padi disimpan bersama tangkainya sebagai cadangan pangan.", identifier: "leuit.interior", action: model.finish)
             } else {
                 Text("Seret ikatan ke leuit").font(.headline)

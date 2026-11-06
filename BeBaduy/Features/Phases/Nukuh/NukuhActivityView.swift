@@ -1,20 +1,21 @@
-import RealityKit
 import SwiftUI
 struct NukuhActivityView: View {
     let model: NukuhViewModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var motionLayout: AnyLayout {
+        typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+    }
     var body: some View {
-        VStack(spacing: 16) {
-            NukuhSurface(scene: model.scene).frame(height: 320)
-                .clipShape(RoundedRectangle(cornerRadius: 20)).accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 16) {
             Text(model.motionActive
                  ? "Gerakkan ponsel perlahan untuk melihat sekeliling. Geser mendatar juga bisa."
-                 : "Geser mendatar di lahan untuk melihat sekeliling.")
-                .font(.subheadline)
-            HStack {
-                Button(model.motionEnabled ? "Gunakan geseran saja" : "Aktifkan gerakan ponsel", action: model.toggleLookMotion)
+                 : "Geser untuk melihat lahan.")
+                .font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            motionLayout {
+                Button(model.motionEnabled ? "Geser saja" : "Gerakan ponsel", action: model.toggleLookMotion)
                     .frame(minHeight: 44).accessibilityIdentifier("nukuh.motion")
-                Button("Pusatkan pandangan", action: model.recenterLook)
+                Button("Pusatkan", action: model.recenterLook)
                     .frame(minHeight: 44).accessibilityIdentifier("nukuh.recenter")
             }
             if !model.motionMessage.isEmpty { Text(model.motionMessage).font(.footnote) }
@@ -41,18 +42,6 @@ struct NukuhActivityView: View {
                     .accessibilityIdentifier("nukuh.finishBurn")
             case .complete: Text("Lahan sudah siap")
             }
-        }.task { model.configureLookMotion(reduceMotion: reduceMotion); model.scene.muted = !ActivityAudio.shared.enabled; await model.scene.prepareAssets(); await model.scene.loadAudio() }
-            .onChange(of: ActivityAudio.shared.enabled) { _, enabled in model.scene.muted = !enabled }
-            .onChange(of: reduceMotion) { _, value in model.configureLookMotion(reduceMotion: value) }
+        }
     }
-}
-private struct NukuhSurface: UIViewRepresentable {
-    let scene: NgahumaScene
-    func makeUIView(context: Context) -> ARView {
-        let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
-        scene.attach(view); return view
-    }
-    func updateUIView(_ view: ARView, context: Context) {}
-    func makeCoordinator() -> NgahumaScene { scene }
-    static func dismantleUIView(_ view: ARView, coordinator: NgahumaScene) { coordinator.stop() }
 }
