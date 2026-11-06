@@ -12,6 +12,7 @@ struct WelcomeHomeView: View {
     @State private var progress: CGFloat = 0
     @State private var selectedStage = 0
     @State private var confirmsRestart = false
+    @State private var transitionTask: Task<Void, Never>?
 
     private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
     private let gold = Color(red: 0.98, green: 0.84, blue: 0.44)
@@ -46,6 +47,10 @@ struct WelcomeHomeView: View {
         .tint(gold)
         .preferredColorScheme(.dark)
         .sensoryFeedback(.selection, trigger: selectedStage)
+        .onDisappear { transitionTask?.cancel() }
+        .onChange(of: isActive) { _, active in
+            if !active { transitionTask?.cancel() }
+        }
         .alert("Mulai lagi dari awal?", isPresented: $confirmsRestart) {
             Button("Batalkan", role: .cancel) {}
             Button("Mulai Ulang", role: .destructive) {
@@ -200,12 +205,37 @@ struct WelcomeHomeView: View {
 
     private func selectStage(_ index: Int) {
         guard GrowthStage.allStages.indices.contains(index) else { return }
+        let previousStage = stage.id
+        transitionTask?.cancel()
         selectedStage = index
         if reduceMotion {
             progress = GrowthStage.allStages[index].targetProgress
         } else {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                progress = GrowthStage.allStages[index].targetProgress
+            // Give the Ngored → Dibuat day/night cycles enough time to
+            // read clearly while the rice grows through the preview.
+            let isHarvestTimeLapse = (previousStage == 2 && index == 3) || (previousStage == 3 && index == 2)
+            let isForestClearing = (previousStage == 0 && index == 1) || (previousStage == 1 && index == 0)
+            let start = progress
+            let destination = GrowthStage.allStages[index].targetProgress
+            let duration: Double = isHarvestTimeLapse ? 30 : (isForestClearing ? 8 : 0.25)
+            // Custom scene inputs need actual intermediate state values;
+            // withAnimation alone only interpolates animatable view properties.
+            transitionTask = Task { @MainActor in
+                let clock = ContinuousClock()
+                let began = clock.now
+                while !Task.isCancelled {
+                    let elapsed = began.duration(to: clock.now).components
+                    let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+                    let fraction = min(1, seconds / duration)
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        progress = start + (destination - start) * CGFloat(fraction)
+                    }
+                    if fraction >= 1 { break }
+                    do { try await Task.sleep(for: .milliseconds(33)) }
+                    catch { return }
+                }
             }
         }
     }
