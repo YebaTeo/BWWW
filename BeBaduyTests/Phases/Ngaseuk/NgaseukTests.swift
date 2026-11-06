@@ -25,27 +25,29 @@ final class NgaseukTests: XCTestCase {
         detector.reset()
         XCTAssertFalse(detector.consume(.init(time: 3, verticalAcceleration: -0.6)))
     }
-    @MainActor func testTouchAndMotionShareDistinctTargetsAndStop() {
+    @MainActor func testDiggingAndSeedingAreSeparateAndMotionStops() {
         let motion = FakeMotion(); let vm = NgaseukViewModel(motion: motion)
-        vm.plant(0); XCTAssertTrue(vm.holes.isEmpty)
-        vm.start(); vm.plant(0); vm.plant(0); vm.plant(-1); vm.plant(4)
-        XCTAssertEqual(vm.holes, [0])
-        vm.startMotion(); XCTAssertTrue(vm.motionActive)
+        vm.start(); vm.dig(0); XCTAssertTrue(vm.holes.isEmpty)
+        vm.proceed(); vm.dig(0); vm.dig(0); vm.dig(-1)
+        XCTAssertEqual(vm.holes, [0]); XCTAssertFalse(vm.seed(0))
+        vm.startMotion()
         motion.handler?(.init(time: 0, verticalAcceleration: 0))
         motion.handler?(.init(time: 1, verticalAcceleration: -0.5))
-        XCTAssertEqual(vm.holes, [0, 1])
-        vm.pauseMotion(); XCTAssertFalse(vm.motionActive)
-        vm.plant(2); XCTAssertTrue(vm.session.showsDescription)
+        vm.dig(2)
+        XCTAssertEqual(vm.step, .holesReady)
+        XCTAssertFalse(vm.motionActive); XCTAssertNil(vm.session.outcome)
+        vm.proceed()
+        XCTAssertTrue(vm.seed(0)); XCTAssertFalse(vm.seed(0))
+        vm.seed(1); vm.seed(2)
         XCTAssertEqual(vm.session.outcome, .performed)
-        vm.start(); XCTAssertTrue(vm.holes.isEmpty)
-        vm.demonstrate(); XCTAssertEqual(vm.session.outcome, .observed)
+        vm.start(); XCTAssertTrue(vm.seeds.isEmpty)
     }
-    @MainActor func testUnavailableAndInterruptedMotion() {
+    @MainActor func testUnavailableSensorAndDemoCancellation() async {
         let motion = FakeMotion(); motion.available = false
-        let vm = NgaseukViewModel(motion: motion); vm.start(); vm.startMotion()
+        let vm = NgaseukViewModel(motion: motion); vm.start(); vm.proceed(); vm.startMotion()
         XCTAssertFalse(vm.motionActive); XCTAssertFalse(vm.session.feedback.isEmpty)
-        motion.available = true; vm.startMotion(); motion.handler?(nil)
-        XCTAssertFalse(vm.motionActive); XCTAssertTrue(vm.holes.isEmpty)
-        vm.plant(0); XCTAssertEqual(vm.holes.count, 1)
+        vm.demonstrate(); vm.suspend()
+        await Task.yield()
+        XCTAssertNil(vm.session.outcome); XCTAssertFalse(vm.isDemonstrating)
     }
 }

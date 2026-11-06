@@ -11,7 +11,6 @@ final class ThemeResourceTests: XCTestCase {
                 XCTAssertGreaterThan(image?.size.width ?? 0, 0)
             }
         }
-        for index in 0..<3 { XCTAssertNotNil(UIImage(named: "care_plant_\(index)")) }
     }
     @MainActor func testThemeOpacityAndPrimaryButtonContrast() throws {
         for style in [UIUserInterfaceStyle.light, .dark] {

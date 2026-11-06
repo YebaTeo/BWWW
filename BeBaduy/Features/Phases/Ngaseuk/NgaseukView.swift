@@ -11,10 +11,10 @@ struct NgaseukView: View {
     var body: some View {
         PhaseContainerView(content: NgaseukContent.value, session: model.session, journey: journey,
             start: model.start, replay: model.start, demonstrate: model.demonstrate,
-            restore: { model.session.restore($0) }, advance: advance, suspend: model.pauseMotion,
+            restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
             introduction: { NgaseukIntroductionView() }, activity: { NgaseukActivityView(model: model) },
             description: { NgaseukDescriptionView() })
-        .onDisappear { model.pauseMotion() }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { model.pauseMotion() } }
+        .onDisappear { model.suspend() }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { model.suspend() } }
     }
 }

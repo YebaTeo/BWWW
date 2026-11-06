@@ -3,7 +3,7 @@ struct PhaseHeaderView: View {
     let content: PhaseContent
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Tahap \(content.id.index + 1) dari 11").font(.subheadline).foregroundStyle(.white.opacity(0.85))
+            Text("Tahap \(content.id.index + 1) dari 5").font(.subheadline).foregroundStyle(.white.opacity(0.85))
             Text(content.title).font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
             Text(content.subtitle).font(.title3).foregroundStyle(.white.opacity(0.85))
         }

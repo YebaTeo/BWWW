@@ -10,15 +10,7 @@ import SwiftUI
     var body: some Scene {
         WindowGroup {
             Group {
-                #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("--story-pilot") {
-                    StoryPilotView(motion: dependencies.motion, previewReduceMotion: ProcessInfo.processInfo.arguments.contains("--story-reduce-motion"))
-                } else {
-                    HomeView(journey: dependencies.journey, motion: dependencies.motion)
-                }
-                #else
                 HomeView(journey: dependencies.journey, motion: dependencies.motion)
-                #endif
             }.tint(AppTheme.leaf).preferredColorScheme(testAppearance)
         }
     }

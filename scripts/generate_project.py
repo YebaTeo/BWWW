@@ -1,3 +1,4 @@
+# Legacy scaffolding: do not run over an existing signed project.
 from pathlib import Path
 import hashlib
 root=Path(__file__).resolve().parent.parent
@@ -21,7 +22,7 @@ for target,name,ext in [('app','BeBaduy','app'),('tests','BeBaduyTests','xctest'
  configs=[]
  for conf in ['Debug','Release']:
   settings={'PRODUCT_NAME':'"$(TARGET_NAME)"','PRODUCT_BUNDLE_IDENTIFIER':f'org.bebaduy.{name}','IPHONEOS_DEPLOYMENT_TARGET':'26.0','SDKROOT':'iphoneos','TARGETED_DEVICE_FAMILY':'1','CURRENT_PROJECT_VERSION':'1','MARKETING_VERSION':'1.0','SWIFT_VERSION':'5.0','CODE_SIGN_STYLE':'Automatic','GENERATE_INFOPLIST_FILE':'YES','SWIFT_STRICT_CONCURRENCY':'complete'}
-  if target=='app': settings.update({'INFOPLIST_KEY_NSMotionUsageDescription':'"Gerakan lembut opsional untuk mencoba aseuk. Anda selalu dapat memakai sentuhan."','INFOPLIST_KEY_UILaunchScreen_Generation':'YES','INFOPLIST_KEY_UISupportedInterfaceOrientations':'UIInterfaceOrientationPortrait','INFOPLIST_KEY_CFBundleDisplayName':'BeBaduy','INFOPLIST_KEY_LSApplicationCategoryType':'"public.app-category.education"','ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME':'AccentColor','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon'})
+  if target=='app': settings.update({'INFOPLIST_KEY_NSMotionUsageDescription':'"Gerakan ponsel digunakan untuk melihat lahan virtual, mencoba aseuk, dan menyeimbangkan padi. Kontrol sentuhan selalu tersedia."','INFOPLIST_KEY_UILaunchScreen_Generation':'YES','INFOPLIST_KEY_UISupportedInterfaceOrientations':'UIInterfaceOrientationPortrait','INFOPLIST_KEY_CFBundleDisplayName':'BeBaduy','INFOPLIST_KEY_LSApplicationCategoryType':'"public.app-category.education"','ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME':'AccentColor','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon'})
   elif target=='tests': settings.update({'TEST_HOST':'"$(BUILT_PRODUCTS_DIR)/BeBaduy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BeBaduy"','BUNDLE_LOADER':'"$(TEST_HOST)"'})
   else: settings['TEST_TARGET_NAME']='BeBaduy'
   if conf=='Debug': settings.update({'SWIFT_OPTIMIZATION_LEVEL':'"-Onone"','DEBUG_INFORMATION_FORMAT':'dwarf','SWIFT_ACTIVE_COMPILATION_CONDITIONS':'DEBUG'})
@@ -44,11 +45,3 @@ def ref(t,n): return f'<BuildableReference BuildableIdentifier="primary" Bluepri
 (scheme/'BeBaduy.xcscheme').write_text(f'''<?xml version="1.0" encoding="UTF-8"?>
 <Scheme LastUpgradeVersion="2700" version="1.3"><BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">{ref('app','BeBaduy')}</BuildActionEntry></BuildActionEntries></BuildAction><TestAction buildConfiguration="Debug"><Testables><TestableReference skipped="NO">{ref('tests','BeBaduyTests')}</TestableReference><TestableReference skipped="NO">{ref('ui','BeBaduyUITests')}</TestableReference></Testables></TestAction><LaunchAction buildConfiguration="Debug" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugServiceExtension="internal" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0">{ref('app','BeBaduy')}</BuildableProductRunnable></LaunchAction><ProfileAction buildConfiguration="Release"><BuildableProductRunnable runnableDebuggingMode="0">{ref('app','BeBaduy')}</BuildableProductRunnable></ProfileAction><AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/></Scheme>''')
 print('Generated BeBaduy.xcodeproj')
-
-# Dedicated development launch; the normal BeBaduy scheme remains unchanged.
-base_scheme=(scheme/'BeBaduy.xcscheme').read_text()
-arguments='<CommandLineArguments><CommandLineArgument argument="--story-pilot" isEnabled="YES"/></CommandLineArguments>'
-pilot_scheme=base_scheme.replace('</LaunchAction>',arguments+'</LaunchAction>')
-# Launch device previews without LLDB; keep Debug compilation and the pilot argument.
-pilot_scheme=pilot_scheme.replace('<LaunchAction ', '<LaunchAction selectedDebuggerIdentifier="" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.PosixSpawn" ', 1)
-(scheme/'BeBaduy Story Pilot.xcscheme').write_text(pilot_scheme)

@@ -6,11 +6,6 @@ import Foundation
     init() {
         var defaults = UserDefaults.standard
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--story-pilot") {
-            journey = JourneyViewModel(store: StoryPreviewStore())
-            motion = MotionService()
-            return
-        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting") {
             let suite = "BeBaduy.UITests"
             defaults = UserDefaults(suiteName: suite)!

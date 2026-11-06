@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Every phase uses the same three-page sequence. Activity state remains phase-owned.
+/// Sketch's Explore → activity → result → explanation sequence, shared by all phases.
 struct PhaseContainerView<Introduction: View, Activity: View, Description: View>: View {
     let content: PhaseContent
     let session: PhaseSessionState
@@ -11,131 +11,186 @@ struct PhaseContainerView<Introduction: View, Activity: View, Description: View>
     let restore: (ActivityOutcome?) -> Void
     let advance: () -> Void
     var suspend: () -> Void = {}
+    var activityVisibility: (Bool) -> Void = { _ in }
     @ViewBuilder let introduction: () -> Introduction
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
-    @State private var page: Int? = 0
+    @State private var flow = LessonFlowViewModel()
     @State private var restored = false
     @Environment(\.scenePhase) private var scenePhase
-    private var unlocked: Bool {
-        session.showsDescription || journey.progress.record(for: content.id).explanationAvailable
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var equipment: String? {
+        switch content.id {
+        case .ngaseuk: "Aseuk"
+        case .dibuat: "Etem / ani-ani"
+        default: nil
+        }
     }
+    private var isResult: Bool { flow.screen == .result || flow.screen == .explanation }
 
     var body: some View {
         GeometryReader { geometry in
-            ScrollView(.vertical) {
-                LazyVStack(spacing: 0) {
-                    pageContent(0, geometry: geometry) {
-                        Spacer(minLength: 40)
-                        PhaseHeaderView(content: content)
-                        introduction()
-                        StoryScrollCue(text: "Geser ke atas untuk mencoba")
-                        Spacer(minLength: 20)
-                    }
-                    pageContent(1, geometry: geometry) {
-                        Text(content.title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
-                        activity().disabled(!session.isActive)
-                        if !session.feedback.isEmpty {
-                            Text(session.feedback).font(.subheadline).accessibilityIdentifier("feedback")
+            ZStack {
+                LessonBackdrop(asset: (isResult ? content.after : content.before).assetName)
+                VStack(spacing: 0) {
+                    header
+                    switch flow.screen {
+                    case .introduction:
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                Color.clear.frame(height: typeSize.isAccessibilitySize ? 24 : max(80, geometry.size.height * 0.34))
+                                VStack(spacing: 16) {
+                                Text(content.title.uppercased()).font(.largeTitle.weight(.heavy))
+                                    .accessibilityAddTraits(.isHeader)
+                                Text(content.subtitle).font(.title3.weight(.medium))
+                                Text(content.introduction).font(.body)
+                                LessonButton(title: "Explore", identifier: "start") { explore() }
+                                    .frame(maxWidth: 190).padding(.top, 8)
+                                if flow.canSkip {
+                                    Button("Lihat penjelasan") { flow.explain() }
+                                        .frame(minHeight: 44).accessibilityIdentifier("lesson.explanation")
+                                }
+                                Text("Geser ke atas untuk mulai menjelajah")
+                                    .font(.footnote).padding(.top, 24)
+                                Image(systemName: "chevron.down").accessibilityHidden(true)
+                                }.padding(typeSize.isAccessibilitySize ? 16 : 0)
+                                    .background(typeSize.isAccessibilitySize ? Color.black : Color.clear, in: RoundedRectangle(cornerRadius: 20))
+                            }.multilineTextAlignment(.center).padding(24)
                         }
-                        HStack {
-                            if session.isActive {
-                                Button("Lihat demonstrasi", action: demonstrate)
-                                    .accessibilityIdentifier("demonstrate")
-                            }
-                            if unlocked {
-                                Button("Ulangi aktivitas", action: replay).accessibilityIdentifier("replay")
-                            }
-                        }.frame(minHeight: 44)
-                        StoryScrollCue(text: unlocked ? "Geser ke atas untuk melihat hasilnya" : "Selesaikan aktivitas atau lihat demonstrasi")
-                    }
-                    if unlocked {
-                        pageContent(2, geometry: geometry) {
-                            Spacer(minLength: 40)
-                            description()
-                            StoryScrollCue(text: content.id.next == nil ? "Geser ke atas untuk menyelesaikan perjalanan" : "Geser ke atas untuk tahap berikutnya")
-                            Spacer(minLength: 20)
-                        }
-                        pageContent(3, geometry: geometry) {
-                            Spacer(minLength: 40)
-                            if let next = content.id.next {
-                                PhaseHeaderView(content: PhaseCatalog.content(for: next))
-                                IntroductionText(content: PhaseCatalog.content(for: next))
+                        .simultaneousGesture(DragGesture(minimumDistance: 60).onEnded { value in
+                            guard !typeSize.isAccessibilitySize, value.translation.height < -80,
+                                  abs(value.translation.height) > abs(value.translation.width) else { return }
+                            explore()
+                        })
+                    case .equipment:
+                        ScrollView {
+                        Spacer(minLength: 24)
+                        VStack(spacing: 24) {
+                            Text("Hayu, kenalan dulu dengan alatnya!").font(.title2.bold())
+                            Text(equipment ?? "").font(.title.bold())
+                            if content.id == .dibuat {
+                                Image("dibuat_etem").resizable().scaledToFit().frame(height: 140)
                             } else {
-                                Text("Padi telah sampai di leuit").font(.largeTitle.bold())
-                                Text("Perjalanan belajar selesai. Mari mengenal Baduy lebih dekat.")
+                                Image(systemName: "line.diagonal").font(.system(size: 100, weight: .light))
+                                    .foregroundStyle(Color.brown).accessibilityLabel("Tongkat aseuk")
                             }
-                            Spacer(minLength: 20)
+                            Text(content.id == .ngaseuk
+                                 ? "Aseuk adalah tongkat runcing untuk membuat lubang tempat benih padi."
+                                 : "Etem adalah alat panen kecil untuk memotong malai padi. Bulir tetap bersama tangkainya.")
+                            LessonButton(title: "Mulai aktivitas", identifier: "lesson.begin") { begin() }
+                        }.multilineTextAlignment(.center).padding(24)
+                            .foregroundStyle(Color.black.opacity(0.85))
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+                            .environment(\.colorScheme, .light).padding(24)
+                        Spacer(minLength: 24)
                         }
+                    case .activity, .result:
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 20) {
+                                Text(content.title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                                activity().disabled(!session.isActive)
+                                if !session.feedback.isEmpty {
+                                    Text(session.feedback).font(.subheadline)
+                                        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+                                        .accessibilityIdentifier("feedback")
+                                }
+                                Button {
+                                    ActivityAudio.shared.enabled.toggle()
+                                } label: {
+                                    Label(ActivityAudio.shared.enabled ? "Suara aktif" : "Suara nonaktif", systemImage: ActivityAudio.shared.enabled ? "speaker.wave.2" : "speaker.slash")
+                                        .frame(minHeight: 44)
+                                }.accessibilityIdentifier("activity.sound")
+                                Button("Lihat demonstrasi", action: demonstrate)
+                                    .frame(maxWidth: .infinity, minHeight: 48)
+                                    .accessibilityIdentifier("demonstrate")
+                            }.padding(24)
+                        }
+                        .opacity(flow.screen == .result ? 0 : 1)
+                        .accessibilityHidden(flow.screen == .result)
+                        .allowsHitTesting(flow.screen == .activity)
+                        .overlay {
+                            if flow.screen == .result { resultCard }
+                        }
+                    case .explanation:
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 24) {
+                                Color.clear.frame(height: max(40, geometry.size.height * 0.22))
+                                description()
+                            }.padding(24)
+                        }
+                        LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : "Lanjut ke tahapan berikutnya",
+                                     identifier: "continue", action: advance)
+                            .padding(.horizontal, 24).padding(.vertical, 16)
                     }
-                }.scrollTargetLayout()
+                }
             }
-            .clipped()
-            .scrollIndicators(.hidden)
-            .scrollPosition(id: $page)
-            .scrollTargetBehavior(StorySnapBehavior(enabled: true))
         }
-        .ignoresSafeArea(edges: .bottom)
-        .preferredColorScheme(.dark)
-        .environment(\.colorScheme, .dark)
-        .navigationTitle(content.title).navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color.black.opacity(0.6), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .background {
-            GeometryReader { bounds in
-                Image(backgroundState(page ?? 0).assetName).resizable().scaledToFill()
-                    .frame(width: bounds.size.width, height: bounds.size.height).clipped()
-                    .overlay(Color.black.opacity(0.65))
-            }.ignoresSafeArea().accessibilityHidden(true).allowsHitTesting(false)
-        }
-        .tint(.white).foregroundStyle(.white)
+        .foregroundStyle(.white).tint(.white)
+        .preferredColorScheme(.dark).environment(\.colorScheme, .dark)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             guard !restored else { return }
             restored = true
-            restore(journey.progress.record(for: content.id).outcome)
-        }
-        .onChange(of: page) { _, value in
-            if value == 1 && session.stage == .introduction { start() }
-            if value != 1 { suspend() }
-        }
-        .task(id: page) {
-            guard page == 3, unlocked else { return }
-            // Wait for the page to settle, rather than navigating during the drag.
-            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-            guard !Task.isCancelled, page == 3 else { return }
-            var transaction = Transaction(); transaction.disablesAnimations = true
-            withTransaction(transaction) { advance() }
+            let record = journey.progress.record(for: content.id)
+            restore(record.outcome); flow.restore(completed: record.explanationAvailable)
         }
         .onChange(of: session.event) { _, _ in
-            if let outcome = session.outcome { journey.record(content.id, outcome: outcome) }
-        }
-        .onChange(of: scenePhase) { _, value in if value != .active { suspend() } }
-        .onDisappear { suspend() }
-    }
-
-    private func pageContent<V: View>(_ index: Int, geometry: GeometryProxy,
-                                      @ViewBuilder content: () -> V) -> some View {
-        OverflowPageContent {
-            VStack(alignment: .leading, spacing: 16, content: content)
-        }
-        .padding(.horizontal, 24).padding(.top, 16)
-        .padding(.bottom, max(24, geometry.safeAreaInsets.bottom))
-        .frame(width: geometry.size.width, height: geometry.size.height)
-        .background {
-            GeometryReader { pageGeometry in
-                Image(backgroundState(index).assetName).resizable().scaledToFill()
-                    .frame(width: pageGeometry.size.width, height: pageGeometry.size.height).clipped()
-                    .overlay(LinearGradient(colors: [.black.opacity(0.6), .black.opacity(0.85)], startPoint: .top, endPoint: .bottom))
-                    .accessibilityHidden(true)
+            if let outcome = session.outcome {
+                journey.record(content.id, outcome: outcome)
+                flow.completed()
             }
         }
-        .clipped()
-        .accessibilityHidden(page != index)
-        .id(index)
+        .onChange(of: flow.screen) { _, value in
+            activityVisibility(value == .activity)
+            if value != .activity { suspend(); ActivityAudio.shared.stop() }
+        }
+        .onChange(of: scenePhase) { _, value in
+            activityVisibility(value == .active && flow.screen == .activity)
+            if value != .active { suspend(); ActivityAudio.shared.stop() }
+        }
+        .onDisappear { activityVisibility(false); suspend(); ActivityAudio.shared.stop() }
     }
-    private func backgroundState(_ index: Int) -> LandscapeState {
-        if index == 3, let next = content.id.next { return PhaseCatalog.content(for: next).before }
-        return index >= 2 ? content.after : content.before
+
+    private var resultCard: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Text("\(content.title) selesai!").font(.title2.bold())
+                Text(session.outcome == .observed ? "Demonstrasi selesai." : content.result)
+                LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
+                Button("Ulangi") { restartActivity() }.frame(minHeight: 44)
+                    .accessibilityIdentifier("replay")
+            }.multilineTextAlignment(.center).padding(24)
+                .foregroundStyle(Color.black.opacity(0.85))
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+                .environment(\.colorScheme, .light).padding(24)
+        }.defaultScrollAnchor(.center, for: .alignment)
     }
+
+    private var header: some View {
+        HStack {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold)).frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+            }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
+            Spacer()
+            Text("\(content.id.index + 1) / 5").font(.caption.monospacedDigit())
+            Spacer()
+            if flow.screen == .explanation {
+                Button("Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
+                    .background(.ultraThinMaterial, in: Capsule()).accessibilityIdentifier("replay")
+            } else if flow.canSkip && (flow.screen == .activity || flow.screen == .equipment) {
+                Button("Lewati") { flow.explain() }.frame(minWidth: 60, minHeight: 44)
+                    .accessibilityIdentifier("lesson.skip")
+            } else { Color.clear.frame(width: 60, height: 44) }
+        }.padding(.horizontal, 20).padding(.vertical, 8)
+    }
+    private func explore() {
+        guard flow.screen == .introduction else { return }
+        flow.explore(hasEquipment: equipment != nil)
+        if equipment == nil { start() }
+    }
+    private func begin() { start(); flow.beginActivity() }
+    private func restartActivity() { replay(); flow.replay() }
 }

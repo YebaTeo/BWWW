@@ -3,21 +3,27 @@ import SwiftUI
 struct HomeView: View {
     let journey: JourneyViewModel
     let motion: MotionService
-    @State private var showsNgahuma = false
     @State private var showsJourney = false
     @State private var pendingPhase: PhaseID?
     @State private var model = HomeViewModel()
 
     var body: some View {
         NavigationStack(path: $model.path) {
-            HarvestHomeView(
-                journey: journey,
-                isActive: model.path.isEmpty && !showsJourney && !showsNgahuma && !model.showsCompletion,
-                onResume: { model.open(journey.progress.currentPhase, journey: journey) },
-                onJourney: { showsJourney = true },
-                onExplore: { showsNgahuma = true },
-                onCompletion: { model.showsCompletion = true }
-            )
+            Group {
+                if journey.progress.introductionSeen {
+                    WelcomeHomeView(
+                        journey: journey,
+                        onResume: { model.open(journey.progress.currentPhase, journey: journey) },
+                        onJourney: { showsJourney = true },
+                        onCompletion: { model.showsCompletion = true }
+                    )
+                } else {
+                    IntroductionView {
+                        journey.finishIntroduction()
+                        model.open(.nukuh, journey: journey)
+                    }
+                }
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: PhaseID.self) { phase in
                 PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
@@ -26,9 +32,8 @@ struct HomeView: View {
                         journey.finishJourney(); model.path = []; model.showsCompletion = true
                     }
                 }
-                .toolbar(.visible, for: .navigationBar)
+                .id(phase)
             }
-            .fullScreenCover(isPresented: $showsNgahuma) { Ngahuma3DView() }
             .sheet(isPresented: $showsJourney, onDismiss: {
                 if let phase = pendingPhase {
                     pendingPhase = nil
@@ -59,7 +64,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .sheet(isPresented: $model.showsCompletion) {
+            .fullScreenCover(isPresented: $model.showsCompletion) {
                 CompletionView(journey: journey) { model.showsCompletion = false }
             }
         }

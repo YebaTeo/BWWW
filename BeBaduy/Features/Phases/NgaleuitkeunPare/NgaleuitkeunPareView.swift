@@ -6,7 +6,7 @@ struct NgaleuitkeunPareView: View {
     var body: some View {
         PhaseContainerView(content: NgaleuitkeunPareContent.value, session: model.session, journey: journey,
             start: model.start, replay: model.start, demonstrate: model.demonstrate,
-            restore: { model.session.restore($0) }, advance: advance,
+            restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
             introduction: { NgaleuitkeunPareIntroductionView() }, activity: { NgaleuitkeunPareActivityView(model: model) },
             description: { NgaleuitkeunPareDescriptionView() })
     }

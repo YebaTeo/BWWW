@@ -15,7 +15,7 @@ struct PhaseSessionState {
     mutating func finish(_ outcome: ActivityOutcome = .performed) {
         guard stage != .reflection else { return }
         self.outcome = outcome; stage = .reflection; event += 1
-        feedback = outcome == .observed ? "Demonstrasi selesai. Jelajahi penjelasan di bawah." : "Aktivitas selesai. Jelajahi penjelasan di bawah."
+        feedback = outcome == .observed ? "Demonstrasi selesai. Lanjutkan untuk melihat penjelasan." : "Aktivitas selesai. Lanjutkan untuk melihat penjelasan."
     }
     mutating func restore(_ outcome: ActivityOutcome?) {
         guard let outcome else { return }

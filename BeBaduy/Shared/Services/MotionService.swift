@@ -24,7 +24,8 @@ import CoreMotion
                 let acceleration = data.userAcceleration
                 // Project onto gravity, so a downward gesture works in any comfortable phone angle.
                 let downward = (acceleration.x * gravity.x + acceleration.y * gravity.y + acceleration.z * gravity.z) / magnitude
-                return MotionSample(time: data.timestamp, verticalAcceleration: -downward)
+                let q = data.attitude.quaternion
+                return MotionSample(time: data.timestamp, verticalAcceleration: -downward, roll: data.attitude.roll, attitude: SIMD4(q.x, q.y, q.z, q.w))
             }
             let failed = error != nil || sample == nil
             Task { @MainActor [weak self] in

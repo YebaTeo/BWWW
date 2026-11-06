@@ -1,1 +1,12 @@
-{"images": [{"filename": "ngaleuitkeun_pare_before.svg", "idiom": "universal"}], "info": {"author": "xcode", "version": 1}, "properties": {"preserves-vector-representation": true}}
+{
+  "images": [
+    {
+      "filename": "ngaleuitkeun_pare_before.png",
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

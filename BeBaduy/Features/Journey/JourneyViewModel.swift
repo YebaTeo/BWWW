@@ -22,6 +22,12 @@ import Observation
         guard progress.allComplete else { return }
         progress.journeyCompleted = true; persist()
     }
+    func finishIntroduction() { progress.introductionSeen = true; persist() }
+    func restart() {
+        progress = JourneyProgress()
+        progress.introductionSeen = true
+        persist()
+    }
     private func persist() {
         do { try store.save(progress) }
         catch { storageMessage = "Progres belum tersimpan. Coba lagi dengan membuka tahap ini kembali." }
