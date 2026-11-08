@@ -46,27 +46,58 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
                     if flow.screen != .activity { header }
                     switch flow.screen {
                     case .introduction:
-                        ScrollView {
-                            VStack(spacing: 16) {
-                                Color.clear.frame(height: typeSize.isAccessibilitySize ? 24 : max(80, geometry.size.height * 0.34))
-                                VStack(spacing: 16) {
-                                Text(content.title.uppercased()).font(.largeTitle.weight(.heavy))
+                        VStack(spacing: 0) {
+                            VStack(spacing: 2) {
+                                Image(systemName: "chevron.up.2")
+                                    .font(.system(size: 15, weight: .regular))
+                                    .accessibilityHidden(true)
+                                Text("Geser ke bawah untuk mengulangi tahap sebelumnya.")
+                                    .font(.footnote)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .foregroundStyle(Color(red: 0.43, green: 0.31, blue: 0.23))
+                            .frame(maxWidth: 300)
+                            .padding(.top, 4)
+
+                            Spacer(minLength: typeSize.isAccessibilitySize ? 28 : geometry.size.height * 0.30)
+
+                            VStack(spacing: 10) {
+                                Text(content.title.uppercased())
+                                    .font(.system(size: 38, weight: .heavy, design: .rounded))
+                                    .fontWidth(.condensed)
                                     .accessibilityAddTraits(.isHeader)
-                                Text(content.subtitle).font(.title3.weight(.medium))
-                                Text(content.introduction).font(.body)
+                                Text(content.introduction)
+                                    .font(.body)
+                                    .frame(maxWidth: 330)
                                 LessonButton(title: "Explore", identifier: "start") { explore() }
-                                    .frame(maxWidth: 190).padding(.top, 8)
+                                    .frame(maxWidth: 190)
+                                    .padding(.top, 8)
                                 if flow.canSkip {
                                     Button("Lihat penjelasan") { flow.explain() }
-                                        .frame(minHeight: 44).accessibilityIdentifier("lesson.explanation")
+                                        .frame(minHeight: 40)
+                                        .accessibilityIdentifier("lesson.explanation")
                                 }
-                                Text("Geser ke atas untuk mulai menjelajah")
-                                    .font(.footnote).padding(.top, 24)
-                                Image(systemName: "chevron.down").accessibilityHidden(true)
-                                }.padding(typeSize.isAccessibilitySize ? 16 : 0)
-                                    .background(typeSize.isAccessibilitySize ? Color.black : Color.clear, in: RoundedRectangle(cornerRadius: 20))
-                            }.multilineTextAlignment(.center).padding(24)
+                            }
+                            .multilineTextAlignment(.center)
+                            .padding(typeSize.isAccessibilitySize ? 16 : 8)
+
+                            Spacer(minLength: typeSize.isAccessibilitySize ? 28 : geometry.size.height * 0.12)
+
+                            VStack(spacing: 2) {
+                                Text("Geser ke atas untuk lanjut ke tahap berikutnya.")
+                                    .font(.footnote)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Image(systemName: "chevron.down.2")
+                                    .font(.system(size: 15, weight: .regular))
+                                    .accessibilityHidden(true)
+                            }
+                            .foregroundStyle(Color(red: 0.43, green: 0.31, blue: 0.23))
+                            .frame(maxWidth: 300)
+                            .padding(.bottom, 8)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                         .simultaneousGesture(DragGesture(minimumDistance: 60).onEnded { value in
                             guard !typeSize.isAccessibilitySize, value.translation.height < -80,
                                   abs(value.translation.height) > abs(value.translation.width) else { return }
