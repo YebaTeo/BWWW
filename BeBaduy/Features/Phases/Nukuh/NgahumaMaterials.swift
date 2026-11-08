@@ -16,6 +16,7 @@ struct NgahumaMaterials {
     let leafNormal: UIImage
     let particleSprite: UIImage
     let sunHaloSprite: UIImage
+    let sunSkyGlowSprite: UIImage
     let woodSplinterSprite: UIImage
     let woodChipSprite: UIImage
 
@@ -53,6 +54,7 @@ struct NgahumaMaterials {
         let leafNormal = Self.makeDetailNormal(frequency: 22, strength: 0.12)
         let particleSprite = Self.makeParticleSprite()
         let sunHaloSprite = Self.makeSunHaloSprite()
+        let sunSkyGlowSprite = Self.makeSunSkyGlowSprite()
         let woodSplinterSprite = Self.makeWoodSplinterSprite()
         let woodChipSprite = Self.makeWoodChipSprite()
 
@@ -69,6 +71,7 @@ struct NgahumaMaterials {
             leafNormal: leafNormal,
             particleSprite: particleSprite,
             sunHaloSprite: sunHaloSprite,
+            sunSkyGlowSprite: sunSkyGlowSprite,
             woodSplinterSprite: woodSplinterSprite,
             woodChipSprite: woodChipSprite
         )
@@ -121,7 +124,7 @@ struct NgahumaMaterials {
 
         for oy in 0..<panoH {
             let v = Double(oy) / Double(panoH - 1)
-            // Base vertical sky gradient (zenith -> golden cloud horizon -> nadir)
+            // Base vertical sky gradient matching HumaEnvironment in HomeView
             let gradR: Double
             let gradG: Double
             let gradB: Double
@@ -332,7 +335,7 @@ struct NgahumaMaterials {
                     b = (1.0 - w) * cB.2 + w * cA.2
                 }
 
-                // Preserve all the natural green foliage & horizon trees; gently feather base skirt below soil
+                // Preserve all the natural green foliage & horizon trees from HumaEnvironment (exact HomeView colors)
                 let baseFeather = 1.0 - smoothstep(srcYH - 18.0, srcYH, v * srcYH) * 0.15
                 let a = ridgeAlpha * baseFeather
 
@@ -531,7 +534,7 @@ struct NgahumaMaterials {
                     let lum = wx * wy * s00 + (1.0 - wx) * wy * s10 + wx * (1.0 - wy) * s01 + (1.0 - wx) * (1.0 - wy) * s11
                     let normL = min(1.0, max(0.0, lum / 255.0))
 
-                    // Authentic Baduy soil grading:
+                    // Authentic Baduy soil grading matching HomeView (#6A4B33 midtones):
                     // Low (crevices): RGB(44, 30, 20)
                     // Mid (HomeView #6A4B33 base earth): RGB(106, 75, 51)
                     // High (sun-dried pebbles & soil clods): RGB(156, 120, 88)
@@ -799,28 +802,83 @@ struct NgahumaMaterials {
         }
     }
 
+    /// Recreates HomeView's `celestialBody(isMoon: false)` sun as one sprite.
+    /// The sprite covers Home's 90 pt frame: a 27 pt disk (white → warm rim),
+    /// white (r 7) and warm (r 14) glows, and the soft scattering circle.
     static func makeSunHaloSprite() -> UIImage {
+        let side: CGFloat = 512
+        let pt = side / 90.0
+        let center = CGPoint(x: side / 2, y: side / 2)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
-        return UIGraphicsImageRenderer(size: CGSize(width: 256, height: 256), format: format).image { context in
-            let colors = [
-                UIColor(red: 1.0, green: 0.99, blue: 0.95, alpha: 0.95).cgColor,
-                UIColor(red: 1.0, green: 0.93, blue: 0.78, alpha: 0.52).cgColor,
-                UIColor(red: 1.0, green: 0.85, blue: 0.64, alpha: 0.18).cgColor,
-                UIColor(red: 1.0, green: 0.80, blue: 0.55, alpha: 0.0).cgColor
-            ] as CFArray
-            let locations: [CGFloat] = [0.0, 0.18, 0.48, 1.0]
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) {
-                context.cgContext.drawRadialGradient(
-                    gradient,
-                    startCenter: CGPoint(x: 128, y: 128),
-                    startRadius: 0,
-                    endCenter: CGPoint(x: 128, y: 128),
-                    endRadius: 128,
-                    options: []
-                )
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
+            let cg = context.cgContext
+            let space = CGColorSpaceCreateDeviceRGB()
+
+            // 1. Atmospheric scattering (Home: white 0.34 → warm 0.10 @0.4 → clear, endRadius 65, clipped to 45).
+            if let scatter = CGGradient(colorsSpace: space, colors: [
+                UIColor(white: 1, alpha: 0.34).cgColor,
+                UIColor(red: 1, green: 0.88, blue: 0.70, alpha: 0.10).cgColor,
+                UIColor(red: 1, green: 0.88, blue: 0.70, alpha: 0).cgColor
+            ] as CFArray, locations: [0, 0.4, 1]) {
+                cg.saveGState()
+                cg.addEllipse(in: CGRect(x: 0, y: 0, width: side, height: side))
+                cg.clip()
+                cg.drawRadialGradient(scatter, startCenter: center, startRadius: 0,
+                                      endCenter: center, endRadius: 65 * pt, options: [])
+                cg.restoreGState()
             }
+
+            let diskRadius = 13.5 * pt
+            let diskRect = CGRect(x: center.x - diskRadius, y: center.y - diskRadius,
+                                  width: diskRadius * 2, height: diskRadius * 2)
+
+            // 2. Warm (r 14) and white (r 7) glows emitted by the disk.
+            cg.saveGState()
+            cg.setShadow(offset: .zero, blur: 28 * pt,
+                         color: UIColor(red: 1, green: 0.88, blue: 0.70, alpha: 0.35).cgColor)
+            cg.setFillColor(UIColor(red: 1, green: 0.95, blue: 0.86, alpha: 1).cgColor)
+            cg.fillEllipse(in: diskRect)
+            cg.restoreGState()
+            cg.saveGState()
+            cg.setShadow(offset: .zero, blur: 14 * pt, color: UIColor(white: 1, alpha: 0.55).cgColor)
+            cg.setFillColor(UIColor.white.cgColor)
+            cg.fillEllipse(in: diskRect)
+            cg.restoreGState()
+
+            // 3. Disk body: white → (1, 0.99, 0.96) @0.76 → (1, 0.91, 0.78) rim.
+            if let disk = CGGradient(colorsSpace: space, colors: [
+                UIColor.white.cgColor,
+                UIColor(red: 1, green: 0.99, blue: 0.96, alpha: 1).cgColor,
+                UIColor(red: 1, green: 0.91, blue: 0.78, alpha: 1).cgColor
+            ] as CFArray, locations: [0, 0.76, 1]) {
+                cg.saveGState()
+                cg.addEllipse(in: diskRect)
+                cg.clip()
+                cg.drawRadialGradient(disk, startCenter: center, startRadius: 0,
+                                      endCenter: center, endRadius: diskRadius, options: [])
+                cg.restoreGState()
+            }
+        }
+    }
+
+    /// HomeView's broad daylight glow (matches CinematicAtmosphereView lines 63-66:
+    /// white 0.34 -> RGB(1.0, 0.88, 0.70) 0.16 -> clear).
+    static func makeSunSkyGlowSprite() -> UIImage {
+        let side: CGFloat = 512
+        let center = CGPoint(x: side / 2, y: side / 2)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [
+                UIColor(white: 1.0, alpha: 0.34).cgColor,
+                UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 0.16).cgColor,
+                UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 0.0).cgColor
+            ] as CFArray, locations: [0, 0.45, 1]) else { return }
+            context.cgContext.drawRadialGradient(gradient, startCenter: center, startRadius: 0,
+                                                 endCenter: center, endRadius: side / 2, options: [])
         }
     }
 
@@ -1085,7 +1143,7 @@ struct NgahumaMaterials {
         material.diffuse.contents = texture
         material.diffuse.wrapS = .repeat
         material.diffuse.wrapT = .repeat
-        material.ambient.contents = UIColor(red: 0.52, green: 0.44, blue: 0.36, alpha: 1)
+        material.ambient.contents = UIColor(red: 0.56, green: 0.48, blue: 0.40, alpha: 1)
         material.roughness.contents = 0.94
         material.multiply.contents = UIColor.white
         material.isDoubleSided = false

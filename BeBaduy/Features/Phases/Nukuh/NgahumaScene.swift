@@ -168,11 +168,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func configureRenderer(_ view: SCNView) {
-        scnScene.background.contents = UIColor(red: 0.18, green: 0.14, blue: 0.10, alpha: 1)
+        scnScene.background.contents = UIColor(red: 0.42, green: 0.30, blue: 0.20, alpha: 1)
         scnScene.physicsWorld.gravity = SCNVector3Zero
 
         view.scene = scnScene
-        view.backgroundColor = UIColor(red: 0.18, green: 0.14, blue: 0.10, alpha: 1)
+        view.backgroundColor = UIColor(red: 0.42, green: 0.30, blue: 0.20, alpha: 1)
         view.isOpaque = true
         view.autoenablesDefaultLighting = false
         view.antialiasingMode = .multisampling2X
@@ -188,16 +188,19 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         camera.fieldOfView = 42
         camera.zNear = 0.02
         camera.zFar = 40.0
+        // Keep exposureOffset at 0.0 so the HumaEnvironment sky, mountain, and
+        // horizon grass textures render at exact 1:1 photographic fidelity matching
+        // HomeView's CinematicAtmosphereView.
         camera.wantsHDR = true
         camera.wantsExposureAdaptation = false
-        camera.exposureOffset = -1.02
-        camera.whitePoint = 1.8
-        camera.screenSpaceAmbientOcclusionIntensity = 0.42
+        camera.exposureOffset = 0.0
+        camera.whitePoint = 1.0
+        camera.screenSpaceAmbientOcclusionIntensity = 0.32
         camera.screenSpaceAmbientOcclusionRadius = 0.035
         camera.screenSpaceAmbientOcclusionBias = 0.002
-        camera.bloomThreshold = 1.15
-        camera.bloomIntensity = 0.16
-        camera.bloomBlurRadius = 3.5
+        camera.bloomThreshold = 1.2
+        camera.bloomIntensity = 0.12
+        camera.bloomBlurRadius = 3.0
 
         cameraNode.name = "nukuhARCamera"
         cameraNode.camera = camera
@@ -313,42 +316,52 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let sunPosition = SCNVector3(5.6, 3.45, -16.2)
         sunSystemRoot.position = sunPosition
 
-        let sunSphere = SCNSphere(radius: 0.48)
-        sunSphere.segmentCount = 32
-        let sunCoreMaterial = SCNMaterial()
-        sunCoreMaterial.lightingModel = .constant
-        sunCoreMaterial.diffuse.contents = UIColor(red: 1.0, green: 0.99, blue: 0.94, alpha: 1.0)
-        sunCoreMaterial.emission.contents = UIColor(red: 1.0, green: 0.92, blue: 0.76, alpha: 1.0)
-        sunCoreMaterial.emission.intensity = 1.35
-        sunCoreMaterial.writesToDepthBuffer = false
-        sunCoreMaterial.readsFromDepthBuffer = false
-        sunSphere.materials = [sunCoreMaterial]
-        let sunDiskNode = SCNNode(geometry: sunSphere)
+        // HomeView-style sun: one camera-facing sprite reproducing Home's
+        // celestialBody (27 pt disk inside a 90 pt glow frame). At ~17.4 m and
+        // a 42° FOV, 1.40 m ≈ Home's 90 pt frame, so the disk reads at the
+        // same apparent size as on the Home screen.
+        let sunPlane = SCNPlane(width: 1.40, height: 1.40)
+        let sunMaterial = SCNMaterial()
+        sunMaterial.lightingModel = .constant
+        sunMaterial.diffuse.contents = materials.sunHaloSprite
+        sunMaterial.diffuse.intensity = 1.15
+        sunMaterial.blendMode = .alpha
+        sunMaterial.writesToDepthBuffer = false
+        sunMaterial.readsFromDepthBuffer = false
+        sunMaterial.isDoubleSided = true
+        sunPlane.materials = [sunMaterial]
+        let sunDiskNode = SCNNode(geometry: sunPlane)
+        sunDiskNode.name = "homeSunDisk"
+        let sunBillboard = SCNBillboardConstraint()
+        sunBillboard.freeAxes = .all
+        sunDiskNode.constraints = [sunBillboard]
         sunDiskNode.renderingOrder = -25
         sunDiskNode.castsShadow = false
         sunSystemRoot.addChildNode(sunDiskNode)
 
-        let haloPlane = SCNPlane(width: 6.4, height: 6.4)
+        // Home's broad daylight glow (radial, endRadius ≈ 0.78 × screen width).
+        let haloPlane = SCNPlane(width: 10.0, height: 10.0)
         let haloMaterial = SCNMaterial()
         haloMaterial.lightingModel = .constant
-        haloMaterial.diffuse.contents = materials.sunHaloSprite
+        haloMaterial.diffuse.contents = materials.sunSkyGlowSprite
         haloMaterial.blendMode = .screen
         haloMaterial.writesToDepthBuffer = false
         haloMaterial.readsFromDepthBuffer = false
         haloMaterial.isDoubleSided = true
         haloPlane.materials = [haloMaterial]
         let haloNode = SCNNode(geometry: haloPlane)
+        haloNode.name = "homeSunSkyGlow"
         let billboard = SCNBillboardConstraint()
         billboard.freeAxes = .all
         haloNode.constraints = [billboard]
-        haloNode.renderingOrder = -24
+        haloNode.renderingOrder = -26
         haloNode.castsShadow = false
         sunSystemRoot.addChildNode(haloNode)
 
-        // Directional Sun Key Light casting real shadows across the 360° clearing
+        // Directional Sun Key Light matching HomeView (SceneKitCropView lines 270-285)
         sunKeyLight.type = .directional
-        sunKeyLight.color = UIColor(red: 1.0, green: 0.90, blue: 0.74, alpha: 1)
-        sunKeyLight.intensity = 1150
+        sunKeyLight.color = UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1)
+        sunKeyLight.intensity = 520
         sunKeyLight.castsShadow = true
         sunKeyLight.shadowMode = .forward
         sunKeyLight.orthographicScale = 14.0
@@ -358,7 +371,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunKeyLight.shadowSampleCount = 16
         sunKeyLight.shadowBias = 0.0012
         sunKeyLight.shadowMapSize = CGSize(width: 2048, height: 2048)
-        sunKeyLight.shadowColor = UIColor(red: 0.12, green: 0.08, blue: 0.05, alpha: 0.65)
+        sunKeyLight.shadowColor = UIColor(red: 0.12, green: 0.08, blue: 0.05, alpha: 0.52)
         let sunLightNode = SCNNode()
         sunLightNode.light = sunKeyLight
         sunLightNode.position = .init(0, 0, 0)
@@ -366,8 +379,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunSystemRoot.addChildNode(sunLightNode)
 
         sunCoronaLight.type = .omni
-        sunCoronaLight.color = UIColor(red: 1.0, green: 0.86, blue: 0.66, alpha: 1)
-        sunCoronaLight.intensity = 160
+        sunCoronaLight.color = UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1)
+        sunCoronaLight.intensity = 90
         sunCoronaLight.attenuationStartDistance = 2.0
         sunCoronaLight.attenuationEndDistance = 32.0
         let sunOmniNode = SCNNode()
@@ -376,16 +389,18 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         worldRoot.addChildNode(sunSystemRoot)
 
+        // Fill – Sky Ambient matching HomeView (SceneKitCropView lines 288-294)
         skyAmbientLight.type = .ambient
-        skyAmbientLight.color = UIColor(red: 0.82, green: 0.78, blue: 0.72, alpha: 1)
-        skyAmbientLight.intensity = 380
+        skyAmbientLight.color = UIColor(red: 0.88, green: 0.82, blue: 0.70, alpha: 1)
+        skyAmbientLight.intensity = 420
         let ambientNode = SCNNode()
         ambientNode.light = skyAmbientLight
         worldRoot.addChildNode(ambientNode)
 
+        // Rim – Back-light matching HomeView (SceneKitCropView lines 297-306)
         sunsetRimLight.type = .directional
-        sunsetRimLight.color = UIColor(red: 1.0, green: 0.82, blue: 0.62, alpha: 1)
-        sunsetRimLight.intensity = 180
+        sunsetRimLight.color = UIColor(red: 1.0, green: 0.87, blue: 0.68, alpha: 1)
+        sunsetRimLight.intensity = 110
         sunsetRimLight.castsShadow = false
         let rimNode = SCNNode()
         rimNode.light = sunsetRimLight
@@ -393,9 +408,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         rimNode.look(at: SCNVector3(0, soilY, 0))
         worldRoot.addChildNode(rimNode)
 
+        // Warm Fill matching HomeView (SceneKitCropView lines 310-319)
         warmFillLight.type = .omni
-        warmFillLight.color = UIColor(red: 1.0, green: 0.84, blue: 0.68, alpha: 1)
-        warmFillLight.intensity = 120
+        warmFillLight.color = UIColor(red: 1.0, green: 0.79, blue: 0.57, alpha: 1)
+        warmFillLight.intensity = 95
         warmFillLight.attenuationStartDistance = 0.5
         warmFillLight.attenuationEndDistance = 14.0
         let fillNode = SCNNode()
@@ -469,14 +485,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         worldRoot.addChildNode(forestRoot)
 
         // Spread the 6 interactive trees around all 360° of the AR clearing,
-        // with natural variations in azimuth, distance, and scale.
+        // with natural variations in azimuth, distance, and balanced tree scale (~1.25m - 1.40m).
         let placements: [(angle: Float, distance: Float, yawOffset: Float, scale: Float)] = [
-            ( 0.00 * .pi, 1.72, -0.06, 1.48), // Tree 1: Front (0°)
-            ( 0.34 * .pi, 1.88,  0.08, 1.60), // Tree 2: Front-Right (~61°)
-            ( 0.68 * .pi, 1.76, -0.09, 1.38), // Tree 3: Back-Right (~122°)
-            ( 1.02 * .pi, 1.84,  0.07, 1.54), // Tree 4: Back (~184°)
-            ( 1.35 * .pi, 1.74, -0.08, 1.42), // Tree 5: Back-Left (~243°)
-            ( 1.68 * .pi, 1.82,  0.09, 1.56)  // Tree 6: Front-Left (~302°)
+            ( 0.00 * .pi, 1.84, -0.06, 2.25), // Tree 1: Front (0°) - ~1.26m tall
+            ( 0.34 * .pi, 1.98,  0.08, 2.45), // Tree 2: Front-Right (~61°) - ~1.37m tall
+            ( 0.68 * .pi, 1.86, -0.09, 2.15), // Tree 3: Back-Right (~122°) - ~1.20m tall
+            ( 1.02 * .pi, 1.95,  0.07, 2.38), // Tree 4: Back (~184°) - ~1.33m tall
+            ( 1.35 * .pi, 1.85, -0.08, 2.20), // Tree 5: Back-Left (~243°) - ~1.23m tall
+            ( 1.68 * .pi, 1.94,  0.09, 2.42)  // Tree 6: Front-Left (~302°) - ~1.36m tall
         ]
 
         let sharedUpperTreeGeo = makeTreeSectionGeometry(from: materials.treeTexture, startRow: 6, endRow: 40, includeWind: true)
@@ -513,8 +529,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         radialCrownGeometry: SCNGeometry
     ) {
         // 6 of 40 mesh rows (bottom 15% = root flare & lower stump, top 85% = falling trunk & crown).
+        // At height = 0.56m, row 6 sits at 0.15 * 0.56 = 0.084m.
         // Bottom of row 0 sits flush at y = soilY (nothing extends below the ground).
-        let cutHeight: Float = 0.075
+        let cutHeight: Float = 0.084
 
         // Holder node at the tree's ground coordinate oriented toward the central viewer
         let holder = SCNNode()
@@ -608,7 +625,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         canopy.addChildNode(rearBranches)
 
         // Hit-test proxy box for responsive direct tapping on the 3D tree
-        let hitBox = SCNBox(width: 0.38, height: 0.54, length: 0.24, chamferRadius: 0)
+        let hitBox = SCNBox(width: 0.38, height: 0.58, length: 0.24, chamferRadius: 0)
         let hitMat = SCNMaterial()
         hitMat.lightingModel = .constant
         hitMat.diffuse.contents = UIColor.clear
@@ -616,7 +633,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         hitBox.materials = [hitMat]
         let hitNode = SCNNode(geometry: hitBox)
         hitNode.name = "patch-\(index)"
-        hitNode.position = SCNVector3(0, 0.25, 0)
+        hitNode.position = SCNVector3(0, 0.27, 0)
         hitNode.opacity = 0.001
         hitNode.castsShadow = false
         canopy.addChildNode(hitNode)
@@ -687,11 +704,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         trunkShadowMat.transparency = 0.50
         trunkShadowMat.isDoubleSided = true
         trunkShadowMat.writesToDepthBuffer = false
-        let trunkShadowGeo = SCNPlane(width: CGFloat(0.18 * scale), height: CGFloat(0.60 * scale))
+        let trunkShadowGeo = SCNPlane(width: CGFloat(0.18 * scale), height: CGFloat(0.68 * scale))
         trunkShadowGeo.materials = [trunkShadowMat]
         let trunkShadowNode = SCNNode(geometry: trunkShadowGeo)
         trunkShadowNode.eulerAngles.x = -.pi / 2
-        trunkShadowNode.position = SCNVector3(0, 0, -0.28 * scale)
+        trunkShadowNode.position = SCNVector3(0, 0, -0.32 * scale)
         trunkShadowNode.castsShadow = false
         directionalShadowRoot.addChildNode(trunkShadowNode)
 
@@ -703,39 +720,39 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         canopyShadowMat.transparency = 0.40
         canopyShadowMat.isDoubleSided = true
         canopyShadowMat.writesToDepthBuffer = false
-        let canopyShadowGeo = SCNPlane(width: CGFloat(0.44 * scale), height: CGFloat(0.54 * scale))
+        let canopyShadowGeo = SCNPlane(width: CGFloat(0.44 * scale), height: CGFloat(0.52 * scale))
         canopyShadowGeo.materials = [canopyShadowMat]
         let canopyShadowNode = SCNNode(geometry: canopyShadowGeo)
         canopyShadowNode.eulerAngles.x = -.pi / 2
-        canopyShadowNode.position = SCNVector3(0, 0.0002, -0.60 * scale)
+        canopyShadowNode.position = SCNVector3(0, 0.0002, -0.68 * scale)
         canopyShadowNode.castsShadow = false
         directionalShadowRoot.addChildNode(canopyShadowNode)
 
         holder.addChildNode(directionalShadowRoot)
 
-        // E. Clusters of wild grass blades rooted directly into the soil collar around the trunk
-        for grassIdx in 0..<6 {
-            let grassAngle = Float(grassIdx) * (2.0 * .pi / 6.0) + Float(index) * 0.35
-            let grassDist = (0.052 + Float(grassIdx % 3) * 0.016) * scale
+        // E. Lush HomeView-matched clusters of wild grass blades rooted around the trunk
+        for grassIdx in 0..<18 {
+            let grassAngle = Float(grassIdx) * 2.3999 + Float(index) * 0.35
+            let grassDist = (0.048 + Float((grassIdx * 7) % 15) * 0.012) * scale
             let grassBase = SCNVector3(
                 worldPosition.x + sin(grassAngle) * grassDist,
                 soilY + 0.001,
                 worldPosition.z + cos(grassAngle) * grassDist
             )
-            let bladeHeight = (0.065 + Float(grassIdx % 4) * 0.014) * scale
-            let bladeTint: UIColor = grassIdx.isMultiple(of: 2)
+            let bladeHeight = (0.072 + Float(grassIdx % 7) * 0.012) * scale
+            let bladeTint: UIColor = grassIdx.isMultiple(of: 3)
                 ? UIColor(red: 0.55, green: 0.58, blue: 0.23, alpha: 1)
-                : UIColor(red: 0.36, green: 0.52, blue: 0.18, alpha: 1)
+                : UIColor(red: 0.32, green: 0.48, blue: 0.16, alpha: 1)
             addBlade(
                 to: wildRoot,
                 base: grassBase,
                 height: bladeHeight,
-                width: 0.016 * scale,
-                yaw: grassAngle + Float(grassIdx) * 0.25,
-                mass: 0.14,
-                response: 1.05,
+                width: 0.018 * scale,
+                yaw: grassAngle + Float(grassIdx % 5) * 0.21,
+                mass: 0.16,
+                response: 1.0,
                 tint: bladeTint,
-                phase: Float(index * 7 + grassIdx) * 0.45,
+                phase: Float(index * 9 + grassIdx) * 0.42,
                 materials: materials
             )
         }
@@ -822,16 +839,16 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         wildRoot.name = "wildGrass"
         worldRoot.addChildNode(wildRoot)
 
-        // 1. Inner 360° clearing grass blades (matching HomeView's arched blades)
-        for index in 0..<72 {
+        // 1. Inner 360° clearing grass blades (matching HomeView's arched undergrowth at AR scale)
+        for index in 0..<96 {
             let angle = Float(index) * 2.3999
-            let distance = 0.85 + Float((index * 13) % 37) * 0.038
+            let distance = 0.82 + Float((index * 13) % 37) * 0.036
             let base = SCNVector3(
                 sin(angle) * distance,
                 soilY,
                 -cos(angle) * distance
             )
-            let height = 0.075 + Float(index % 7) * 0.012
+            let height = 0.13 + Float(index % 7) * 0.018
             let tint: UIColor = index.isMultiple(of: 3)
                 ? UIColor(red: 0.55, green: 0.58, blue: 0.23, alpha: 1)
                 : UIColor(red: 0.32, green: 0.48, blue: 0.16, alpha: 1)
@@ -839,7 +856,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 to: wildRoot,
                 base: base,
                 height: height,
-                width: 0.020,
+                width: 0.030,
                 yaw: angle + Float(index % 5) * 0.21,
                 mass: 0.16,
                 response: 1.0,
@@ -850,11 +867,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
 
         // 2. Outer 360° meadow grass blades extending toward the horizon grass rim
-        for index in 0..<110 {
+        for index in 0..<120 {
             let angle = Float(index) * 2.399963
-            let radius = 2.25 + Float((index * 11) % 31) * 0.14
+            let radius = 2.15 + Float((index * 11) % 31) * 0.14
             let base = SCNVector3(sin(angle) * radius, soilY, -cos(angle) * radius)
-            let height = 0.11 + Float(index % 6) * 0.022
+            let height = 0.16 + Float(index % 6) * 0.024
             let tint: UIColor = index.isMultiple(of: 3)
                 ? UIColor(red: 0.55, green: 0.58, blue: 0.23, alpha: 1)
                 : UIColor(red: 0.34, green: 0.50, blue: 0.17, alpha: 1)
@@ -862,7 +879,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 to: wildRoot,
                 base: base,
                 height: height,
-                width: 0.026,
+                width: 0.034,
                 yaw: angle + Float(index % 7) * 0.19,
                 mass: 0.18,
                 response: 0.95,
@@ -913,11 +930,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let material = SCNMaterial()
         material.lightingModel = .lambert
         material.normal.contents = materials.leafNormal
-        material.normal.intensity = 0.12
+        material.normal.intensity = 0.08
         material.diffuse.contents = materials.grassBladeTexture
-        material.multiply.contents = tint
-        material.ambient.contents = UIColor(red: 0.36, green: 0.42, blue: 0.26, alpha: 1)
-        material.roughness.contents = 0.88
+        // Match HomeView (SceneKitCropView line 1601): preserve the authored
+        // HumaGrassTexture albedo instead of darkening it with a heavy tint.
+        material.multiply.contents = UIColor(white: 0.96, alpha: 1)
+        material.ambient.contents = UIColor(red: 0.56, green: 0.58, blue: 0.46, alpha: 1)
+        material.roughness.contents = 0.92
         material.isDoubleSided = true
         material.transparencyMode = .aOne
         material.writesToDepthBuffer = true
@@ -1001,30 +1020,51 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         fireLight.color = UIColor(red: 1.0, green: 0.48, blue: 0.12, alpha: 1)
         fireLight.intensity = 0
         fireLight.attenuationStartDistance = 0.2
-        fireLight.attenuationEndDistance = 4.0
+        fireLight.attenuationEndDistance = 5.5
         fireGlowNode.light = fireLight
         fireGlowNode.position = SCNVector3(0, soilY + 0.32, -1.7)
         fireRoot.addChildNode(fireGlowNode)
 
         for (patchIndex, patchPos) in patchPositions.enumerated() {
-            let emitterNode = SCNNode()
-            emitterNode.position = SCNVector3(patchPos.x, soilY + 0.02, patchPos.z)
+            // 1. Primary stump & root-collar fire emitter
+            let stumpEmitter = SCNNode()
+            stumpEmitter.position = SCNVector3(patchPos.x, soilY + 0.04, patchPos.z)
+            let stumpFlames = makeFlames(sprite: materials.particleSprite)
+            let stumpSmoke = makeSmoke(sprite: materials.particleSprite)
+            stumpEmitter.addParticleSystem(stumpFlames)
+            stumpEmitter.addParticleSystem(stumpSmoke)
+            fireRoot.addChildNode(stumpEmitter)
+            flameSystems.append(stumpFlames)
+            smokeSystems.append(stumpSmoke)
 
-            let flames = makeFlames(sprite: materials.particleSprite)
-            let smoke = makeSmoke(sprite: materials.particleSprite)
-            emitterNode.addParticleSystem(flames)
-            emitterNode.addParticleSystem(smoke)
-            fireRoot.addChildNode(emitterNode)
-            flameSystems.append(flames)
-            smokeSystems.append(smoke)
+            // 2. Surrounding wild-grass bed fire emitters so the undergrowth catches fire too
+            let patchAngle = atan2(patchPos.x, -patchPos.z)
+            for g in 0..<2 {
+                let grassFireAngle = patchAngle + (g == 0 ? -0.24 : 0.26)
+                let grassFireRadius: Float = g == 0 ? 1.38 : 1.68
+                let gx = sin(grassFireAngle) * grassFireRadius
+                let gz = -cos(grassFireAngle) * grassFireRadius
 
-            for e in 0..<2 {
-                let phase = Float(patchIndex * 2 + e) * 0.785
-                let offsetAngle = Float(e) * .pi + Float(patchIndex)
-                let baseX = patchPos.x + cos(offsetAngle) * 0.06
-                let baseZ = patchPos.z + sin(offsetAngle) * 0.06
+                let grassEmitter = SCNNode()
+                grassEmitter.position = SCNVector3(gx, soilY + 0.03, gz)
+                let grassFlames = makeFlames(sprite: materials.particleSprite)
+                let grassSmoke = makeSmoke(sprite: materials.particleSprite)
+                grassEmitter.addParticleSystem(grassFlames)
+                grassEmitter.addParticleSystem(grassSmoke)
+                fireRoot.addChildNode(grassEmitter)
+                flameSystems.append(grassFlames)
+                smokeSystems.append(grassSmoke)
+            }
 
-                let sphere = SCNSphere(radius: 0.012)
+            // 3. HomeView-matched glowing ember spheres rising from both stump & grass
+            for e in 0..<4 {
+                let phase = Float(patchIndex * 4 + e) * 0.785
+                let offsetAngle = Float(e) * 1.57 + Float(patchIndex) * 0.6
+                let dist: Float = e < 2 ? 0.12 : 0.42
+                let baseX = patchPos.x + cos(offsetAngle) * dist
+                let baseZ = patchPos.z + sin(offsetAngle) * dist
+
+                let sphere = SCNSphere(radius: 0.022)
                 sphere.segmentCount = 8
                 let mat = SCNMaterial()
                 mat.lightingModel = .physicallyBased
@@ -1036,17 +1076,19 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 sphere.materials = [mat]
 
                 let emberNode = SCNNode(geometry: sphere)
-                emberNode.position = SCNVector3(baseX, soilY + 0.04, baseZ)
+                emberNode.name = "ember_\(patchIndex)_\(e)"
+                emberNode.position = SCNVector3(baseX, soilY + 0.06, baseZ)
                 emberNode.opacity = 0
                 emberNode.isHidden = true
                 fireRoot.addChildNode(emberNode)
                 emberNodes.append((node: emberNode, baseX: baseX, baseZ: baseZ, phase: phase, patchIndex: patchIndex))
             }
 
-            for c in 0..<2 {
-                let cAngle = Float(patchIndex * 2 + c) * 1.047
-                let dist: Float = 0.06 + Float(c) * 0.05
-                let sphere = SCNSphere(radius: 0.015)
+            // 4. HomeView-matched dark ash clods left behind across burned stumps & grass
+            for c in 0..<5 {
+                let cAngle = Float(patchIndex * 5 + c) * 1.047
+                let dist: Float = 0.08 + Float(c % 3) * 0.16
+                let sphere = SCNSphere(radius: 0.026)
                 sphere.segmentCount = 8
                 let mat = SCNMaterial()
                 mat.lightingModel = .lambert
@@ -1230,19 +1272,27 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         for index in 0..<6 {
             let localTime = elapsed - Double(index) * 0.85
-            let isBurningPatch = localTime > 0 && localTime < 7.0
-            let isSmokingPatch = localTime > 0 && localTime < 10.5
+            let isBurningPatch = localTime > 0 && localTime < 7.5
+            let isSmokingPatch = localTime > 0 && localTime < 11.0
 
-            if flameSystems.indices.contains(index) {
-                flameSystems[index].birthRate = (isBurningPatch && !reduceMotion) ? 22 : 0
-            }
-            if smokeSystems.indices.contains(index) {
-                smokeSystems[index].birthRate = (isSmokingPatch && !reduceMotion) ? 10 : 0
+            // Each patch owns 3 emitters (1 stump + 2 surrounding wild-grass emitters)
+            let baseEmitterIdx = index * 3
+            for sub in 0..<3 {
+                let sysIdx = baseEmitterIdx + sub
+                let subDelay = Double(sub) * 0.25
+                let subBurn = (localTime - subDelay) > 0 && (localTime - subDelay) < 7.5
+                let subSmoke = (localTime - subDelay) > 0 && (localTime - subDelay) < 11.0
+                if flameSystems.indices.contains(sysIdx) {
+                    flameSystems[sysIdx].birthRate = (subBurn && !reduceMotion && isBurningPatch) ? 32 : 0
+                }
+                if smokeSystems.indices.contains(sysIdx) {
+                    smokeSystems[sysIdx].birthRate = (subSmoke && !reduceMotion && isSmokingPatch) ? 14 : 0
+                }
             }
 
             if localTime > 0 && localTime < 3.5 {
                 let burnFraction = Float(min(1.0, localTime / 3.5))
-                let charShade = CGFloat(1.0 - burnFraction * 0.80)
+                let charShade = CGFloat(1.0 - burnFraction * 0.82)
                 if treeEntries.indices.contains(index) {
                     let rootAnchor = treeEntries[index].rootAnchor
                     rootAnchor.childNodes.forEach { child in
@@ -1257,30 +1307,66 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                     treeEntries[index].trunk.opacity = 0
                     treeEntries[index].trunk.isHidden = true
                     treeEntries[index].shadow.opacity = 0
+                    treeEntries[index].directionalShadow.opacity = 0
+                    treeEntries[index].directionalShadow.isHidden = true
                 }
             }
         }
 
         for ember in emberNodes {
             let localTime = elapsed - Double(ember.patchIndex) * 0.85
-            let active = localTime > 0 && localTime < 7.5
-            let fireT: Float = active ? Float(min(1.0, localTime / 1.2) * max(0.0, (7.5 - localTime) / 2.5)) : 0
-            ember.node.opacity = CGFloat(fireT * 0.65)
+            let active = localTime > 0 && localTime < 8.0
+            let fireT: Float = active ? Float(min(1.0, localTime / 1.0) * max(0.0, (8.0 - localTime) / 2.5)) : 0
+            ember.node.opacity = CGFloat(fireT * 0.72)
             ember.node.isHidden = fireT < 0.02
             if active {
                 let phase = ember.phase
                 ember.node.position = SCNVector3(
-                    ember.baseX + sin(windTime * 2.1 + phase) * 0.025,
-                    soilY + 0.04 + abs(sin(windTime * 1.8 + phase)) * 0.16 * fireT,
-                    ember.baseZ + cos(windTime * 1.5 + phase) * 0.025
+                    ember.baseX + sin(windTime * 2.1 + phase) * 0.035,
+                    soilY + 0.06 + abs(sin(windTime * 1.8 + phase)) * 0.24 * fireT,
+                    ember.baseZ + cos(windTime * 1.5 + phase) * 0.035
                 )
+                // Warm emission pulse matching HomeView (SceneKitCropView lines 1420-1422)
+                let emitG = Float(0.4 + 0.3 * abs(sin(windTime + phase)))
+                ember.node.geometry?.firstMaterial?.emission.contents =
+                    UIColor(red: 1.0, green: CGFloat(emitG), blue: 0, alpha: 1)
             }
         }
 
         let globalBurnT = Float(min(1.0, max(0.0, elapsed / 12.0)))
+
+        // Char, shrivel, and burn away the wild grass blades across the clearing (matching HomeView)
+        for (bladeIdx, blade) in blades.enumerated() {
+            let stagger = Float(bladeIdx % 6) * 0.08
+            let bladeBurnT = min(1.0, max(0.0, (globalBurnT - stagger) / max(0.1, 0.72 - stagger)))
+            if bladeBurnT > 0.001 {
+                if bladeBurnT < 0.45 {
+                    // Scorching amber-brown phase as flames engulf the grass blade
+                    let t = bladeBurnT / 0.45
+                    blade.pivot.geometry?.firstMaterial?.multiply.contents = UIColor(
+                        red: CGFloat(0.96 - t * 0.16),
+                        green: CGFloat(0.96 - t * 0.56),
+                        blue: CGFloat(0.96 - t * 0.84),
+                        alpha: 1
+                    )
+                } else {
+                    // Deep charcoal blackening & curling into ash
+                    let t = (bladeBurnT - 0.45) / 0.55
+                    blade.pivot.geometry?.firstMaterial?.multiply.contents = UIColor(
+                        red: CGFloat(0.80 - t * 0.70),
+                        green: CGFloat(0.40 - t * 0.33),
+                        blue: CGFloat(0.12 - t * 0.07),
+                        alpha: 1
+                    )
+                }
+                let shrinkY = max(0.18, 1.0 - bladeBurnT * 0.82)
+                blade.pivot.scale = SCNVector3(1.0, shrinkY, 1.0)
+            }
+        }
+
         if let groundMat = groundMaterial {
             let soilRGB = SIMD3<Float>(1.0, 1.0, 1.0)
-            let charRGB = SIMD3<Float>(0.50, 0.42, 0.36)
+            let charRGB = SIMD3<Float>(0.36, 0.28, 0.22)
             let mixed = simd_mix(soilRGB, charRGB, SIMD3<Float>(repeating: globalBurnT))
             groundMat.multiply.contents = UIColor(
                 red: CGFloat(mixed.x),
@@ -1289,12 +1375,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 alpha: 1
             )
         }
-        let ashAlpha = CGFloat(min(1.0, max(0.0, (elapsed - 2.5) / 5.0)))
+        let ashAlpha = CGFloat(min(1.0, max(0.0, (elapsed - 2.2) / 4.5)))
         for clod in ashNodes {
             clod.opacity = ashAlpha
             clod.isHidden = ashAlpha < 0.01
         }
-        wildRoot.opacity = CGFloat(max(0.18, 1.0 - globalBurnT * 0.82))
+        // Match HomeView (SceneKitCropView line 1302): wild grass completely burns away into ash
+        let grassFade = max(0.0, 1.0 - smoothstep(0.35, 0.88, globalBurnT))
+        wildRoot.opacity = CGFloat(grassFade)
+        wildRoot.isHidden = grassFade < 0.005
 
         if elapsed >= 18.0 {
             finishBurn()
@@ -1398,12 +1487,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             entry.directionalShadow.opacity = 0
             entry.directionalShadow.isHidden = true
         }
-        groundMaterial?.multiply.contents = UIColor(red: 0.50, green: 0.42, blue: 0.36, alpha: 1)
+        groundMaterial?.multiply.contents = UIColor(red: 0.36, green: 0.28, blue: 0.22, alpha: 1)
         for clod in ashNodes {
             clod.opacity = 1
             clod.isHidden = false
         }
-        wildRoot.opacity = 0.18
+        wildRoot.opacity = 0
+        wildRoot.isHidden = true
 
         audioPlayer?.stop()
         audioPlayer = nil
@@ -1508,7 +1598,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             if body { bodyIndices += indices } else { frontIndices += indices }
         }
 
-        let width: Float = 0.34, height: Float = 0.50
+        let width: Float = 0.35, height: Float = 0.56
         // Map v=0.012 (the exact bottom-most opaque root pixel of HumaTreeNatural) to y=0.0
         // so the tree roots touch the ground directly without floating or sinking below soilY.
         let vBottomTrim: Float = 0.012
@@ -1574,7 +1664,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let front = SCNMaterial()
         front.lightingModel = .lambert
         front.diffuse.contents = image
-        front.ambient.contents = UIColor(red: 0.35, green: 0.32, blue: 0.28, alpha: 1)
+        front.ambient.contents = UIColor(red: 0.52, green: 0.50, blue: 0.46, alpha: 1)
         front.roughness.contents = 0.88
         front.isDoubleSided = true
         // Use standard alpha blending instead of .aOne (which does additive blending on straight alpha,
@@ -1831,14 +1921,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         system.birthRate = 0
         system.particleLifeSpan = 0.65
         system.particleLifeSpanVariation = 0.15
-        system.particleSize = 0.055
-        system.particleSizeVariation = 0.018
-        system.particleVelocity = 0.16
-        system.particleVelocityVariation = 0.04
+        system.particleSize = 0.12
+        system.particleSizeVariation = 0.04
+        system.particleVelocity = 0.28
+        system.particleVelocityVariation = 0.08
         system.emittingDirection = SCNVector3(0, 1, 0)
-        system.spreadingAngle = 16
-        system.acceleration = SCNVector3(0.018, 0.08, 0)
-        system.emitterShape = SCNSphere(radius: 0.045)
+        system.spreadingAngle = 18
+        system.acceleration = SCNVector3(0.025, 0.14, 0)
+        system.emitterShape = SCNSphere(radius: 0.14)
         system.particleImage = sprite
         system.blendMode = .additive
         system.isLightingEnabled = false
@@ -1856,16 +1946,16 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func makeSmoke(sprite: UIImage) -> SCNParticleSystem {
         let system = SCNParticleSystem()
         system.birthRate = 0
-        system.particleLifeSpan = 1.9
+        system.particleLifeSpan = 2.0
         system.particleLifeSpanVariation = 0.4
-        system.particleSize = 0.08
-        system.particleSizeVariation = 0.03
-        system.particleVelocity = 0.18
-        system.particleVelocityVariation = 0.05
+        system.particleSize = 0.16
+        system.particleSizeVariation = 0.05
+        system.particleVelocity = 0.28
+        system.particleVelocityVariation = 0.07
         system.emittingDirection = SCNVector3(0, 1, 0)
-        system.spreadingAngle = 24
-        system.acceleration = SCNVector3(0.03, 0.09, 0)
-        system.emitterShape = SCNSphere(radius: 0.06)
+        system.spreadingAngle = 26
+        system.acceleration = SCNVector3(0.04, 0.14, 0)
+        system.emitterShape = SCNSphere(radius: 0.15)
         system.particleImage = sprite
         system.blendMode = .alpha
         system.isLightingEnabled = false
