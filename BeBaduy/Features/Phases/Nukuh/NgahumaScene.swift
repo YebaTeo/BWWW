@@ -60,7 +60,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     var instruction: String {
         switch stage {
         case .entering: "Lingkungan 3D sedang disiapkan. Kamera perangkat tidak digunakan."
-        case .clearing: "Geser untuk melihat sekeliling dan ketuk rumpun untuk merapikan vegetasi. \(count)/6"
+        case .clearing: "Geser untuk melihat sekeliling dan ketuk pohon untuk merapikan vegetasi. \(count)/6"
         case .prepared: "Mulai adegan pembakaran virtual dan amati perubahan lahan."
         case .burning: "Api, bara, dan asap bergerak di atas lahan virtual."
         case .complete: "Anda telah menyelesaikan rangkaian simulasi ngahuma."
@@ -166,16 +166,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             soil.generateCollisionShapes(recursive: false)
             patch.addChild(soil)
             let vegetation = Entity()
-            let trunk = ModelEntity(mesh: .generateCylinder(height: 1.5, radius: 0.055), materials: [SimpleMaterial(color: UIColor(red: 0.32, green: 0.22, blue: 0.13, alpha: 1), roughness: 0.95, isMetallic: false)])
-            trunk.position.y = 0.75
-            vegetation.addChild(trunk)
-            for branch in 0..<7 {
-                let foliage = materials.clump(height: 0.8)
-                let angle = Float(branch) * 2.4
-                foliage.position = [sin(angle) * 0.28, 0.8 + Float(branch % 3) * 0.2, cos(angle) * 0.28]
-                vegetation.addChild(foliage)
-            }
-            // One generous hit volume per plot also catches taps on the standing plants.
+            vegetation.addChild(materials.treeCard(height: 3.2))
             patch.components.set(CollisionComponent(shapes: [.generateBox(size: [0.9, 1.3, 0.9])]))
             patch.addChild(vegetation)
             root.addChild(patch)
@@ -234,12 +225,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private func buildSurroundings(in root: Entity) {
         guard let materials else { return }
-        var skyMaterial = UnlitMaterial(color: .white)
-        skyMaterial.color = .init(tint: .white, texture: .init(materials.panorama))
-        skyMaterial.faceCulling = .front
-        let sky = ModelEntity(mesh: .generateSphere(radius: 65), materials: [skyMaterial])
-        sky.position.y = 1.5
-        root.addChild(sky)
+        materials.addSpatialEnvironment(to: root)
         if let terrain = try? materials.terrain() { root.addChild(terrain) }
         let sun = DirectionalLight()
         sun.light.intensity = 1400
@@ -247,12 +233,20 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sun.shadow = .init()
         sun.look(at: .zero, from: [8, 12, 4], relativeTo: nil)
         root.addChild(sun)
-        // A shared material and crossed cards replace the former box stalks / sphere trees.
-        for index in 0..<110 {
+        for index in 0..<45 {
+            let angle = Float(index) * 2.3999
+            let radius = 1.3 + Float((index * 7) % 23) * 0.11
+            let clump = materials.clump(height: 0.35 + Float(index % 5) * 0.08, variant: index)
+            clump.position = [sin(angle) * radius, -0.015, cos(angle) * radius]
+            clump.orientation = simd_quatf(angle: angle, axis: [0, 1, 0])
+            root.addChild(clump)
+            wildGrass.append(clump)
+        }
+        for index in 0..<75 {
             let angle = Float(index) * 2.399963
-            let radius = 4.2 + Float(index % 19) * 0.43
-            let clump = materials.clump(height: 0.5 + Float(index % 7) * 0.12)
-            clump.position = [sin(angle) * radius, -0.09, cos(angle) * radius]
+            let radius = 3.8 + Float(index % 17) * 0.38
+            let clump = materials.clump(height: 0.55 + Float(index % 7) * 0.12, variant: index)
+            clump.position = [sin(angle) * radius, -0.04, cos(angle) * radius]
             clump.orientation = simd_quatf(angle: angle, axis: [0, 1, 0])
             root.addChild(clump)
             wildGrass.append(clump)
