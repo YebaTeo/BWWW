@@ -1,5 +1,4 @@
 import XCTest
-import RealityKit
 @testable import BeBaduy
 
 @MainActor final class NukuhTests: XCTestCase {
@@ -10,46 +9,40 @@ import RealityKit
         XCTAssertTrue(vm.collected.isEmpty)
         vm.suspend(); XCTAssertTrue(vm.scene.suspended)
     }
+
     func testReplayKeepsPreviouslySavedCredit() {
         var progress = JourneyProgress(); progress.complete(.nukuh, outcome: .observed)
         let vm = NukuhViewModel(); vm.restore(progress.record(for: .nukuh).outcome)
         vm.start(); XCTAssertNil(vm.session.outcome)
         XCTAssertTrue(progress.record(for: .nukuh).explanationAvailable)
     }
-    func testSphereUVsAndPanorama() throws {
-        let mesh = MeshResource.generateSphere(radius: 1.0)
-        for model in mesh.contents.models {
-            for part in model.parts {
-                let positions = Array(part.positions)
-                if let uvsBuffer = part.textureCoordinates {
-                    let uvs = Array(uvsBuffer)
-                    var maxYIndex = 0
-                    var minYIndex = 0
-                    for (i, p) in positions.enumerated() {
-                        if p.y > positions[maxYIndex].y { maxYIndex = i }
-                        if p.y < positions[minYIndex].y { minYIndex = i }
-                    }
-                    print("TEST_SPHERE_NORTH_POLE: pos=\(positions[maxYIndex]) uv=\(uvs[maxYIndex])")
-                    print("TEST_SPHERE_SOUTH_POLE: pos=\(positions[minYIndex]) uv=\(uvs[minYIndex])")
-                }
-            }
+
+    func testThreeSpatialLayersAndInteractiveFlow() async throws {
+        let materials = try await NgahumaMaterials.load()
+        XCTAssertEqual(materials.skyTexture.cgImage?.width, 2048)
+        XCTAssertEqual(materials.skyTexture.cgImage?.height, 1024)
+        XCTAssertEqual(materials.mountainTexture.cgImage?.width, 2048)
+        XCTAssertEqual(materials.mountainTexture.cgImage?.height, 512)
+        XCTAssertEqual(materials.horizonGrassTexture.cgImage?.width, 2048)
+        XCTAssertEqual(materials.horizonGrassTexture.cgImage?.height, 256)
+        XCTAssertEqual(materials.soilTexture.cgImage?.width, 1024)
+        XCTAssertEqual(materials.soilTexture.cgImage?.height, 1024)
+
+        let vm = NukuhViewModel()
+        vm.start()
+        await vm.scene.prepareAssets()
+        XCTAssertEqual(vm.scene.stage, .clearing)
+
+        for index in 0..<6 {
+            vm.collect(index)
         }
+        XCTAssertEqual(vm.collected.count, 6)
+        XCTAssertEqual(vm.scene.stage, .prepared)
 
-        guard let environment = UIImage(named: "HumaEnvironment"),
-              let envCG = environment.cgImage else {
-            XCTFail("Missing HumaEnvironment")
-            return
-        }
-        print("ENV_CG_DIMENSIONS: \(envCG.width)x\(envCG.height)")
-
-        let pano = NgahumaMaterials.build360Panorama(from: envCG)
-        XCTAssertNotNil(pano)
-        XCTAssertEqual(pano?.width, 2048)
-        XCTAssertEqual(pano?.height, 1024)
-
-        let soil = NgahumaMaterials.extractSeamlessSoil(from: envCG, targetSize: 512)
-        XCTAssertNotNil(soil)
-        XCTAssertEqual(soil?.width, 512)
-        XCTAssertEqual(soil?.height, 512)
+        vm.burn()
+        XCTAssertEqual(vm.scene.stage, .burning)
+        vm.scene.finishBurn()
+        XCTAssertEqual(vm.scene.stage, .complete)
+        XCTAssertEqual(vm.session.outcome, .performed)
     }
 }
