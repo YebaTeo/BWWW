@@ -68,6 +68,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let canopy: SCNNode
         let rootAnchor: SCNNode
         let shadow: SCNNode
+        let directionalShadow: SCNNode
         let baseFracture: SCNNode
         let fallingFracture: SCNNode
         let pivotOrigin: SCNVector3
@@ -346,15 +347,18 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         // Directional Sun Key Light casting real shadows across the 360° clearing
         sunKeyLight.type = .directional
-        sunKeyLight.color = UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1)
-        sunKeyLight.intensity = 155
+        sunKeyLight.color = UIColor(red: 1.0, green: 0.90, blue: 0.74, alpha: 1)
+        sunKeyLight.intensity = 1150
         sunKeyLight.castsShadow = true
-        sunKeyLight.shadowMode = .deferred
-        sunKeyLight.shadowRadius = 10
-        sunKeyLight.shadowSampleCount = 8
-        sunKeyLight.shadowBias = 0.003
-        sunKeyLight.shadowMapSize = CGSize(width: 1024, height: 1024)
-        sunKeyLight.shadowColor = UIColor(white: 0.05, alpha: 0.30)
+        sunKeyLight.shadowMode = .forward
+        sunKeyLight.orthographicScale = 14.0
+        sunKeyLight.zNear = 1.0
+        sunKeyLight.zFar = 38.0
+        sunKeyLight.shadowRadius = 3.5
+        sunKeyLight.shadowSampleCount = 16
+        sunKeyLight.shadowBias = 0.0012
+        sunKeyLight.shadowMapSize = CGSize(width: 2048, height: 2048)
+        sunKeyLight.shadowColor = UIColor(red: 0.12, green: 0.08, blue: 0.05, alpha: 0.65)
         let sunLightNode = SCNNode()
         sunLightNode.light = sunKeyLight
         sunLightNode.position = .init(0, 0, 0)
@@ -363,9 +367,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         sunCoronaLight.type = .omni
         sunCoronaLight.color = UIColor(red: 1.0, green: 0.86, blue: 0.66, alpha: 1)
-        sunCoronaLight.intensity = 45
+        sunCoronaLight.intensity = 160
         sunCoronaLight.attenuationStartDistance = 2.0
-        sunCoronaLight.attenuationEndDistance = 28.0
+        sunCoronaLight.attenuationEndDistance = 32.0
         let sunOmniNode = SCNNode()
         sunOmniNode.light = sunCoronaLight
         sunSystemRoot.addChildNode(sunOmniNode)
@@ -373,30 +377,30 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         worldRoot.addChildNode(sunSystemRoot)
 
         skyAmbientLight.type = .ambient
-        skyAmbientLight.color = UIColor(red: 0.88, green: 0.82, blue: 0.70, alpha: 1)
-        skyAmbientLight.intensity = 230
+        skyAmbientLight.color = UIColor(red: 0.82, green: 0.78, blue: 0.72, alpha: 1)
+        skyAmbientLight.intensity = 380
         let ambientNode = SCNNode()
         ambientNode.light = skyAmbientLight
         worldRoot.addChildNode(ambientNode)
 
-        sunsetRimLight.type = .omni
-        sunsetRimLight.color = UIColor(red: 1.0, green: 0.87, blue: 0.68, alpha: 1)
-        sunsetRimLight.intensity = 22
-        sunsetRimLight.attenuationStartDistance = 0.5
-        sunsetRimLight.attenuationEndDistance = 8.0
+        sunsetRimLight.type = .directional
+        sunsetRimLight.color = UIColor(red: 1.0, green: 0.82, blue: 0.62, alpha: 1)
+        sunsetRimLight.intensity = 180
+        sunsetRimLight.castsShadow = false
         let rimNode = SCNNode()
         rimNode.light = sunsetRimLight
-        rimNode.position = SCNVector3(0.85, 1.45, -1.2)
+        rimNode.position = SCNVector3(-4.0, 3.2, 5.0)
+        rimNode.look(at: SCNVector3(0, soilY, 0))
         worldRoot.addChildNode(rimNode)
 
         warmFillLight.type = .omni
-        warmFillLight.color = UIColor(red: 1.0, green: 0.79, blue: 0.57, alpha: 1)
-        warmFillLight.intensity = 58
+        warmFillLight.color = UIColor(red: 1.0, green: 0.84, blue: 0.68, alpha: 1)
+        warmFillLight.intensity = 120
         warmFillLight.attenuationStartDistance = 0.5
-        warmFillLight.attenuationEndDistance = 9.0
+        warmFillLight.attenuationEndDistance = 14.0
         let fillNode = SCNNode()
         fillNode.light = warmFillLight
-        fillNode.position = SCNVector3(0, 1.25, 0)
+        fillNode.position = SCNVector3(0, 1.6, 0)
         worldRoot.addChildNode(fillNode)
 
         // ── Layer 2 (Middle): 360° Mountain Ridge Layer ("gunung-gunungan") ──
@@ -448,7 +452,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         receiverMaterial.lightingModel = .shadowOnly
         receiverMaterial.isDoubleSided = true
         receiverMaterial.writesToDepthBuffer = false
-        let receiverGeometry = SCNPlane(width: 12.0, height: 12.0)
+        let receiverGeometry = SCNPlane(width: 24.0, height: 24.0)
         receiverGeometry.materials = [receiverMaterial]
         let receiver = SCNNode(geometry: receiverGeometry)
         receiver.name = "soilShadowReceiver"
@@ -529,6 +533,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         rootMeshCopy.materials = rootBaseGeometry.materials.map { $0.copy() as! SCNMaterial }
         let rootMeshNode = SCNNode(geometry: rootMeshCopy)
         rootMeshNode.name = "patch-\(index)"
+        rootMeshNode.castsShadow = true
         rootAnchor.addChildNode(rootMeshNode)
 
         // Jagged wood fracture surface on top of the rooted stump (revealed when tree splits)
@@ -543,6 +548,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         pivot.name = "patch-\(index)"
         pivot.position = SCNVector3(0, cutHeight * scale, 0)
         pivot.scale = SCNVector3(scale, scale, scale)
+        pivot.castsShadow = true
 
         let wood = stumpMaterial(using: materials)
         let upperMeshCopy = upperTreeGeometry.copy() as! SCNGeometry
@@ -552,18 +558,22 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         canopy.name = "treeSprite_\(index)"
         // Shift by -cutHeight so row 6 (y = 0.075 in mesh space) sits at y = 0 of pivot
         canopy.position.y = -cutHeight
+        canopy.castsShadow = true
 
         let front = SCNNode(geometry: upperMeshCopy)
         front.name = "treeSilhouette"
         front.position.z = 0
+        front.castsShadow = true
         canopy.addChildNode(front)
 
         let radial = SCNNode(geometry: radialCrownGeometry.copy() as? SCNGeometry)
         radial.name = "radialFoliage"
         let radialMaterial = SCNMaterial()
-        radialMaterial.lightingModel = .constant
+        radialMaterial.lightingModel = .lambert
         radialMaterial.diffuse.contents = UIColor(red: 0.12, green: 0.17, blue: 0.045, alpha: 1)
+        radialMaterial.ambient.contents = UIColor(red: 0.08, green: 0.11, blue: 0.03, alpha: 1)
         radialMaterial.multiply.contents = UIColor(white: 0.72, alpha: 1)
+        radialMaterial.roughness.contents = 0.90
         radialMaterial.isDoubleSided = true
         radialMaterial.writesToDepthBuffer = true
         radial.geometry?.materials = [radialMaterial]
@@ -600,13 +610,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // Hit-test proxy box for responsive direct tapping on the 3D tree
         let hitBox = SCNBox(width: 0.38, height: 0.54, length: 0.24, chamferRadius: 0)
         let hitMat = SCNMaterial()
+        hitMat.lightingModel = .constant
         hitMat.diffuse.contents = UIColor.clear
         hitMat.writesToDepthBuffer = false
         hitBox.materials = [hitMat]
         let hitNode = SCNNode(geometry: hitBox)
         hitNode.name = "patch-\(index)"
         hitNode.position = SCNVector3(0, 0.25, 0)
-        hitNode.opacity = 0.01
+        hitNode.opacity = 0.001
         hitNode.castsShadow = false
         canopy.addChildNode(hitNode)
 
@@ -621,7 +632,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         holder.addChildNode(pivot)
 
-        // 3. Realistic HomeView-matched Tree Base Blending:
+        // 3. Realistic Tree Shadows Aligned with Sun Direction (Sun at (5.6, 3.45, -16.2)):
+        // Shadow projects away from the sun along ground vector (-5.6, 0, 16.2)
+        let shadowWorldYaw: Float = atan2(5.6, -16.2)
+        let localShadowYaw = shadowWorldYaw - facingYaw
+
         // A. 3D organic soil collar that rises 6.8 mm at the bark and feathers outward
         let soilCollar = buildRootSoilCollar(scale: scale, materials: materials)
         holder.addChildNode(soilCollar)
@@ -634,7 +649,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         coreShadowMaterial.transparency = 0.65
         coreShadowMaterial.isDoubleSided = true
         coreShadowMaterial.writesToDepthBuffer = false
-        let coreShadowGeometry = SCNPlane(width: CGFloat(0.13 * scale), height: CGFloat(0.09 * scale))
+        let coreShadowGeometry = SCNPlane(width: CGFloat(0.14 * scale), height: CGFloat(0.10 * scale))
         coreShadowGeometry.materials = [coreShadowMaterial]
         let coreShadow = SCNNode(geometry: coreShadowGeometry)
         coreShadow.eulerAngles.x = -.pi / 2
@@ -658,7 +673,47 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         shadow.castsShadow = false
         holder.addChildNode(shadow)
 
-        // D. Clusters of wild grass blades rooted directly into the soil collar around the trunk
+        // D. Directional Ground Shadow Projector: elongated along sun angle
+        let directionalShadowRoot = SCNNode()
+        directionalShadowRoot.name = "directionalShadow_\(index)"
+        directionalShadowRoot.position = SCNVector3(0, 0.0006, 0)
+        directionalShadowRoot.eulerAngles.y = localShadowYaw
+
+        // Trunk shadow projection (elongated along local -Z of directionalShadowRoot)
+        let trunkShadowMat = SCNMaterial()
+        trunkShadowMat.lightingModel = .constant
+        trunkShadowMat.diffuse.contents = materials.particleSprite
+        trunkShadowMat.multiply.contents = UIColor(red: 0.10, green: 0.07, blue: 0.04, alpha: 1)
+        trunkShadowMat.transparency = 0.50
+        trunkShadowMat.isDoubleSided = true
+        trunkShadowMat.writesToDepthBuffer = false
+        let trunkShadowGeo = SCNPlane(width: CGFloat(0.18 * scale), height: CGFloat(0.60 * scale))
+        trunkShadowGeo.materials = [trunkShadowMat]
+        let trunkShadowNode = SCNNode(geometry: trunkShadowGeo)
+        trunkShadowNode.eulerAngles.x = -.pi / 2
+        trunkShadowNode.position = SCNVector3(0, 0, -0.28 * scale)
+        trunkShadowNode.castsShadow = false
+        directionalShadowRoot.addChildNode(trunkShadowNode)
+
+        // Canopy shadow projection (softer, wider oval cast further away)
+        let canopyShadowMat = SCNMaterial()
+        canopyShadowMat.lightingModel = .constant
+        canopyShadowMat.diffuse.contents = materials.particleSprite
+        canopyShadowMat.multiply.contents = UIColor(red: 0.12, green: 0.08, blue: 0.05, alpha: 1)
+        canopyShadowMat.transparency = 0.40
+        canopyShadowMat.isDoubleSided = true
+        canopyShadowMat.writesToDepthBuffer = false
+        let canopyShadowGeo = SCNPlane(width: CGFloat(0.44 * scale), height: CGFloat(0.54 * scale))
+        canopyShadowGeo.materials = [canopyShadowMat]
+        let canopyShadowNode = SCNNode(geometry: canopyShadowGeo)
+        canopyShadowNode.eulerAngles.x = -.pi / 2
+        canopyShadowNode.position = SCNVector3(0, 0.0002, -0.60 * scale)
+        canopyShadowNode.castsShadow = false
+        directionalShadowRoot.addChildNode(canopyShadowNode)
+
+        holder.addChildNode(directionalShadowRoot)
+
+        // E. Clusters of wild grass blades rooted directly into the soil collar around the trunk
         for grassIdx in 0..<6 {
             let grassAngle = Float(grassIdx) * (2.0 * .pi / 6.0) + Float(index) * 0.35
             let grassDist = (0.052 + Float(grassIdx % 3) * 0.016) * scale
@@ -693,6 +748,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 canopy: canopy,
                 rootAnchor: rootAnchor,
                 shadow: shadow,
+                directionalShadow: directionalShadowRoot,
                 baseFracture: baseFracture,
                 fallingFracture: fallingFracture,
                 pivotOrigin: pivot.position,
@@ -735,7 +791,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         soil.roughness.contents = 0.95
         soil.ambient.contents = UIColor(red: 0.52, green: 0.44, blue: 0.36, alpha: 1)
         soil.isDoubleSided = true
-        soil.transparencyMode = .aOne
+        soil.transparencyMode = .default
         soil.writesToDepthBuffer = false
         soil.shaderModifiers = [.fragment: """
         #pragma transparent
@@ -855,14 +911,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         materials: NgahumaMaterials
     ) -> SCNMaterial {
         let material = SCNMaterial()
-        material.lightingModel = .physicallyBased
+        material.lightingModel = .lambert
         material.normal.contents = materials.leafNormal
-        material.normal.intensity = 0.08
+        material.normal.intensity = 0.12
         material.diffuse.contents = materials.grassBladeTexture
-        material.multiply.contents = UIColor(white: 0.96, alpha: 1)
-        material.emission.intensity = 0
-        material.roughness.contents = 0.92
-        material.metalness.contents = 0.0
+        material.multiply.contents = tint
+        material.ambient.contents = UIColor(red: 0.36, green: 0.42, blue: 0.26, alpha: 1)
+        material.roughness.contents = 0.88
         material.isDoubleSided = true
         material.transparencyMode = .aOne
         material.writesToDepthBuffer = true
@@ -880,6 +935,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         pivot.name = "blade"
         pivot.position = base
         pivot.eulerAngles.y = yaw
+        pivot.castsShadow = true
         root.addChildNode(pivot)
 
         let blade = Blade(
@@ -1307,6 +1363,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         shadow.position.z = reachZ * signZ * upperTreeFade
         shadow.opacity = CGFloat(0.24 + descent * 0.10 * upperTreeFade)
 
+        // Directional tree shadow tracks the upper trunk and fades smoothly upon falling
+        entry.directionalShadow.opacity = CGFloat(upperTreeFade)
+        entry.directionalShadow.isHidden = upperTreeFade < 0.005
+
         if fallT >= contactTime && !impactedTrees.contains(index) {
             impactedTrees.insert(index)
             if !reduceMotion {
@@ -1335,6 +1395,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             entry.rootAnchor.opacity = 0
             entry.rootAnchor.isHidden = true
             entry.shadow.opacity = 0
+            entry.directionalShadow.opacity = 0
+            entry.directionalShadow.isHidden = true
         }
         groundMaterial?.multiply.contents = UIColor(red: 0.50, green: 0.42, blue: 0.36, alpha: 1)
         for clod in ashNodes {
@@ -1510,10 +1572,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
 
         let front = SCNMaterial()
-        front.lightingModel = .constant
+        front.lightingModel = .lambert
         front.diffuse.contents = image
+        front.ambient.contents = UIColor(red: 0.35, green: 0.32, blue: 0.28, alpha: 1)
+        front.roughness.contents = 0.88
         front.isDoubleSided = true
-        front.transparencyMode = .aOne
+        // Use standard alpha blending instead of .aOne (which does additive blending on straight alpha,
+        // causing bright white halo outlines around un-premultiplied transparent artwork)
+        front.transparencyMode = .default
         front.writesToDepthBuffer = true
         if includeWind {
             front.shaderModifiers = [.geometry: """
@@ -1548,7 +1614,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             #pragma body
             float crownMask = 1.0 - smoothstep(0.42, 0.55, _surface.diffuseTexcoord.y);
             _output.color.a *= 1.0 - treeCrownBlend * crownMask;
-            if (_output.color.a < 0.08) { discard_fragment(); }
+            // Clean alpha cutoff: discards low-alpha edge fringe (< 0.35) eliminating white background bleeding
+            if (_output.color.a < 0.35) { discard_fragment(); }
             """]
             front.setValue(Float(0), forKey: "treeWindTime")
             front.setValue(Float(0), forKey: "treeWindAmplitude")
@@ -1558,15 +1625,17 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             front.shaderModifiers = [.fragment: """
             #pragma transparent
             #pragma body
-            if (_output.color.a < 0.08) { discard_fragment(); }
+            if (_output.color.a < 0.35) { discard_fragment(); }
             """]
         }
         NgahumaMaterials.smoothTextureSampling(front.diffuse)
 
         let body = front.copy() as! SCNMaterial
-        body.lightingModel = .constant
-        body.multiply.contents = UIColor(white: 0.83, alpha: 1)
+        body.lightingModel = .lambert
+        body.multiply.contents = UIColor(red: 0.58, green: 0.52, blue: 0.44, alpha: 1)
+        body.ambient.contents = UIColor(red: 0.28, green: 0.25, blue: 0.21, alpha: 1)
         body.isDoubleSided = true
+        body.transparencyMode = .default
         if includeWind {
             body.setValue(Float(0), forKey: "treeCrownBlend")
         }
@@ -1712,13 +1781,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func makeFractureSurface(seed: Int) -> SCNNode {
         let root = SCNNode()
         let heartwood = SCNMaterial()
-        heartwood.lightingModel = .constant
+        heartwood.lightingModel = .lambert
         heartwood.diffuse.contents = UIColor(red: 0.72, green: 0.51, blue: 0.30, alpha: 1)
+        heartwood.ambient.contents = UIColor(red: 0.40, green: 0.28, blue: 0.16, alpha: 1)
         heartwood.isDoubleSided = true
 
         let barkRim = SCNMaterial()
-        barkRim.lightingModel = .constant
+        barkRim.lightingModel = .lambert
         barkRim.diffuse.contents = UIColor(red: 0.46, green: 0.29, blue: 0.15, alpha: 1)
+        barkRim.ambient.contents = UIColor(red: 0.26, green: 0.16, blue: 0.08, alpha: 1)
         barkRim.isDoubleSided = true
 
         let count = 14

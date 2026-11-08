@@ -42,9 +42,10 @@ struct NgahumaMaterials {
             ?? UIImage(contentsOfFile: Bundle.main.path(forResource: "ngahuma-grass", ofType: "png") ?? "")
             ?? UIImage()
 
-        let treeTexture = UIImage(named: "HumaTreeNatural")
+        let rawTree = UIImage(named: "HumaTreeNatural")
             ?? UIImage(named: "HumaTree")
             ?? UIImage()
+        let treeTexture = Self.cleanTreeDefringe(from: rawTree)
 
         let rootFlareTexture = Self.extractRootFlareTexture(from: treeTexture)
 
@@ -649,6 +650,94 @@ struct NgahumaMaterials {
     }
 
     // MARK: - HomeView (SceneKitCropView) Shared Procedural Textures & Sprites
+
+    /// Removes white/sky background halo fringes from extracted tree artwork via morphological
+    /// color bleeding, completely eliminating the white outline around tree silhouettes.
+    static func cleanTreeDefringe(from source: UIImage) -> UIImage {
+        guard let cg = source.cgImage,
+              let data = cg.dataProvider?.data,
+              let srcPtr = CFDataGetBytePtr(data) else { return source }
+        let width = cg.width
+        let height = cg.height
+        let bpr = cg.bytesPerRow
+        let bpp = max(4, cg.bitsPerPixel / 8)
+
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+
+        for y in 0..<height {
+            let srcRow = y * bpr
+            let dstRow = y * (width * 4)
+            for x in 0..<width {
+                let sp = srcRow + x * bpp
+                let dp = dstRow + x * 4
+                pixels[dp]     = srcPtr[sp]
+                pixels[dp + 1] = srcPtr[sp + 1]
+                pixels[dp + 2] = srcPtr[sp + 2]
+                pixels[dp + 3] = srcPtr[sp + 3]
+            }
+        }
+
+        // Morphological color-bleed on fringe pixels
+        for y in 0..<height {
+            let row = y * (width * 4)
+            for x in 0..<width {
+                let p = row + x * 4
+                let a = pixels[p + 3]
+                if a < 70 {
+                    pixels[p + 3] = 0
+                    continue
+                }
+                let r = pixels[p]
+                let g = pixels[p + 1]
+                let b = pixels[p + 2]
+                if (r > 150 && g > 150 && b > 150) || a < 190 {
+                    var found = false
+                    for dist in 1...4 {
+                        for dy in -dist...dist {
+                            let ny = y + dy
+                            guard ny >= 0 && ny < height else { continue }
+                            let nRow = ny * (width * 4)
+                            for dx in -dist...dist {
+                                let nx = x + dx
+                                guard nx >= 0 && nx < width else { continue }
+                                let np = nRow + nx * 4
+                                if pixels[np + 3] > 205 {
+                                    let nr = pixels[np]
+                                    let ng = pixels[np + 1]
+                                    let nb = pixels[np + 2]
+                                    if nr < 145 || ng < 145 || nb < 145 {
+                                        pixels[p]     = nr
+                                        pixels[p + 1] = ng
+                                        pixels[p + 2] = nb
+                                        found = true
+                                        break
+                                    }
+                                }
+                            }
+                            if found { break }
+                        }
+                        if found { break }
+                    }
+                }
+            }
+        }
+
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let defringedCG = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: true,
+                intent: .defaultIntent
+              ) else { return source }
+        return UIImage(cgImage: defringedCG, scale: source.scale, orientation: source.imageOrientation)
+    }
 
     private static func extractRootFlareTexture(from treeImage: UIImage) -> UIImage {
         guard let cg = treeImage.cgImage else { return treeImage }
