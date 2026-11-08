@@ -402,8 +402,8 @@ struct NgahumaMaterials {
         let totalW = srcX1 - srcX0
         let overlap = 175.0
         let periodW = totalW - overlap
-        let gYTop = 540.0
-        let gYBot = 665.0
+        let gYTop = 530.0
+        let gYBot = 710.0
         let gYH = gYBot - gYTop
         let targetSoilY = 634.0
 
@@ -432,11 +432,12 @@ struct NgahumaMaterials {
                     b = (1.0 - w) * cB.2 + w * cA.2
                 }
 
-                // Soft feathered top fade + chroma key for sunlit yellow-green grass tips
+                // Feather only the upper tips into the misty mountain layer;
+                // keep the bottom fully opaque so it forms a solid, unbroken rim
+                // with the ground terrain mesh.
                 let grassKey = max(0.0, min(1.0, ((g - b) - 14.0) / 24.0))
-                let topFade = smoothstep(550.0, 595.0, targetY) * (0.40 + 0.60 * grassKey)
-                let botFade = 1.0 - smoothstep(646.0, 665.0, targetY)
-                let a = max(0.0, min(1.0, topFade * botFade))
+                let topFade = smoothstep(535.0, 582.0, targetY) * (0.35 + 0.65 * grassKey)
+                let a = max(0.0, min(1.0, topFade))
 
                 let pr = UInt8(max(0, min(255, Int((r * a).rounded()))))
                 let pg = UInt8(max(0, min(255, Int((g * a).rounded()))))
@@ -466,20 +467,27 @@ struct NgahumaMaterials {
         )
     }
 
-    // MARK: - Layer 3b (Ground): Authentic Rich Photographic Soil from HumaEnvironment
-
-    /// Extracts the authentic brown agricultural soil from HumaEnvironment with pebbles,
-    /// soil clods, and natural earth grain, leveling only macro illumination to create
-    /// a crisp 1024 × 1024 seamless toroidal texture.
+    // MARK: - Layer 3b (Ground): Authentic Rich Photographic Soil from HumaEnvironment & Terrain
+    /// Extracts and generates a crisp 1024 × 1024 seamless toroidal soil texture
+    /// with rich Baduy agricultural earth tones (#6A4B33 midtones, deep fertile crevices,
+    /// and warm sunlit pebbles) matching HomeView.
     static func buildSoilTexture(from source: CGImage) -> CGImage? {
-        guard let data = source.dataProvider?.data,
-              let srcPtr = CFDataGetBytePtr(data) else { return nil }
-        let srcW = source.width
-        let srcH = source.height
-        let bpr = source.bytesPerRow
-        let bpp = max(4, source.bitsPerPixel / 8)
+        let outSize = 1024
+        let overlap = 160
 
-        func sampleRGB(_ x: Double, _ y: Double) -> (Double, Double, Double) {
+        // If the dedicated high-definition terrain texture (1254 × 1254) is available in bundle,
+        // use its authentic Baduy soil clods, pebbles, and organic micro-relief.
+        let terrainSource = UIImage(named: "HumaTerrainTexture")?.cgImage
+        let targetCG = terrainSource ?? source
+
+        guard let data = targetCG.dataProvider?.data,
+              let srcPtr = CFDataGetBytePtr(data) else { return nil }
+        let srcW = targetCG.width
+        let srcH = targetCG.height
+        let bpr = targetCG.bytesPerRow
+        let bpp = max(4, targetCG.bitsPerPixel / 8)
+
+        func samplePix(_ x: Double, _ y: Double) -> (Double, Double, Double) {
             let cx = max(0.0, min(Double(srcW - 2), x))
             let cy = max(0.0, min(Double(srcH - 2), y))
             let x0 = Int(cx), y0 = Int(cy)
@@ -497,90 +505,84 @@ struct NgahumaMaterials {
             )
         }
 
-        let patchSize = 512
-        let sx0 = 220.0, sxW = min(580.0, Double(max(1, srcW - 230)))
-        let sy0 = min(700.0, Double(max(0, srcH - 560))), syH = min(550.0, Double(max(1, srcH - Int(sy0) - 1)))
-
-        var rawSoil = [(Double, Double, Double)](repeating: (0, 0, 0), count: patchSize * patchSize)
-        for py in 0..<patchSize {
-            let v = Double(py) / Double(patchSize)
-            let y = sy0 + v * syH
-            for px in 0..<patchSize {
-                let u = Double(px) / Double(patchSize)
-                let x = sx0 + u * sxW
-                rawSoil[py * patchSize + px] = sampleRGB(x, y)
-            }
-        }
-
-        // Low-frequency illumination profile (separable blur, radius = 32)
-        var hBlur = rawSoil
-        let blurR = 32
-        for py in 0..<patchSize {
-            for px in 0..<patchSize {
-                var r = 0.0, g = 0.0, b = 0.0, c = 0.0
-                for dx in -blurR...blurR {
-                    let x = max(0, min(patchSize - 1, px + dx))
-                    let v = rawSoil[py * patchSize + x]
-                    r += v.0; g += v.1; b += v.2; c += 1.0
-                }
-                hBlur[py * patchSize + px] = (r / c, g / c, b / c)
-            }
-        }
-        var lowFreq = hBlur
-        for py in 0..<patchSize {
-            for px in 0..<patchSize {
-                var r = 0.0, g = 0.0, b = 0.0, c = 0.0
-                for dy in -blurR...blurR {
-                    let y = max(0, min(patchSize - 1, py + dy))
-                    let v = hBlur[y * patchSize + px]
-                    r += v.0; g += v.1; b += v.2; c += 1.0
-                }
-                lowFreq[py * patchSize + px] = (r / c, g / c, b / c)
-            }
-        }
-
-        let meanR = 108.0, meanG = 76.0, meanB = 52.0
-        var normalizedSoil = [(Double, Double, Double)](repeating: (0, 0, 0), count: patchSize * patchSize)
-        for i in 0..<(patchSize * patchSize) {
-            let raw = rawSoil[i]
-            let low = lowFreq[i]
-            let dr = raw.0 - low.0
-            let dg = raw.1 - low.1
-            let db = raw.2 - low.2
-            normalizedSoil[i] = (
-                max(0.0, min(255.0, meanR + dr * 1.05)),
-                max(0.0, min(255.0, meanG + dg * 1.05)),
-                max(0.0, min(255.0, meanB + db * 1.05))
-            )
-        }
-
-        // Toroidal seamless blending (period = 384, overlap = 128)
-        let period = 384
-        let overlap = patchSize - period // 128
-        let outSize = 1024
         var outPixels = [UInt8](repeating: 255, count: outSize * outSize * 4)
 
-        for y in 0..<outSize {
-            let ty = Int((Double(y) / Double(outSize)) * Double(period)) % period
-            let wy = ty < overlap ? (0.5 - 0.5 * cos(.pi * Double(ty) / Double(overlap))) : 1.0
-            for x in 0..<outSize {
-                let tx = Int((Double(x) / Double(outSize)) * Double(period)) % period
-                let wx = tx < overlap ? (0.5 - 0.5 * cos(.pi * Double(tx) / Double(overlap))) : 1.0
+        if terrainSource != nil && srcW >= outSize + overlap && srcH >= outSize + overlap {
+            // Toroidal seamless mapping from high-resolution Baduy terrain texture
+            let ox0 = Double(max(0, (srcW - (outSize + overlap)) / 2))
+            let oy0 = Double(max(0, (srcH - (outSize + overlap)) / 2))
 
-                let c00 = normalizedSoil[ty * patchSize + tx]
-                let c10 = normalizedSoil[ty * patchSize + (tx + (tx < overlap ? period : 0))]
-                let c01 = normalizedSoil[(ty + (ty < overlap ? period : 0)) * patchSize + tx]
-                let c11 = normalizedSoil[(ty + (ty < overlap ? period : 0)) * patchSize + (tx + (tx < overlap ? period : 0))]
+            for y in 0..<outSize {
+                let wy = y < overlap ? (0.5 - 0.5 * cos(.pi * Double(y) / Double(overlap))) : 1.0
+                let yA = oy0 + Double(y)
+                let yB = oy0 + Double(y + outSize)
 
-                let r = wx * wy * c00.0 + (1 - wx) * wy * c10.0 + wx * (1 - wy) * c01.0 + (1 - wx) * (1 - wy) * c11.0
-                let g = wx * wy * c00.1 + (1 - wx) * wy * c10.1 + wx * (1 - wy) * c01.1 + (1 - wx) * (1 - wy) * c11.1
-                let b = wx * wy * c00.2 + (1 - wx) * wy * c10.2 + wx * (1 - wy) * c01.2 + (1 - wx) * (1 - wy) * c11.2
+                for x in 0..<outSize {
+                    let wx = x < overlap ? (0.5 - 0.5 * cos(.pi * Double(x) / Double(overlap))) : 1.0
+                    let xA = ox0 + Double(x)
+                    let xB = ox0 + Double(x + outSize)
 
-                let idx = (y * outSize + x) * 4
-                outPixels[idx]     = UInt8(max(0, min(255, Int(r.rounded()))))
-                outPixels[idx + 1] = UInt8(max(0, min(255, Int(g.rounded()))))
-                outPixels[idx + 2] = UInt8(max(0, min(255, Int(b.rounded()))))
-                outPixels[idx + 3] = 255
+                    let s00 = samplePix(xA, yA).0
+                    let s10 = samplePix(xB, yA).0
+                    let s01 = samplePix(xA, yB).0
+                    let s11 = samplePix(xB, yB).0
+
+                    let lum = wx * wy * s00 + (1.0 - wx) * wy * s10 + wx * (1.0 - wy) * s01 + (1.0 - wx) * (1.0 - wy) * s11
+                    let normL = min(1.0, max(0.0, lum / 255.0))
+
+                    // Authentic Baduy soil grading:
+                    // Low (crevices): RGB(44, 30, 20)
+                    // Mid (HomeView #6A4B33 base earth): RGB(106, 75, 51)
+                    // High (sun-dried pebbles & soil clods): RGB(156, 120, 88)
+                    let r = 44.0 + normL * 112.0
+                    let g = 30.0 + normL * 90.0
+                    let b = 20.0 + normL * 68.0
+
+                    let idx = (y * outSize + x) * 4
+                    outPixels[idx]     = UInt8(max(0, min(255, Int(r.rounded()))))
+                    outPixels[idx + 1] = UInt8(max(0, min(255, Int(g.rounded()))))
+                    outPixels[idx + 2] = UInt8(max(0, min(255, Int(b.rounded()))))
+                    outPixels[idx + 3] = 255
+                }
+            }
+        } else {
+            // Fallback direct extraction from HumaEnvironment photographic soil region
+            let sx0 = 180.0, sxW = min(640.0, Double(max(1, srcW - 200)))
+            let sy0 = min(720.0, Double(max(0, srcH - 620))), syH = min(580.0, Double(max(1, srcH - Int(sy0) - 1)))
+            let period = 480
+            let patchOverlap = 120
+
+            for y in 0..<outSize {
+                let ty = Int((Double(y) / Double(outSize)) * Double(period)) % period
+                let wy = ty < patchOverlap ? (0.5 - 0.5 * cos(.pi * Double(ty) / Double(patchOverlap))) : 1.0
+                let vA = Double(ty) / Double(period)
+                let vB = Double(ty + (period - patchOverlap)) / Double(period)
+                let yA = sy0 + vA * syH
+                let yB = sy0 + vB * syH
+
+                for x in 0..<outSize {
+                    let tx = Int((Double(x) / Double(outSize)) * Double(period)) % period
+                    let wx = tx < patchOverlap ? (0.5 - 0.5 * cos(.pi * Double(tx) / Double(patchOverlap))) : 1.0
+                    let uA = Double(tx) / Double(period)
+                    let uB = Double(tx + (period - patchOverlap)) / Double(period)
+                    let xA = sx0 + uA * sxW
+                    let xB = sx0 + uB * sxW
+
+                    let c00 = samplePix(xA, yA)
+                    let c10 = samplePix(xB, yA)
+                    let c01 = samplePix(xA, yB)
+                    let c11 = samplePix(xB, yB)
+
+                    let r = wx * wy * c00.0 + (1.0 - wx) * wy * c10.0 + wx * (1.0 - wy) * c01.0 + (1.0 - wx) * (1.0 - wy) * c11.0
+                    let g = wx * wy * c00.1 + (1.0 - wx) * wy * c10.1 + wx * (1.0 - wy) * c01.1 + (1.0 - wx) * (1.0 - wy) * c11.1
+                    let b = wx * wy * c00.2 + (1.0 - wx) * wy * c10.2 + wx * (1.0 - wy) * c01.2 + (1.0 - wx) * (1.0 - wy) * c11.2
+
+                    let idx = (y * outSize + x) * 4
+                    outPixels[idx]     = UInt8(max(0, min(255, Int(r.rounded()))))
+                    outPixels[idx + 1] = UInt8(max(0, min(255, Int(g.rounded()))))
+                    outPixels[idx + 2] = UInt8(max(0, min(255, Int(b.rounded()))))
+                    outPixels[idx + 3] = 255
+                }
             }
         }
 
@@ -942,28 +944,41 @@ struct NgahumaMaterials {
 
     /// Builds the unified 3D huma terrain floor that stays flat at `soilY` in the interactive
     /// clearing and rises gently at the horizon rim to meet the mountain valley seamlessly.
-    static func makeTerrainMesh(span: Float = 24.0, steps: Int = 80, soilY: Float = 0.038, texture: UIImage) -> (geometry: SCNGeometry, material: SCNMaterial) {
+    static func makeTerrainMesh(span: Float = 24.5, steps: Int = 80, soilY: Float = 0.038, texture: UIImage) -> (geometry: SCNGeometry, material: SCNMaterial) {
         var vertices: [SCNVector3] = []
         var normals: [SCNVector3] = []
         var uvs: [CGPoint] = []
         var indices: [UInt32] = []
 
+        func heightAt(_ px: Float, _ pz: Float) -> Float {
+            let radius = sqrt(px * px + pz * pz)
+            let edgeBlend = min(1.0, max(0.0, (radius - 3.4) / 4.8))
+            let undulation = sin(px * 0.70) * cos(pz * 0.60) * 0.04
+            let rimLift = min(1.0, max(0.0, (radius - 7.5) / 4.5)) * 0.22
+            return soilY + edgeBlend * undulation + rimLift
+        }
+
+        let delta: Float = 0.15
+
         for z in 0...steps {
             for x in 0...steps {
                 let px = (Float(x) / Float(steps) - 0.5) * span
                 let pz = (Float(z) / Float(steps) - 0.5) * span
-                let radius = sqrt(px * px + pz * pz)
+                let py = heightAt(px, pz)
 
-                // Central 3.6m clearing is level at soilY for trees, roots, and shadows
-                let edgeBlend = min(1.0, max(0.0, (radius - 3.4) / 4.8))
-                let undulation = sin(px * 0.70) * cos(pz * 0.60) * 0.04
-                let rimLift = min(1.0, max(0.0, (radius - 7.5) / 4.0)) * 0.16
-                let py = soilY + edgeBlend * undulation + rimLift
+                // Finite-difference normal for realistic directional sun shading across soil slopes
+                let hL = heightAt(px - delta, pz)
+                let hR = heightAt(px + delta, pz)
+                let hD = heightAt(px, pz - delta)
+                let hU = heightAt(px, pz + delta)
+                let nx = -(hR - hL) / (2 * delta)
+                let nz = -(hU - hD) / (2 * delta)
+                let len = sqrt(nx * nx + 1.0 + nz * nz)
+                normals.append(SCNVector3(nx / len, 1.0 / len, nz / len))
 
                 vertices.append(SCNVector3(px, py, pz))
-                normals.append(SCNVector3(0, 1, 0))
-                // High-density UV mapping: 1 tile per 1.65m for crisp, tactile Baduy earth clods & pebbles
-                uvs.append(CGPoint(x: CGFloat(px / 1.65 + 0.5), y: CGFloat(pz / 1.65 + 0.5)))
+                // Balanced UV scale: 1 tile per 3.4m preserves authentic pebble & soil clod proportions
+                uvs.append(CGPoint(x: CGFloat(px / 3.4 + 0.5), y: CGFloat(pz / 3.4 + 0.5)))
 
                 if x < steps && z < steps {
                     let a = UInt32(z * (steps + 1) + x)
@@ -975,12 +990,16 @@ struct NgahumaMaterials {
 
         let material = SCNMaterial()
         material.name = "humaSoil"
-        material.lightingModel = .constant
+        // Lambertian lighting lets the warm 3D directional sun illuminate the soil with rich highlights
+        // and organic shadow depth, matching HomeView
+        material.lightingModel = .lambert
         material.diffuse.contents = texture
         material.diffuse.wrapS = .repeat
         material.diffuse.wrapT = .repeat
+        material.ambient.contents = UIColor(red: 0.52, green: 0.44, blue: 0.36, alpha: 1)
+        material.roughness.contents = 0.94
         material.multiply.contents = UIColor.white
-        material.isDoubleSided = true
+        material.isDoubleSided = false
         material.transparencyMode = .aOne
         material.writesToDepthBuffer = true
         // Circular soft feather: perfectly rounds the terrain and smoothly blends the edge into the horizon
@@ -988,8 +1007,11 @@ struct NgahumaMaterials {
         #pragma transparent
         #pragma body
         float r = length(_surface.position.xz);
-        float edgeFade = 1.0 - smoothstep(10.0, 11.8, r);
+        float edgeFade = 1.0 - smoothstep(10.8, 12.2, r);
         _output.color.a *= edgeFade;
+        if (_output.color.a < 0.02) {
+            discard_fragment();
+        }
         """]
         smoothTextureSampling(material.diffuse)
 

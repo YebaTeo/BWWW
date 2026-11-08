@@ -417,9 +417,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // ── Layer 3a (Foreground Horizon): 360° Grass & Soil Rim Layer ───────
         horizonGrassLayerRoot.name = "spatialHorizonGrassLayer"
         let horizonGeometry = NgahumaMaterials.makePanoramicCylinder(
-            radius: 11.9,
-            bottomY: -0.30,
-            topY: 1.25,
+            radius: 12.2,
+            bottomY: -0.50,
+            topY: 1.50,
             texture: materials.horizonGrassTexture,
             transparent: true
         )
@@ -432,8 +432,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private func buildGround(using materials: NgahumaMaterials) {
         let (terrainGeometry, terrainMat) = NgahumaMaterials.makeTerrainMesh(
-            span: 24.0,
-            steps: 72,
+            span: 24.5,
+            steps: 80,
             soilY: soilY,
             texture: materials.soilTexture
         )
@@ -621,21 +621,69 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         holder.addChildNode(pivot)
 
-        // 3. Soft feathered contact shadow on the huma soil (no hard disk)
+        // 3. Realistic HomeView-matched Tree Base Blending:
+        // A. 3D organic soil collar that rises 6.8 mm at the bark and feathers outward
+        let soilCollar = buildRootSoilCollar(scale: scale, materials: materials)
+        holder.addChildNode(soilCollar)
+
+        // B. Deep occluding core contact shadow directly beneath trunk base
+        let coreShadowMaterial = SCNMaterial()
+        coreShadowMaterial.lightingModel = .constant
+        coreShadowMaterial.diffuse.contents = materials.particleSprite
+        coreShadowMaterial.multiply.contents = UIColor(white: 0.015, alpha: 1)
+        coreShadowMaterial.transparency = 0.65
+        coreShadowMaterial.isDoubleSided = true
+        coreShadowMaterial.writesToDepthBuffer = false
+        let coreShadowGeometry = SCNPlane(width: CGFloat(0.13 * scale), height: CGFloat(0.09 * scale))
+        coreShadowGeometry.materials = [coreShadowMaterial]
+        let coreShadow = SCNNode(geometry: coreShadowGeometry)
+        coreShadow.eulerAngles.x = -.pi / 2
+        coreShadow.position = SCNVector3(0, 0.0003, 0)
+        coreShadow.castsShadow = false
+        holder.addChildNode(coreShadow)
+
+        // C. Soft outer feathered ambient contact shadow on the huma soil
         let shadowMaterial = SCNMaterial()
         shadowMaterial.lightingModel = .constant
         shadowMaterial.diffuse.contents = materials.particleSprite
         shadowMaterial.multiply.contents = UIColor(white: 0.08, alpha: 1)
-        shadowMaterial.transparency = 0.34
+        shadowMaterial.transparency = 0.38
         shadowMaterial.isDoubleSided = true
         shadowMaterial.writesToDepthBuffer = false
-        let shadowGeometry = SCNPlane(width: CGFloat(0.18 * scale), height: CGFloat(0.11 * scale))
+        let shadowGeometry = SCNPlane(width: CGFloat(0.28 * scale), height: CGFloat(0.18 * scale))
         shadowGeometry.materials = [shadowMaterial]
         let shadow = SCNNode(geometry: shadowGeometry)
         shadow.eulerAngles.x = -.pi / 2
-        shadow.position = SCNVector3(0, 0.001, 0)
+        shadow.position = SCNVector3(0, 0.0008, 0)
         shadow.castsShadow = false
         holder.addChildNode(shadow)
+
+        // D. Clusters of wild grass blades rooted directly into the soil collar around the trunk
+        for grassIdx in 0..<6 {
+            let grassAngle = Float(grassIdx) * (2.0 * .pi / 6.0) + Float(index) * 0.35
+            let grassDist = (0.052 + Float(grassIdx % 3) * 0.016) * scale
+            let grassBase = SCNVector3(
+                worldPosition.x + sin(grassAngle) * grassDist,
+                soilY + 0.001,
+                worldPosition.z + cos(grassAngle) * grassDist
+            )
+            let bladeHeight = (0.065 + Float(grassIdx % 4) * 0.014) * scale
+            let bladeTint: UIColor = grassIdx.isMultiple(of: 2)
+                ? UIColor(red: 0.55, green: 0.58, blue: 0.23, alpha: 1)
+                : UIColor(red: 0.36, green: 0.52, blue: 0.18, alpha: 1)
+            addBlade(
+                to: wildRoot,
+                base: grassBase,
+                height: bladeHeight,
+                width: 0.016 * scale,
+                yaw: grassAngle + Float(grassIdx) * 0.25,
+                mass: 0.14,
+                response: 1.05,
+                tint: bladeTint,
+                phase: Float(index * 7 + grassIdx) * 0.45,
+                materials: materials
+            )
+        }
 
         let fallDir: Float = index.isMultiple(of: 2) ? 1.0 : -1.0
         treeEntries.append(
@@ -652,6 +700,64 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 fallDirection: fallDir
             )
         )
+    }
+
+    private func buildRootSoilCollar(scale: Float, materials: NgahumaMaterials) -> SCNNode {
+        var positions: [SCNVector3] = []
+        var normals: [SCNVector3] = []
+        var coords: [CGPoint] = []
+        var triangles: [UInt32] = []
+        let sides = 32
+        let rings = 3
+        let baseRadius: Float = 0.085 * scale
+        for ring in 0...rings {
+            let t = Float(ring) / Float(rings)
+            for j in 0...sides {
+                let a = Float(j) / Float(sides) * 2.0 * .pi
+                let wobble = 1.0 + 0.14 * sin(a * 5.0) + 0.08 * cos(a * 8.0)
+                let r = t * baseRadius * wobble
+                let y = (0.0068 * scale) * (1.0 - t * t)
+                positions.append(SCNVector3(cos(a) * r, y, sin(a) * r))
+                normals.append(SCNVector3(0, 1, 0))
+                coords.append(CGPoint(x: CGFloat(cos(a) * t * 0.5 + 0.5), y: CGFloat(sin(a) * t * 0.5 + 0.5)))
+                if ring < rings && j < sides {
+                    let b = UInt32(ring * (sides + 1) + j)
+                    let n = b + UInt32(sides + 1)
+                    triangles += [b, b + 1, n, b + 1, n + 1, n]
+                }
+            }
+        }
+        let soil = SCNMaterial()
+        soil.lightingModel = .lambert
+        soil.diffuse.contents = materials.soilTexture
+        soil.diffuse.wrapS = .repeat
+        soil.diffuse.wrapT = .repeat
+        soil.roughness.contents = 0.95
+        soil.ambient.contents = UIColor(red: 0.52, green: 0.44, blue: 0.36, alpha: 1)
+        soil.isDoubleSided = true
+        soil.transparencyMode = .aOne
+        soil.writesToDepthBuffer = false
+        soil.shaderModifiers = [.fragment: """
+        #pragma transparent
+        #pragma body
+        float r = length(_surface.diffuseTexcoord - float2(0.5));
+        _output.color.a *= 1.0 - smoothstep(0.28, 0.50, r);
+        if (_output.color.a < 0.02) { discard_fragment(); }
+        """]
+        let mesh = SCNGeometry(
+            sources: [
+                SCNGeometrySource(vertices: positions),
+                SCNGeometrySource(normals: normals),
+                SCNGeometrySource(textureCoordinates: coords)
+            ],
+            elements: [SCNGeometryElement(indices: triangles, primitiveType: .triangles)]
+        )
+        mesh.materials = [soil]
+        let lipNode = SCNNode(geometry: mesh)
+        lipNode.name = "rootSoilLip"
+        lipNode.position = SCNVector3(0, 0.0006, 0)
+        lipNode.castsShadow = false
+        return lipNode
     }
 
     // MARK: - HomeView 3D Wild Grass Blades Distributed 360°
@@ -706,6 +812,30 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 response: 0.95,
                 tint: tint,
                 phase: Float(index % 11) * 0.37,
+                materials: materials
+            )
+        }
+
+        // 3. Perimeter horizon grass blades (radius 8.8 to 11.5m) seamlessly blending the terrain floor into the 360° cylinder
+        for index in 0..<56 {
+            let angle = Float(index) * (2.0 * .pi / 56.0) + Float(index % 5) * 0.04
+            let radius = 8.8 + Float((index * 17) % 29) * 0.095
+            let py = soilY + min(1.0, max(0.0, (radius - 7.5) / 4.5)) * 0.22
+            let base = SCNVector3(sin(angle) * radius, py, -cos(angle) * radius)
+            let height = 0.22 + Float(index % 7) * 0.028
+            let tint: UIColor = index.isMultiple(of: 2)
+                ? UIColor(red: 0.58, green: 0.60, blue: 0.24, alpha: 1)
+                : UIColor(red: 0.36, green: 0.52, blue: 0.18, alpha: 1)
+            addBlade(
+                to: wildRoot,
+                base: base,
+                height: height,
+                width: 0.038,
+                yaw: angle + Float(index % 7) * 0.22,
+                mass: 0.22,
+                response: 0.88,
+                tint: tint,
+                phase: Float(index % 13) * 0.31,
                 materials: materials
             )
         }
