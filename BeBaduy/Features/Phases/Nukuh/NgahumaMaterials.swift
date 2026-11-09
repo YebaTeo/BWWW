@@ -15,6 +15,7 @@ struct NgahumaMaterials {
     let woodTexture: UIImage
     let leafNormal: UIImage
     let particleSprite: UIImage
+    let flameTongueSprite: UIImage
     let sunHaloSprite: UIImage
     let sunSkyGlowSprite: UIImage
     let woodSplinterSprite: UIImage
@@ -53,6 +54,7 @@ struct NgahumaMaterials {
         let woodTexture = UIImage(named: "HumaWoodTexture") ?? UIImage()
         let leafNormal = Self.makeDetailNormal(frequency: 22, strength: 0.12)
         let particleSprite = Self.makeParticleSprite()
+        let flameTongueSprite = Self.makeFlameTongueSprite()
         let sunHaloSprite = Self.makeSunHaloSprite()
         let sunSkyGlowSprite = Self.makeSunSkyGlowSprite()
         let woodSplinterSprite = Self.makeWoodSplinterSprite()
@@ -70,6 +72,7 @@ struct NgahumaMaterials {
             woodTexture: woodTexture,
             leafNormal: leafNormal,
             particleSprite: particleSprite,
+            flameTongueSprite: flameTongueSprite,
             sunHaloSprite: sunHaloSprite,
             sunSkyGlowSprite: sunSkyGlowSprite,
             woodSplinterSprite: woodSplinterSprite,
@@ -786,6 +789,92 @@ struct NgahumaMaterials {
                 options: []
             )
         }
+    }
+
+    /// Generates an organic, S-curved multi-tongue flame wisp sprite so fire particles
+    /// look like licking tongues of fire rather than circular dots.
+    static func makeFireSparks(sprite: UIImage, scale: CGFloat) -> SCNParticleSystem {
+        let sparks = SCNParticleSystem()
+        sparks.birthRate = 0
+        sparks.particleImage = sprite
+        sparks.blendMode = .additive
+        sparks.particleColor = UIColor(red: 1, green: 0.55, blue: 0.12, alpha: 0.8)
+        sparks.particleSize = 0.008 * scale
+        sparks.particleSizeVariation = 0.004 * scale
+        sparks.particleLifeSpan = 1.2
+        sparks.particleLifeSpanVariation = 0.5
+        sparks.particleVelocity = 0.45 * scale
+        sparks.particleVelocityVariation = 0.20 * scale
+        sparks.emittingDirection = SCNVector3(0, 1, 0)
+        sparks.spreadingAngle = 32
+        sparks.acceleration = SCNVector3(Float(0.08 * scale), Float(0.10 * scale), 0)
+        sparks.emitterShape = SCNSphere(radius: 0.08 * scale)
+        let fade = CAKeyframeAnimation()
+        fade.values = [0, 0.8, 0.5, 0]
+        fade.keyTimes = [0, 0.08, 0.45, 1]
+        sparks.propertyControllers = [.opacity: SCNParticlePropertyController(animation: fade)]
+        return sparks
+    }
+
+    static func makeFlameTongueSprite() -> UIImage {
+        let width = 96
+        let height = 128
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+
+        for y in 0..<height {
+            let v = Float(y) / Float(height - 1) // 0 = top tip, 1 = bottom base
+            let h = 1.0 - v                      // 0 = bottom base, 1 = top tip
+            for x in 0..<width {
+                let u = (Float(x) / Float(width - 1) - 0.5) * 2.0 // -1 ... +1
+
+                // S-curve wave along height for a natural licking flame tongue
+                let curveMain = 0.16 * sin(h * 4.2 - 0.5) * h
+                let widthMain = max(0.06, (1.0 - h * 0.86) * (0.48 + 0.35 * sin(h * .pi)))
+                let dMain = abs(u - curveMain) / widthMain
+
+                // Secondary side flame tongue
+                let curveSideL = -0.26 * (1.0 - h * 0.45) + 0.10 * cos(h * 5.5)
+                let widthSideL = max(0.05, max(0.0, 0.78 - h) * 0.38)
+                let dSideL = h < 0.78 ? abs(u - curveSideL) / widthSideL : 10.0
+
+                let curveSideR = 0.24 * (1.0 - h * 0.40) - 0.08 * sin(h * 6.0)
+                let widthSideR = max(0.05, max(0.0, 0.72 - h) * 0.35)
+                let dSideR = h < 0.72 ? abs(u - curveSideR) / widthSideR : 10.0
+
+                let d = min(dMain, min(dSideL, dSideR))
+                let vertMask = Float(smoothstep(0.0, 0.14, Double(h)) * (1.0 - smoothstep(0.76, 1.0, Double(h))))
+                let shapeMask = Float(1.0 - smoothstep(0.15, 1.0, Double(d)))
+                let alpha = max(0.0, min(1.0, shapeMask * shapeMask * vertMask))
+
+                // Bright core inside the tongue, warm feathered edge outside
+                let core = max(0.0, min(1.0, (1.0 - d * 0.75) * (1.0 - h * 0.45)))
+                let r: Float = 1.0
+                let g: Float = 0.45 + 0.55 * core
+                let b: Float = 0.12 + 0.82 * (core * core)
+
+                let idx = (y * width + x) * 4
+                pixels[idx]     = UInt8(max(0, min(255, Int((r * alpha * 255.0).rounded()))))
+                pixels[idx + 1] = UInt8(max(0, min(255, Int((g * alpha * 255.0).rounded()))))
+                pixels[idx + 2] = UInt8(max(0, min(255, Int((b * alpha * 255.0).rounded()))))
+                pixels[idx + 3] = UInt8(max(0, min(255, Int((alpha * 255.0).rounded()))))
+            }
+        }
+
+        let provider = CGDataProvider(data: Data(pixels) as CFData)!
+        let cg = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        )!
+        return UIImage(cgImage: cg)
     }
 
     /// Recreates HomeView's `celestialBody(isMoon: false)` sun as one sprite.

@@ -114,6 +114,8 @@ struct SceneKitCropView: UIViewRepresentable {
         private let stumpRoot = SCNNode()
         private let rootFlareRoot = SCNNode()
         private var flameSystems: [SCNParticleSystem] = []
+        private var sparkSystems: [SCNParticleSystem] = []
+        private var smokeSystems: [SCNParticleSystem] = []
         private let fireLight = SCNLight()
         private let sunKeyLight = SCNLight()
         private let skyAmbientLight = SCNLight()
@@ -976,7 +978,6 @@ struct SceneKitCropView: UIViewRepresentable {
             // Five small emitters keep the flame silhouette rich without
             // waking eight particle systems at the same instant.
             for i in 0..<5 {
-                let phase: Float = Float(i) * 0.785   // π/4 spacing
                 let angle: Float = Float(i) * 1.3
                 let dist:  Float = 0.05 + Float(i % 4) * 0.055
                 let baseX: Float = cos(angle) * dist
@@ -987,26 +988,32 @@ struct SceneKitCropView: UIViewRepresentable {
                 emitter.addParticleSystem(flames)
                 fireRoot.addChildNode(emitter)
                 flameSystems.append(flames)
+                let sparks = NgahumaMaterials.makeFireSparks(sprite: particleSprite, scale: 0.35)
+                emitter.addParticleSystem(sparks)
+                sparkSystems.append(sparks)
+                let smoke = SCNParticleSystem()
+                smoke.birthRate = 0
+                smoke.particleImage = particleSprite
+                smoke.blendMode = .alpha
+                smoke.particleLifeSpan = 1.8
+                smoke.particleLifeSpanVariation = 0.4
+                smoke.particleVelocity = 0.06
+                smoke.emittingDirection = SCNVector3(0, 1, 0)
+                smoke.acceleration = SCNVector3(0.018, 0.025, 0)
+                smoke.spreadingAngle = 20
+                smoke.particleColor = UIColor(red: 0.38, green: 0.35, blue: 0.30, alpha: 0.16)
+                let smokeSize = CAKeyframeAnimation()
+                smokeSize.values = [0.025, 0.10, 0.19]
+                smokeSize.keyTimes = [0, 0.5, 1]
+                let smokeFade = CAKeyframeAnimation()
+                smokeFade.values = [0, 0.16, 0.08, 0]
+                smokeFade.keyTimes = [0, 0.15, 0.6, 1]
+                smoke.propertyControllers = [.size: SCNParticlePropertyController(animation: smokeSize),
+                                             .opacity: SCNParticlePropertyController(animation: smokeFade)]
+                emitter.addParticleSystem(smoke)
+                smokeSystems.append(smoke)
 
-                let sphere     = SCNSphere(radius: 0.012)
-                sphere.segmentCount = 8
-                let mat        = SCNMaterial()
-                mat.lightingModel = .physicallyBased
-                mat.diffuse.contents  = UIColor(red: 1.0, green: 0.4, blue: 0.0, alpha: 1)
-                mat.emission.contents = UIColor(red: 1.0, green: 0.4, blue: 0.0, alpha: 1)
-                mat.emission.intensity = 2.0
-                mat.roughness.contents = 0.3
-                mat.metalness.contents = 0.0
-                sphere.materials = [mat]
 
-                let node       = SCNNode(geometry: sphere)
-                node.name      = "ember_\(i)"
-                node.position  = SCNVector3(baseX, 0.06, baseZ)
-                node.opacity   = 0
-                node.isHidden  = true
-                fireRoot.addChildNode(node)
-
-                emberNodes.append((node: node, baseX: baseX, baseZ: baseZ, phase: phase))
             }
         }
 
@@ -1544,26 +1551,21 @@ struct SceneKitCropView: UIViewRepresentable {
             fireRoot.opacity = CGFloat(fireT)
             let flicker = 0.90 + 0.06 * sin(time * 4.1) + 0.04 * sin(time * 7.3)
             fireLight.intensity = CGFloat(fireT * flicker * 12)
+            for sparks in sparkSystems { sparks.birthRate = isWindEnabled ? CGFloat(fireT * 3) : 0 }
+            for smoke in smokeSystems { smoke.birthRate = isWindEnabled ? CGFloat(fireT * 4) : 0 }
             for system in flameSystems {
                 // Let existing particles expire naturally. Resetting every
                 // frame while fireT is zero causes a burst of work exactly
                 // when the flame is first revealed and produces a hitch.
-                system.birthRate = isWindEnabled ? CGFloat(fireT * 16) : 0
+                system.birthRate = isWindEnabled ? CGFloat(fireT * 95) : 0
             }
             for ember in emberNodes {
-                ember.node.opacity  = CGFloat(fireT * 0.18)
+                ember.node.opacity  = CGFloat(fireT)
                 ember.node.isHidden = fireT < 0.01
-                // Oscillate position
-                let phase = ember.phase
-                ember.node.position = SCNVector3(
-                    ember.baseX + sin(time * 2.1 + phase) * 0.015,
-                    0.06 + abs(sin(time * 1.8 + phase)) * 0.12 * fireT,
-                    ember.baseZ + cos(time * 1.5 + phase) * 0.015
-                )
-                // Warm emission pulse
-                let emitG = Float(0.4 + 0.3 * abs(sin(time + phase)))
-                ember.node.geometry?.firstMaterial?.emission.contents =
-                    UIColor(red: 1.0, green: CGFloat(emitG), blue: 0, alpha: 1)
+                if fireT >= 0.01, let mat = ember.node.geometry?.firstMaterial {
+                    mat.setValue(time, forKey: "flameTime")
+                    mat.setValue(fireT, forKey: "flameIntensity")
+                }
             }
 
             // ── 3. Ash clods (p 0.30 → 0.50) ───────────────────────────────
@@ -1949,28 +1951,93 @@ struct SceneKitCropView: UIViewRepresentable {
             }
         }()
 
+        private lazy var flameTongueSprite: UIImage = NgahumaMaterials.makeFlameTongueSprite()
+
+        private func makeProceduralFlameSheetMaterial(phase: Float) -> SCNMaterial {
+            let mat = SCNMaterial()
+            mat.lightingModel = .constant
+            mat.blendMode = .alpha
+            mat.writesToDepthBuffer = false
+            mat.readsFromDepthBuffer = true
+            mat.isDoubleSided = true
+            mat.shaderModifiers = [.fragment: """
+            #pragma arguments
+            float flameTime;
+            float flameIntensity;
+            float flamePhase;
+            #pragma transparent
+            #pragma body
+            float2 uv = _surface.diffuseTexcoord;
+            float h = 1.0 - uv.y;
+            float x = (uv.x - 0.5) * 2.0;
+
+            float t = flameTime * 2.6 + flamePhase;
+            float sway = sin(h * 4.8 - t * 1.5 + flamePhase) * (0.20 * h)
+                       + sin(h * 9.6 - t * 2.5 + x * 2.8) * (0.12 * h * h)
+                       + cos(h * 15.5 - t * 3.8 - x * 3.5) * (0.07 * h);
+            float wx = x + sway;
+
+            float mainTongue = abs(wx) / max(0.06, (1.0 - h * 0.85) * (0.58 + 0.28 * sin(h * 3.14159)));
+            float sideL = abs(wx + 0.28 * (1.0 - h * 0.48) + 0.07 * sin(t * 2.2 + h * 6.2)) / max(0.05, max(0.02, 0.74 - h) * 0.42);
+            float sideR = abs(wx - 0.26 * (1.0 - h * 0.45) + 0.07 * cos(t * 2.0 + h * 5.8)) / max(0.05, max(0.02, 0.70 - h) * 0.40);
+            float shape = min(mainTongue, min(sideL, sideR));
+
+            float n1 = sin(wx * 7.0 + sin(h * 8.5 - t * 2.8)) * cos(h * 11.0 - t * 3.3 + wx * 4.2);
+            float n2 = sin(wx * 14.0 - cos(h * 17.0 - t * 4.6)) * 0.5;
+            float turb = (n1 + n2) * (0.24 + 0.50 * h);
+
+            float flameMask = 1.0 - smoothstep(0.22, 0.96, shape + turb + h * 0.26);
+            float baseMask = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(0.70, 0.98, h));
+            float alpha = clamp(flameMask * baseMask * flameIntensity, 0.0, 1.0);
+
+            float core = clamp(1.0 - shape * 0.82 - h * 0.52 + turb * 0.25, 0.0, 1.0);
+            float3 tipColor  = float3(0.72, 0.20, 0.045);
+            float3 midColor  = float3(1.0, 0.52, 0.16);
+            float3 coreColor = float3(1.20, 1.03, 0.70);
+            float3 col = mix(tipColor, midColor, smoothstep(0.0, 0.46, core));
+            col = mix(col, coreColor, smoothstep(0.46, 0.86, core));
+
+            _output.color.rgb = col;
+            _output.color.a = alpha;
+            """]
+            mat.setValue(Float(0), forKey: "flameTime")
+            mat.setValue(Float(0), forKey: "flameIntensity")
+            mat.setValue(phase, forKey: "flamePhase")
+            return mat
+        }
+
         private func makeFlames() -> SCNParticleSystem {
             let system = SCNParticleSystem()
             system.birthRate = 0
-            system.particleLifeSpan = 0.62
-            system.particleLifeSpanVariation = 0.12
-            system.particleSize = 0.038
-            system.particleSizeVariation = 0.012
-            system.particleVelocity = 0.12
-            system.particleVelocityVariation = 0.03
+            system.particleLifeSpan = 0.68
+            system.particleLifeSpanVariation = 0.18
+            system.particleSize = 0.055
+            system.particleSizeVariation = 0.018
+            system.particleVelocity = 0.16
+            system.particleVelocityVariation = 0.05
             system.emittingDirection = SCNVector3(0, 1, 0)
-            system.spreadingAngle = 15
-            system.acceleration = SCNVector3(0.015, 0.06, 0)
-            system.emitterShape = SCNSphere(radius: 0.018)
-            system.particleImage = particleSprite
+            system.spreadingAngle = 18
+            system.particleAngleVariation = 18
+            system.acceleration = SCNVector3(0.015, 0.08, 0)
+            system.emitterShape = SCNBox(width: 0.12, height: 0.008, length: 0.10, chamferRadius: 0)
+            system.particleImage = flameTongueSprite
             system.blendMode = .additive
             system.isLightingEnabled = false
             let color = CAKeyframeAnimation()
-            color.values = [UIColor(red: 1, green: 0.95, blue: 0.55, alpha: 0.8),
-                            UIColor(red: 1, green: 0.48, blue: 0.04, alpha: 0.6),
-                            UIColor(red: 0.45, green: 0.06, blue: 0, alpha: 0)]
-            color.keyTimes = [0, 0.35, 1]
-            system.propertyControllers = [.color: SCNParticlePropertyController(animation: color)]
+            color.values = [
+                UIColor(red: 1.0, green: 0.96, blue: 0.68, alpha: 0.95),
+                UIColor(red: 1.0, green: 0.58, blue: 0.08, alpha: 0.85),
+                UIColor(red: 0.88, green: 0.18, blue: 0.02, alpha: 0.55),
+                UIColor(red: 0.38, green: 0.04, blue: 0, alpha: 0)
+            ]
+            color.keyTimes = [0, 0.30, 0.72, 1]
+            let size = CAKeyframeAnimation()
+            size.values = [0.06, 0.14, 0.09, 0.015]
+            size.keyTimes = [0, 0.28, 0.70, 1]
+            system.propertyControllers = [
+                .color: SCNParticlePropertyController(animation: color),
+                .size: SCNParticlePropertyController(animation: size)
+            ]
             return system
         }
 
