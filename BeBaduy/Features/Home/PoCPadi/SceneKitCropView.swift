@@ -266,16 +266,16 @@ struct SceneKitCropView: UIViewRepresentable {
 
         private func configureLighting() {
             moonLight.type = .directional
-            moonLight.color = UIColor(red: 0.42, green: 0.62, blue: 1.0, alpha: 1)
+            moonLight.color = UIColor(red: 0.58, green: 0.70, blue: 0.98, alpha: 1)
             moonLight.intensity = 0
             moonLight.castsShadow = true
-            moonLight.shadowMode = .deferred
+            moonLight.shadowMode = .forward
             moonLight.shadowMapSize = CGSize(width: 2048, height: 2048)
-            moonLight.orthographicScale = 4
-            moonLight.shadowSampleCount = 8
-            moonLight.shadowRadius = 3
-            moonLight.shadowBias = 0.003
-            moonLight.shadowColor = UIColor(white: 0, alpha: 0.65)
+            moonLight.orthographicScale = 4.0
+            moonLight.shadowSampleCount = 16
+            moonLight.shadowRadius = 3.5
+            moonLight.shadowBias = 0.0035
+            moonLight.shadowColor = UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 0.48)
             let moonNode = moonOrbitNode
             moonNode.light = moonLight
             moonNode.position = SCNVector3(2.5, 3, 1.5)
@@ -289,12 +289,12 @@ struct SceneKitCropView: UIViewRepresentable {
             sun.intensity     = 155
             sun.castsShadow   = true
             sun.shadowMode    = .forward
-            sun.shadowRadius  = 2.5
-            sun.orthographicScale = 3.6
-            sun.shadowSampleCount = 8
-            sun.shadowBias = 0.002
+            sun.shadowRadius  = 3.2
+            sun.orthographicScale = 4.0
+            sun.shadowSampleCount = 16
+            sun.shadowBias = 0.0035
             sun.shadowMapSize = CGSize(width: 2048, height: 2048)
-            sun.shadowColor   = UIColor(white: 0.02, alpha: 0.70)
+            sun.shadowColor   = UIColor(white: 0.02, alpha: 0.65)
             let sunNode       = sunOrbitNode
             sunNode.light     = sun
             sunNode.position  = SCNVector3(2.6, 3.2, -2.4)
@@ -398,7 +398,7 @@ struct SceneKitCropView: UIViewRepresentable {
             receiverGeometry.materials = [receiverMaterial]
             let receiver = SCNNode(geometry: receiverGeometry)
             receiver.name = "soilShadowReceiver"
-            receiver.position.y = soilY
+            receiver.position.y = soilY + 0.0008
             receiver.eulerAngles.x = -.pi / 2
             receiver.castsShadow = false
             scene.rootNode.addChildNode(receiver)
@@ -1788,35 +1788,67 @@ struct SceneKitCropView: UIViewRepresentable {
             let phase = HomeCelestialCycle.phase(progress: progress)
             let altitude = cos(phase)
             let night = CGFloat((1 - altitude) / 2)
-            let sunStrength = CGFloat(min(1, max(0, altitude * 5)))
-            let moonStrength = CGFloat(min(1, max(0, -altitude * 5)))
-            sunOrbitNode.position = SCNVector3(Float(sin(phase) * 4),
-                                              Float(altitude * 3) + soilY, -2.4)
-            moonOrbitNode.position = SCNVector3(Float(-sin(phase) * 4),
-                                               Float(-altitude * 3) + soilY, -2.4)
+
+            // Overlapping celestial handover: cross-fades sun and moon so the scene NEVER
+            // drops into total blackout ("menghitam dulu") during sunset / dawn crossovers.
+            let sunStrength = CGFloat(smoothstep(-0.12, 0.22, Float(altitude)))
+            let moonStrength = CGFloat(smoothstep(-0.12, 0.22, Float(-altitude)))
+
+            // Keep celestial light elevations in a graceful overhead arc comfortably above the ground plane
+            // so directional rays never graze horizontally, clip at frustum edges, or shine from underground.
+            let clampedSunAlt = max(0.24, altitude)
+            let clampedMoonAlt = max(0.24, -altitude)
+            sunOrbitNode.position = SCNVector3(
+                Float(sin(phase) * 3.5),
+                Float(clampedSunAlt * 2.8) + soilY + 0.30,
+                -2.4
+            )
+            moonOrbitNode.position = SCNVector3(
+                Float(-sin(phase) * 3.5),
+                Float(clampedMoonAlt * 2.8) + soilY + 0.30,
+                -2.4
+            )
             sunOrbitNode.look(at: SCNVector3(0, soilY, 0))
             moonOrbitNode.look(at: SCNVector3(0, soilY, 0))
+
             sunKeyLight.intensity = 155 * sunStrength
-            moonLight.intensity = 55 * moonStrength
-            sunKeyLight.castsShadow = sunStrength > 0
-            moonLight.castsShadow = moonStrength > 0
+            moonLight.intensity = 52 * moonStrength
+
+            // Continuous shadow opacity: smoothly dissolves shadowColor alpha before the light reaches
+            // the horizon threshold so shadows dissolve seamlessly without snapping or popping.
+            let sunShadowAlpha = 0.65 * Double(smoothstep(0.06, 0.28, Float(altitude)))
+            let moonShadowAlpha = 0.48 * Double(smoothstep(0.06, 0.28, Float(-altitude)))
+            sunKeyLight.shadowColor = UIColor(white: 0.02, alpha: sunShadowAlpha)
+            moonLight.shadowColor = UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: moonShadowAlpha)
+
+            sunKeyLight.castsShadow = sunShadowAlpha > 0.02
+            moonLight.castsShadow = moonShadowAlpha > 0.02
+
             sunKeyLight.color = blendColor(
                 UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1),
-                UIColor(red: 1.0, green: 0.65, blue: 0.40, alpha: 1),
-                amount: CGFloat(1 - max(0, altitude))
+                UIColor(red: 1.0, green: 0.60, blue: 0.35, alpha: 1),
+                amount: CGFloat(1 - max(0, min(1, altitude * 2.5)))
             )
-            skyAmbientLight.intensity = 65 - 53 * night
+            moonLight.color = blendColor(
+                UIColor(red: 0.58, green: 0.70, blue: 0.98, alpha: 1),
+                UIColor(red: 0.42, green: 0.54, blue: 0.85, alpha: 1),
+                amount: CGFloat(max(0, -altitude))
+            )
+
+            // Maintain a healthy sky ambient floor so the 3D crop never plunges into silhouette
+            skyAmbientLight.intensity = 115 - 45 * night
             skyAmbientLight.color = blendColor(
                 UIColor(red: 0.88, green: 0.82, blue: 0.70, alpha: 1),
-                UIColor(red: 0.32, green: 0.40, blue: 0.62, alpha: 1), amount: night
+                UIColor(red: 0.34, green: 0.42, blue: 0.65, alpha: 1),
+                amount: night
             )
             sunsetRimLight.intensity = 0
+
             let stage5Progress = CGFloat(smoothstep(0.74, 0.85, Float(progress)))
-            // Soft front bounce fill: reduced to ~25% of key light so the scene retains
-            // rich depth and contrast without being washed out by harsh bounce light.
             let bounceMultiplier: CGFloat = 0.25 * (1.0 - 0.60 * stage5Progress)
-            warmFillLight.intensity = (sunKeyLight.intensity * bounceMultiplier)
-                + moonLight.intensity * 0.20 * (1.0 - 0.5 * stage5Progress)
+            // Maintain a subtle fill floor so the plant is always softly illuminated even during celestial crossovers
+            let fillFloor: CGFloat = 18 * (1.0 - 0.5 * stage5Progress)
+            warmFillLight.intensity = max(fillFloor, (sunKeyLight.intensity * bounceMultiplier) + moonLight.intensity * 0.20)
             warmFillLight.color = blendColor(
                 UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1),
                 UIColor(red: 0.62, green: 0.72, blue: 0.90, alpha: 1),
