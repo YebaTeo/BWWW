@@ -15,14 +15,13 @@ struct CinematicAtmosphereView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var orbitPhase: Double {
-        let t = min(1, max(0, (progress - 0.666) / (0.75 - 0.666)))
-        return Double(t) * .pi * 11
+        HomeCelestialCycle.phase(progress: progress)
     }
 
     private var daylight: CGFloat {
         // Ngored (.666) begins in morning. During the Ngored → Dibuat
-        // transition the light alternates between day and night eleven times,
-        // beginning in daylight and ending at night on Dibuat.
+        // transition the light completes five day/night cycles, beginning and
+        // ending in daylight on Dibuat.
         return CGFloat((1 - cos(orbitPhase)) / 2)
     }
 

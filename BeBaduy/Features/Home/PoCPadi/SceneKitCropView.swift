@@ -88,6 +88,14 @@ struct SceneKitCropView: UIViewRepresentable {
         private var rackBraces: [SCNNode] = []
         private let rackBeam = SCNNode()
         private var hangingBundles: [SCNNode] = []
+        private var harvestTransferNodes: [(
+            node: SCNNode,
+            target: SCNNode,
+            startPosition: SIMD3<Float>,
+            startOrientation: simd_quatf,
+            startScale: SIMD3<Float>,
+            delay: Float
+        )] = []
 
         /// The camera stays centered as the final bamboo rack rises.
         private let cameraNode   = SCNNode()
@@ -96,7 +104,10 @@ struct SceneKitCropView: UIViewRepresentable {
         /// (trunk node, canopy node, natural fall-start offset in [0,1])
         private var treeNodes: [(trunk: SCNNode, canopy: SCNNode, fallAngle: Float, origin: SCNVector3)] = []
         private var impactedTrees = Set<Int>()
+        private var crackedTrees = Set<Int>()
+        private var fracturePairs: [(base: SCNNode, falling: SCNNode)] = []
         private let stumpRoot = SCNNode()
+        private let rootFlareRoot = SCNNode()
         private var flameSystems: [SCNParticleSystem] = []
         private let fireLight = SCNLight()
         private let sunKeyLight = SCNLight()
@@ -104,6 +115,8 @@ struct SceneKitCropView: UIViewRepresentable {
         private let warmFillLight = SCNLight()
         private let sunsetRimLight = SCNLight()
         private let moonLight = SCNLight()
+        private let sunOrbitNode = SCNNode()
+        private let moonOrbitNode = SCNNode()
         private let animationEpoch = CACurrentMediaTime()
 
         // ── Ember / seed nodes ───────────────────────────────────────────────
@@ -182,6 +195,8 @@ struct SceneKitCropView: UIViewRepresentable {
             configureLighting()
             buildGround()
             buildForest()        // Stage 1
+            rootFlareRoot.name = "rootFlares"
+            scene.rootNode.addChildNode(rootFlareRoot)
             buildWildGrass()     // Stage 1 undergrowth
             buildFire()          // Transition 1→2
             buildAsh()           // Post-burn clods
@@ -247,7 +262,7 @@ struct SceneKitCropView: UIViewRepresentable {
             moonLight.shadowRadius = 5
             moonLight.shadowBias = 0.003
             moonLight.shadowColor = UIColor(white: 0, alpha: 0.65)
-            let moonNode = SCNNode()
+            let moonNode = moonOrbitNode
             moonNode.light = moonLight
             moonNode.position = SCNVector3(2.5, 3, 1.5)
             moonNode.look(at: SCNVector3(0, 0.1, 0))
@@ -265,7 +280,7 @@ struct SceneKitCropView: UIViewRepresentable {
             sun.shadowBias = 0.003
             sun.shadowMapSize = CGSize(width: 1024, height: 1024)
             sun.shadowColor   = UIColor(white: 0.05, alpha: 0.30)
-            let sunNode       = SCNNode()
+            let sunNode       = sunOrbitNode
             sunNode.light     = sun
             sunNode.position  = SCNVector3(2.6, 3.2, -2.4)
             sunNode.look(at: SCNVector3(0, 0.1, 0))
@@ -292,17 +307,18 @@ struct SceneKitCropView: UIViewRepresentable {
             rimNode.position  = SCNVector3(0.65, 0.72, -0.65)
             scene.rootNode.addChildNode(rimNode)
 
-            // Soft, warm fill reaches every plant category: trees, weeds,
-            // and rice. Keep it broad and low so it blends with the sunset.
+            // Broad reflected fill on the viewer-facing trunk and crown.
+            // Its energy follows the celestial lights without a second shadow.
             let fill = warmFillLight
             fill.type = .omni
-            fill.color = UIColor(red: 1.0, green: 0.79, blue: 0.57, alpha: 1)
-            fill.intensity = 58
-            fill.attenuationStartDistance = 0.5
-            fill.attenuationEndDistance = 3.5
+            fill.color = UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1)
+            fill.intensity = 0
+            fill.castsShadow = false
+            fill.attenuationStartDistance = 1.5
+            fill.attenuationEndDistance = 5
             let fillNode = SCNNode()
             fillNode.light = fill
-            fillNode.position = SCNVector3(0.45, 0.75, -0.35)
+            fillNode.position = SCNVector3(0, 0.70, 1.1)
             scene.rootNode.addChildNode(fillNode)
 
         }
@@ -405,23 +421,11 @@ struct SceneKitCropView: UIViewRepresentable {
 
         private func addTexturedTree(index: Int, x: Float, z: Float,
                                      yaw: Float, scale: Float) {
-            let texture = UIImage(named: "HumaTreeNatural") ?? UIImage(named: "HumaTree")
-            let material = SCNMaterial()
-            // The tree atlas already carries painted sunset shading. Preserve
-            // its colors and let the shared scene lighting shade the 3D trunk,
-            // grass, and rice together.
-            material.lightingModel = .constant
-            material.diffuse.contents = texture
-            material.multiply.contents = UIColor.white
-            material.isDoubleSided = true
-            material.transparencyMode = .aOne
-            material.writesToDepthBuffer = false
-            material.readsFromDepthBuffer = true
-            smoothTextureSampling(material.diffuse)
-
             let pivot = SCNNode()
             pivot.name = "treeCutPivot_\(index)"
-            pivot.position = SCNVector3(x, soilY, z)
+            let cutHeight: Float = 0.075 // six of forty mesh rows; bottom 15% stays rooted
+            let imageBase: Float = -0.035 * scale
+            pivot.position = SCNVector3(x, soilY + (imageBase + cutHeight) * scale, z)
             pivot.scale = SCNVector3(scale, scale, scale)
             pivot.eulerAngles.y = yaw
             let wood = stumpMaterial(index: index)
@@ -436,7 +440,7 @@ struct SceneKitCropView: UIViewRepresentable {
             // Sink the root flare into the shared ground plane. The artwork
             // includes roots below the trunk; leaving it at local zero makes
             // the enlarged tree read as if it sits on top of a separate disk.
-            canopy.position.y = -0.035 * scale
+            canopy.position.y = -cutHeight
             let front = SCNNode(geometry: plane)
             front.name = "treeSilhouette"
             front.position.z = 0
@@ -498,14 +502,37 @@ struct SceneKitCropView: UIViewRepresentable {
             forestRoot.addChildNode(pivot)
             treeNodes.append((trunk: pivot, canopy: canopy, fallAngle: Float(index) / 4, origin: pivot.position))
 
-            let stumpHeight: Float = 0.045 * scale
-            let stumpGeometry = SCNCone(topRadius: CGFloat(0.012 * scale),
-                bottomRadius: CGFloat(0.014 * scale), height: CGFloat(stumpHeight))
-            stumpGeometry.radialSegmentCount = 16
-            stumpGeometry.materials = [wood.copy() as! SCNMaterial]
-            let stump = SCNNode(geometry: stumpGeometry)
-            stump.position = SCNVector3(x, soilY + stumpHeight * 0.5 - 0.003, z)
-            stumpRoot.addChildNode(stump)
+            // The original image's root flare stays planted as the upper
+            // tree rotates away. Its opacity follows the cut/fall progress.
+            let rootAnchor = SCNNode()
+            rootAnchor.position = SCNVector3(x, soilY + (imageBase + cutHeight * 0.5) * scale, z)
+            rootAnchor.scale = SCNVector3(scale, scale, scale)
+            rootAnchor.eulerAngles.y = yaw
+            let rootMaterial = SCNMaterial()
+            rootMaterial.lightingModel = .constant
+            rootMaterial.diffuse.contents = Self.rootFlareTexture
+            rootMaterial.multiply.contents = UIColor(red: 1.48, green: 1.45, blue: 1.38, alpha: 1)
+            rootMaterial.isDoubleSided = true
+            rootMaterial.transparencyMode = .aOne
+            rootMaterial.writesToDepthBuffer = false
+            let rootPlane = SCNPlane(width: 0.34, height: CGFloat(cutHeight))
+            rootPlane.materials = [rootMaterial]
+            let rootImage = SCNNode(geometry: rootPlane)
+            rootImage.position.z = 0
+            rootAnchor.addChildNode(rootImage)
+            rootAnchor.opacity = 1
+            rootAnchor.isHidden = false
+            rootFlareRoot.addChildNode(rootAnchor)
+
+            let baseFracture = makeFractureSurface(seed: index)
+            baseFracture.position.y = cutHeight * 0.5
+            rootAnchor.addChildNode(baseFracture)
+            let fallingFracture = makeFractureSurface(seed: index)
+            fallingFracture.eulerAngles.z = .pi
+            pivot.addChildNode(fallingFracture)
+            baseFracture.opacity = 0
+            fallingFracture.opacity = 0
+            fracturePairs.append((baseFracture, fallingFracture))
 
             // Keep only a feathered contact shadow at the tree base. A raised
             // soil lip reads like a hole punched through the photographic field.
@@ -528,6 +555,16 @@ struct SceneKitCropView: UIViewRepresentable {
         /// One shared mesh: original full-resolution artwork on the front,
         /// with a closed body derived from its alpha mask. Sampling is used
         /// only to construct geometry; the bundled image remains untouched.
+        private static let rootFlareTexture: UIImage = {
+            guard let image = UIImage(named: "HumaTreeNatural") ?? UIImage(named: "HumaTree"),
+                  let cg = image.cgImage else { return UIImage() }
+            // Exact complement of the moving mesh: full width, bottom 15%.
+            let bounds = CGRect(x: 0, y: CGFloat(cg.height) * 0.85,
+                                width: CGFloat(cg.width), height: CGFloat(cg.height) * 0.15)
+            guard let crop = cg.cropping(to: bounds) else { return image }
+            return UIImage(cgImage: crop, scale: image.scale, orientation: image.imageOrientation)
+        }()
+
         private lazy var solidTreeGeometry: SCNGeometry = {
             let image = UIImage(named: "HumaTreeNatural") ?? UIImage(named: "HumaTree")
             let size = 192
@@ -569,7 +606,7 @@ struct SceneKitCropView: UIViewRepresentable {
             let width: Float = 0.34, height: Float = 0.50
             // Subdivide the original front surface so crown regions can bend
             // independently. UVs still sample the exact original image.
-            for row in 0..<40 {
+            for row in 6..<40 {
                 for column in 0..<32 {
                     let u0 = Float(column)/32, u1 = Float(column+1)/32
                     let v0 = Float(row)/40, v1 = Float(row+1)/40
@@ -583,7 +620,7 @@ struct SceneKitCropView: UIViewRepresentable {
                           CGPoint(x: CGFloat(u0), y: CGFloat(1-v1))], body: false)
                 }
             }
-            for y in 0..<size {
+            for y in 29..<size {
                 for x in 0..<size where occupied(x, y) {
                     let u0 = Float(x) / Float(size), u1 = Float(x + 1) / Float(size)
                     let v0 = Float(y) / Float(size), v1 = Float(y + 1) / Float(size)
@@ -615,6 +652,7 @@ struct SceneKitCropView: UIViewRepresentable {
             let front = SCNMaterial()
             front.lightingModel = .constant
             front.diffuse.contents = image
+            front.multiply.contents = UIColor(red: 1.48, green: 1.45, blue: 1.38, alpha: 1)
             front.isDoubleSided = true
             front.transparencyMode = .aOne
             front.writesToDepthBuffer = true
@@ -648,6 +686,7 @@ struct SceneKitCropView: UIViewRepresentable {
             """, .fragment: """
             #pragma arguments
             float treeCrownBlend;
+            float rootSeparation;
             #pragma transparent
             #pragma body
             // Keep the original trunk visible at the cut pivot while the
@@ -655,15 +694,18 @@ struct SceneKitCropView: UIViewRepresentable {
             float crownMask = 1.0 - smoothstep(0.42, 0.55,
                 _surface.diffuseTexcoord.y);
             _output.color.a *= 1.0 - treeCrownBlend * crownMask;
+            float rootMask = smoothstep(0.94, 0.985, _surface.diffuseTexcoord.y);
+            // Root pixels are excluded from this mesh at construction time.
             if (_output.color.a < 0.08) { discard_fragment(); }
             """]
             front.setValue(Float(0), forKey: "treeWindTime")
             front.setValue(Float(0), forKey: "treeWindAmplitude")
             front.setValue(Float(0), forKey: "treeCrownBlend")
+            front.setValue(Float(0), forKey: "rootSeparation")
             smoothTextureSampling(front.diffuse)
             let body = front.copy() as! SCNMaterial
             body.lightingModel = .constant
-            body.multiply.contents = UIColor(white: 0.83, alpha: 1)
+            body.multiply.contents = UIColor(red: 1.15, green: 1.12, blue: 1.05, alpha: 1)
             body.isDoubleSided = true
             body.setValue(Float(0), forKey: "treeCrownBlend")
             let geometry = SCNGeometry(sources: [.init(vertices: vertices), .init(normals: normals),
@@ -794,10 +836,10 @@ struct SceneKitCropView: UIViewRepresentable {
 
         private func stumpMaterial(index: Int) -> SCNMaterial {
             let material = SCNMaterial()
-            material.lightingModel = .lambert
+            material.lightingModel = .constant
             material.diffuse.contents = UIImage(named: "HumaWoodTexture")
                 ?? UIColor(red: 0.32, green: 0.20, blue: 0.12, alpha: 1)
-            material.multiply.contents = UIColor(red: 0.78, green: 0.62, blue: 0.46, alpha: 1)
+            material.multiply.contents = UIColor(red: 1.25, green: 1.10, blue: 0.95, alpha: 1)
             material.roughness.contents = 1.0
             smoothTextureSampling(material.diffuse)
             return material
@@ -1143,30 +1185,59 @@ struct SceneKitCropView: UIViewRepresentable {
                 leuitRoot.addChildNode(bundle)
                 hangingBundles.append(bundle)
             }
+
+            // Temporary harvested stalks travel from the ripe field into the
+            // exact positions of the final tied sheaves. The mature crop and
+            // these copies overlap at the start, so the handoff reads as one
+            // continuous harvest instead of a sudden replacement.
+            for (index, source) in harvestedPanicles.enumerated() {
+                guard source.geometry != nil, !hangingBundles.isEmpty else { continue }
+                let bundleIndex = index % hangingBundles.count
+                let targetIndex = harvestedPanicles.count + index
+                guard hangingBundles[bundleIndex].childNodes.indices.contains(targetIndex) else { continue }
+                let target = hangingBundles[bundleIndex].childNodes[targetIndex]
+                let movingStalk = SCNNode(geometry: source.geometry)
+                movingStalk.name = "harvestTransfer_\(index)"
+                movingStalk.simdWorldPosition = source.simdWorldPosition
+                movingStalk.simdWorldOrientation = source.simdWorldOrientation
+                movingStalk.simdScale = source.simdScale
+                movingStalk.opacity = 0
+                movingStalk.isHidden = true
+                scene.rootNode.addChildNode(movingStalk)
+                harvestTransferNodes.append((
+                    node: movingStalk,
+                    target: target,
+                    startPosition: source.simdWorldPosition,
+                    startOrientation: source.simdWorldOrientation,
+                    startScale: source.simdScale,
+                    delay: Float(index % 4) * 0.045
+                ))
+            }
         }
 
         /// Reuses the exact golden panicle geometry grown in DIBUAT, arranged
         /// into three inverted sheaves. Only the tie is new to the drying rack.
         private func makeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
             let bundle = SCNNode()
-            // Three offset layers make each sheaf fuller while every stalk
-            // still uses the same harvested panicle mesh and golden material.
+            // Three close layers make each sheaf full at the tied neck, then
+            // fan outward below it like the reference drying bundles.
             for layer in 0..<3 {
                 for index in panicles.indices {
                     guard let geometry = panicles[index].geometry else { continue }
                     let stalk = SCNNode(geometry: geometry)
                     let lane = Float(index % 5 - 2)
                     let depth = Float(index / 5 - 1)
-                    let layerOffset: Float = layer == 0 ? -0.009 : layer == 2 ? 0.009 : 0
+                    let layerOffset = Float(layer - 1)
+                    let fan = lane * 0.105 + Float((index + layer) % 3 - 1) * 0.035
                     stalk.position = SCNVector3(
-                        lane * 0.019 + layerOffset,
-                        -0.012 - Float((index + layer) % 3) * 0.004,
-                        depth * 0.017 + Float(layer - 1) * 0.012
+                        lane * 0.003 + layerOffset * 0.002,
+                        -0.004 - Float((index + layer) % 3) * 0.002,
+                        depth * 0.004 + layerOffset * 0.003
                     )
                     stalk.eulerAngles = SCNVector3(
-                        0,
+                        depth * 0.09,
                         Float(index) * 0.31 + Float(layer) * 0.42,
-                        .pi + Float((index + layer) % 3 - 1) * 0.07
+                        .pi + fan
                     )
                     stalk.scale = SCNVector3(0.88, 0.70, 0.86)
                     bundle.addChildNode(stalk)
@@ -1176,7 +1247,7 @@ struct SceneKitCropView: UIViewRepresentable {
             collarGeometry.radialSegmentCount = 12
             collarGeometry.materials = [tie]
             let collar = SCNNode(geometry: collarGeometry)
-            collar.position.y = -0.055
+            collar.position.y = -0.018
             bundle.addChildNode(collar)
             return bundle
         }
@@ -1212,8 +1283,11 @@ struct SceneKitCropView: UIViewRepresentable {
             // Keep the original tree cards readable while the fall begins,
             // then blend them into the radial 3D crown over the longer
             // cinematic clearing interval.
-            let forestOpacity = 1 - smoothstep(0.24, 0.32, p)
+            let forestOpacity = 1 - smoothstep(0.29, 0.36, p)
             setVisibility(forestRoot, opacity: forestOpacity)
+            // Clear all cut wood before the Ngaseuk target (p ≈ 0.444).
+            rootFlareRoot.opacity = CGFloat(1 - smoothstep(0.29, 0.37, p))
+            rootFlareRoot.isHidden = rootFlareRoot.opacity < 0.005
             setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p))
             shadowRoot.opacity = CGFloat(forestOpacity * (1 - 0.45 * smoothstep(0.02, 0.12, p)))
             setVisibility(wildRoot, opacity: 1 - smoothstep(0.28, 0.37, p))
@@ -1221,7 +1295,7 @@ struct SceneKitCropView: UIViewRepresentable {
             // Reveal them only as the tree finishes its fall, then let the
             // burn transition hide them again with the rest of the field.
             let cutReveal = smoothstep(0.12, 0.19, p)
-            let stumpFade = 1 - smoothstep(0.31, 0.38, p)
+            let stumpFade = 1 - smoothstep(0.29, 0.37, p)
             setVisibility(stumpRoot, opacity: cutReveal * stumpFade)
             let char = CGFloat(1 - 0.8 * smoothstep(0.16, 0.24, p))
             for stump in stumpRoot.childNodes {
@@ -1233,23 +1307,36 @@ struct SceneKitCropView: UIViewRepresentable {
                 let trunk  = entry.trunk
                 // Stagger: tree i starts falling when global p crosses [0.10 + offset*0.08]
                 let fallStart: Float = 0.02 + entry.fallAngle * 0.035
-                let fallEnd:   Float = fallStart + 0.20
+                let fallDuration: Float = 0.145 + Float(index % 3) * 0.012
+                let fallEnd: Float = fallStart + fallDuration
                 let fallT = max(0, min(1, (p - fallStart) / (fallEnd - fallStart)))
-                // One rigid body around a fixed base. A short forward lean is
-                // followed by gravity-like acceleration up to ground contact.
-                let contactTime: Float = 0.88
+                // Root flares stay planted; only their matching pixels on
+                // the falling tree sprite fade away.
+                // One rigid body pivots at its fixed base, accelerating
+                // smoothly into ground contact without artificial shaking.
+                let contactTime: Float = 0.84
                 let groundAngle: Float = 1.49
-                let release = smoothstep(0, 0.12, fallT) * 0.018
-                let descent = max(0, min(1, (fallT - 0.12) / (contactTime - 0.12)))
-                let angle = release + (groundAngle - 0.018) * descent * descent
-                let settling = max(0, min(1, (fallT - contactTime) / (1 - contactTime)))
-                let rebound = 0.04 * sin(settling * .pi) * exp(-3 * settling)
+                let fractureReveal = smoothstep(0.12, 0.28, fallT)
+                fracturePairs[index].base.opacity = CGFloat(fractureReveal)
+                fracturePairs[index].falling.opacity = CGFloat(fractureReveal)
+                if fallT >= 0.22 && !crackedTrees.contains(index) {
+                    crackedTrees.insert(index)
+                    if isWindEnabled { emitCutSplinters(at: entry.origin) }
+                } else if fallT < 0.12 {
+                    crackedTrees.remove(index)
+                }
+                let release = smoothstep(0, 0.10, fallT) * 0.012
+                let descent = max(0, min(1, (fallT - 0.10) / (contactTime - 0.10)))
+                let angle = release + (groundAngle - 0.012) * descent * descent
                 // Fall mostly across the screen, with a smaller forward roll
                 // so the deepened crown shell exposes its side instead of
                 // becoming an edge-on paper strip.
-                trunk.eulerAngles.x = (angle - rebound) * 0.34
-                trunk.eulerAngles.z = -(angle - rebound) * 0.94
+                trunk.eulerAngles.x = angle * 0.34
+                trunk.eulerAngles.z = -angle * 0.94
                 trunk.position = entry.origin
+                let treeFade = 1 - smoothstep(contactTime, 0.97, fallT)
+                trunk.opacity = CGFloat(treeFade)
+                trunk.isHidden = treeFade < 0.005
 
                 // Wind dies away as the tree starts moving. The crown remains
                 // attached rigidly instead of counter-rotating at a second base.
@@ -1261,6 +1348,8 @@ struct SceneKitCropView: UIViewRepresentable {
                                           forKey: "treeWindAmplitude")
                         material.setValue(Float(0),
                                           forKey: "treeCrownBlend")
+                        material.setValue(smoothstep(0.10, 0.45, fallT),
+                                          forKey: "rootSeparation")
                     }
                 }
             let crownReveal: Float = 0
@@ -1366,13 +1455,43 @@ struct SceneKitCropView: UIViewRepresentable {
             // the hole instead of simply fading in at full size.
             let riceGrowth = smoothstep(0.90, 0.98, p)
             leavesRoot.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
-            let transfer = smoothstep(0.80, 0.98, fullP)
+            let transfer = smoothstep(0.75, 0.91, fullP)
             setVisibility(leavesRoot, opacity: riceGrowth * (1 - transfer))
 
             // ── 8. Panicles – DIBUAT only (p 0.94 → 1.0) ──────────────────
             let panicleGrowth = smoothstep(0.94, 1.0, p)
             paniclesRoot.scale = SCNVector3(panicleGrowth, panicleGrowth, panicleGrowth)
             setVisibility(paniclesRoot, opacity: panicleGrowth * (1 - transfer))
+
+            // Stagger the cut stalks into their hanging positions with a
+            // small lift on the way, then hand them off to the bound bundles.
+            for transferStalk in harvestTransferNodes {
+                let start = 0.75 + transferStalk.delay * 0.15
+                let end = 0.90 + transferStalk.delay * 0.15
+                let t = smoothstep(start, end, fullP)
+                let targetPosition = transferStalk.target.simdWorldPosition
+                let position = transferStalk.startPosition
+                    + (targetPosition - transferStalk.startPosition) * t
+                transferStalk.node.simdWorldPosition = position
+                let hangT = smoothstep(0.78, 1, t)
+                transferStalk.node.simdWorldOrientation = simd_slerp(
+                    transferStalk.startOrientation,
+                    transferStalk.target.simdWorldOrientation,
+                    hangT
+                )
+                transferStalk.node.simdScale = simd_mix(
+                    transferStalk.startScale,
+                    transferStalk.target.simdScale * leuitRoot.simdScale,
+                    SIMD3<Float>(repeating: t)
+                )
+                let appear = smoothstep(0.75 + transferStalk.delay * 0.15,
+                                        0.79 + transferStalk.delay * 0.15, fullP)
+                let handoff = 1 - smoothstep(0.88 + transferStalk.delay * 0.15,
+                                             0.92 + transferStalk.delay * 0.15, fullP)
+                let opacity = appear * handoff
+                transferStalk.node.opacity = CGFloat(opacity)
+                transferStalk.node.isHidden = opacity < 0.005
+            }
 
             // ── 9. Rice colour-lerp green → gold ────────────────────────────
             let green    = SIMD3<Float>(0.82, 0.94, 0.70)
@@ -1404,7 +1523,7 @@ struct SceneKitCropView: UIViewRepresentable {
             for (index, bundle) in hangingBundles.enumerated() {
                 let offset = Float(index) * 0.014
                 let drop = smoothstep(0.88 + offset, 0.96 + offset, fullP)
-                bundle.position.y = 0.62 + 0.10 * (1 - drop)
+                bundle.position.y = 0.62
                 setVisibility(bundle, opacity: drop)
             }
             setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p) * (1 - transfer))
@@ -1413,24 +1532,46 @@ struct SceneKitCropView: UIViewRepresentable {
             cameraNode.look(at: SCNVector3(0, 0.10 + 0.12 * postRise, 0))
         }
 
-        /// Mirrors the background's eleven day/night alternations
+        /// Mirrors the background's five complete day/night cycles
         /// while the preview moves from Ngored to Dibuat.
         private func updateHarvestLighting(progress: CGFloat) {
-            let t = min(1, max(0, (progress - 0.666) / (0.75 - 0.666)))
-            let night = CGFloat((1 - cos(Double(t) * .pi * 11)) / 2)
-            sunKeyLight.intensity = 155 * (1 - night)
-            moonLight.intensity = 110 * night
+            let phase = HomeCelestialCycle.phase(progress: progress)
+            let altitude = cos(phase)
+            let night = CGFloat((1 - altitude) / 2)
+            let sunStrength = CGFloat(min(1, max(0, altitude * 5)))
+            let moonStrength = CGFloat(min(1, max(0, -altitude * 5)))
+            sunOrbitNode.position = SCNVector3(Float(sin(phase) * 4),
+                                              Float(altitude * 3) + soilY, -2.4)
+            moonOrbitNode.position = SCNVector3(Float(-sin(phase) * 4),
+                                               Float(-altitude * 3) + soilY, -2.4)
+            sunOrbitNode.look(at: SCNVector3(0, soilY, 0))
+            moonOrbitNode.look(at: SCNVector3(0, soilY, 0))
+            sunKeyLight.intensity = 155 * sunStrength
+            moonLight.intensity = 55 * moonStrength
+            sunKeyLight.castsShadow = sunStrength > 0
+            moonLight.castsShadow = moonStrength > 0
             sunKeyLight.color = blendColor(
                 UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1),
-                UIColor(red: 0.36, green: 0.48, blue: 0.78, alpha: 1), amount: night
+                UIColor(red: 1.0, green: 0.65, blue: 0.40, alpha: 1),
+                amount: CGFloat(1 - max(0, altitude))
             )
-            skyAmbientLight.intensity = 230 - 208 * night
+            skyAmbientLight.intensity = 65 - 53 * night
             skyAmbientLight.color = blendColor(
                 UIColor(red: 0.88, green: 0.82, blue: 0.70, alpha: 1),
                 UIColor(red: 0.32, green: 0.40, blue: 0.62, alpha: 1), amount: night
             )
-            sunsetRimLight.intensity = 18 * (1 - night)
-            warmFillLight.intensity = 58 * (1 - night)
+            sunsetRimLight.intensity = 0
+            let stage5Progress = CGFloat(smoothstep(0.74, 0.85, Float(progress)))
+            // Reduce front bounce light significantly in Stage 5 (Leuit) so the bamboo rack
+            // and hanging rice sheaves have rich contrast and are not washed out by harsh bounce fill.
+            let bounceMultiplier: CGFloat = 1.0 - 0.80 * stage5Progress
+            warmFillLight.intensity = (sunKeyLight.intensity * bounceMultiplier)
+                + moonLight.intensity * 0.80 * (1.0 - 0.5 * stage5Progress)
+            warmFillLight.color = blendColor(
+                UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1),
+                UIColor(red: 0.62, green: 0.72, blue: 0.90, alpha: 1),
+                amount: night
+            )
         }
 
         private func blendColor(_ day: UIColor, _ night: UIColor, amount: CGFloat) -> UIColor {
@@ -1682,32 +1823,92 @@ struct SceneKitCropView: UIViewRepresentable {
 
         /// Short impact burst: light leaves scatter broadly while heavier
         /// wooden splinters travel lower and closer to the fallen trunk.
+        private func makeFractureSurface(seed: Int) -> SCNNode {
+            let root = SCNNode()
+            let wood = SCNMaterial()
+            wood.lightingModel = .constant
+            wood.diffuse.contents = UIColor(red: 0.88, green: 0.68, blue: 0.45, alpha: 1)
+            wood.isDoubleSided = true
+            let count = 13
+            var vertices = [SCNVector3(0, 0.001, 0)]
+            var indices: [Int32] = []
+            for i in 0..<count {
+                let angle = Float(i) / Float(count) * .pi * 2
+                let irregularity = 0.85 + 0.15 * sin(Float(i * 7 + seed))
+                vertices.append(SCNVector3(cos(angle) * 0.011 * irregularity,
+                                           0.001 + 0.0015 * sin(Float(i * 3 + seed)),
+                                           sin(angle) * 0.006 * irregularity))
+                indices += [0, Int32(i + 1), Int32((i + 1) % count + 1)]
+            }
+            let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: vertices)],
+                                       elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)])
+            geometry.materials = [wood]
+            root.addChildNode(SCNNode(geometry: geometry))
+            // Small tapered fibers keep the edge irregular without enlarging
+            // the trunk silhouette or adding another stump over the photo.
+            for i in 0..<6 {
+                let angle = Float(i) * 2.39996 + Float(seed)
+                let length = 0.003 + Float(i % 3) * 0.0015
+                let fiber = SCNCone(topRadius: 0, bottomRadius: 0.0008, height: CGFloat(length))
+                fiber.materials = [wood]
+                let node = SCNNode(geometry: fiber)
+                node.position = SCNVector3(cos(angle) * 0.007, length * 0.5, sin(angle) * 0.004)
+                node.eulerAngles.z = sin(angle) * 0.28
+                root.addChildNode(node)
+            }
+            return root
+        }
+
+        private func emitCutSplinters(at position: SCNVector3) {
+            let node = SCNNode()
+            node.position = position
+            let particles = SCNParticleSystem()
+            particles.loops = false
+            particles.emissionDuration = 0.06
+            particles.birthRate = 55
+            particles.particleLifeSpan = 0.45
+            particles.particleSize = 0.006
+            particles.particleSizeVariation = 0.003
+            particles.particleVelocity = 0.09
+            particles.particleVelocityVariation = 0.04
+            particles.emittingDirection = SCNVector3(1, 0.3, 0)
+            particles.spreadingAngle = 65
+            particles.acceleration = SCNVector3(0, -0.35, 0)
+            particles.particleImage = Self.woodSplinterSprite
+            particles.particleColor = .white
+            particles.isLightingEnabled = false
+            particles.blendMode = .alpha
+            node.addParticleSystem(particles)
+            scene.rootNode.addChildNode(node)
+            node.runAction(.sequence([.wait(duration: 0.8), .removeFromParentNode()]))
+        }
+
         private func emitTreeDebris(at position: SCNVector3, phase: Float) {
-            let leavesNode = SCNNode()
-            leavesNode.position = SCNVector3(position.x, position.y + 0.025, position.z)
-            let leaves = SCNParticleSystem()
-            leaves.loops = false
-            leaves.emissionDuration = 0.08
-            leaves.birthRate = 36
-            leaves.particleLifeSpan = 1.15
-            leaves.particleLifeSpanVariation = 0.28
-            leaves.particleSize = 0.015
-            leaves.particleSizeVariation = 0.006
-            leaves.particleVelocity = 0.22
-            leaves.particleVelocityVariation = 0.14
-            leaves.emittingDirection = SCNVector3(cos(phase), 1.1, sin(phase))
-            leaves.spreadingAngle = 78
-            leaves.acceleration = SCNVector3(0, -0.32, 0)
-            leaves.particleAngularVelocity = 7
-            leaves.particleAngularVelocityVariation = 9
-            leaves.particleColor = .white
-            leaves.particleColorVariation = SCNVector4(0.03, 0.08, 0.12, 0)
-            leaves.particleImage = Self.leafDebrisSprite
-            leaves.blendMode = .alpha
-            leaves.isLightingEnabled = true
-            leavesNode.addParticleSystem(leaves)
-            scene.rootNode.addChildNode(leavesNode)
-            leavesNode.runAction(.sequence([.wait(duration: 2.2), .removeFromParentNode()]))
+            let splintersNode = SCNNode()
+            splintersNode.position = SCNVector3(position.x, position.y + 0.025, position.z)
+            let splinters = SCNParticleSystem()
+            splinters.loops = false
+            splinters.emissionDuration = 0.08
+            splinters.birthRate = 36
+            splinters.particleLifeSpan = 1.15
+            splinters.particleLifeSpanVariation = 0.28
+            splinters.particleSize = 0.015
+            splinters.particleSizeVariation = 0.006
+            splinters.particleVelocity = 0.22
+            splinters.particleVelocityVariation = 0.14
+            splinters.emittingDirection = SCNVector3(cos(phase), 1.1, sin(phase))
+            splinters.spreadingAngle = 78
+            splinters.acceleration = SCNVector3(0, -0.32, 0)
+            splinters.particleAngularVelocity = 7
+            splinters.particleAngularVelocityVariation = 9
+            splinters.particleColor = .white
+            splinters.particleColorVariation = SCNVector4(0.03, 0.08, 0.12, 0)
+            splinters.particleImage = Self.woodSplinterSprite
+            splinters.blendMode = .alpha
+            splinters.isLightingEnabled = true
+            splintersNode.addParticleSystem(splinters)
+            scene.rootNode.addChildNode(splintersNode)
+            splintersNode.runAction(.sequence([.wait(duration: 2.2), .removeFromParentNode()]))
 
             let chipsNode = SCNNode()
             chipsNode.position = SCNVector3(position.x, position.y + 0.018, position.z)
@@ -1734,47 +1935,67 @@ struct SceneKitCropView: UIViewRepresentable {
             chipsNode.addParticleSystem(chips)
             scene.rootNode.addChildNode(chipsNode)
             chipsNode.runAction(.sequence([.wait(duration: 1.8), .removeFromParentNode()]))
+
+            // Brief grazing light at the impact makes the wood fragments
+            // pick up warm highlights and a little contrast as they scatter.
+            let impactLight = SCNLight()
+            impactLight.type = .omni
+            impactLight.color = UIColor(red: 1.0, green: 0.72, blue: 0.40, alpha: 1)
+            impactLight.intensity = 42
+            impactLight.attenuationStartDistance = 0.03
+            impactLight.attenuationEndDistance = 0.72
+            let impactNode = SCNNode()
+            impactNode.light = impactLight
+            impactNode.position = SCNVector3(position.x, position.y + 0.12, position.z)
+            scene.rootNode.addChildNode(impactNode)
+            impactNode.runAction(.sequence([
+                .customAction(duration: 0.55) { node, elapsed in
+                    guard let light = node.light else { return }
+                    light.intensity = 42 * CGFloat(max(0, 1 - elapsed / 0.55))
+                },
+                .removeFromParentNode()
+            ]))
         }
 
-        private static let leafDebrisSprite: UIImage = {
-            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 48, height: 24))
+        private static let woodSplinterSprite: UIImage = {
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = false
+            format.scale = 2
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 46, height: 18), format: format)
             return renderer.image { context in
-                let path = UIBezierPath()
-                path.move(to: CGPoint(x: 2, y: 13))
-                path.addQuadCurve(to: CGPoint(x: 45, y: 10), controlPoint: CGPoint(x: 28, y: -2))
-                path.addQuadCurve(to: CGPoint(x: 2, y: 13), controlPoint: CGPoint(x: 26, y: 27))
-                UIColor(red: 0.48, green: 0.58, blue: 0.19, alpha: 1).setFill()
-                path.fill()
-                let innerLeaf = UIBezierPath()
-                innerLeaf.move(to: CGPoint(x: 8, y: 12))
-                innerLeaf.addQuadCurve(to: CGPoint(x: 39, y: 10), controlPoint: CGPoint(x: 27, y: 3))
-                innerLeaf.addQuadCurve(to: CGPoint(x: 8, y: 12), controlPoint: CGPoint(x: 26, y: 20))
-                UIColor(red: 0.16, green: 0.28, blue: 0.06, alpha: 0.65).setFill()
-                innerLeaf.fill()
-                context.cgContext.setStrokeColor(UIColor(red: 0.80, green: 0.76, blue: 0.35, alpha: 0.90).cgColor)
-                context.cgContext.setLineWidth(1.2)
-                context.cgContext.move(to: CGPoint(x: 4, y: 13))
-                context.cgContext.addLine(to: CGPoint(x: 43, y: 10))
-                context.cgContext.strokePath()
-                context.cgContext.setLineWidth(0.7)
-                for fraction in [0.22, 0.34, 0.46, 0.58, 0.70, 0.82] {
-                    let x = 4 + 39 * fraction
-                    let y = 13 - 3 * fraction
-                    context.cgContext.move(to: CGPoint(x: x, y: y))
-                    context.cgContext.addLine(to: CGPoint(x: x - 4, y: y - 4))
-                    context.cgContext.move(to: CGPoint(x: x + 1, y: y))
-                    context.cgContext.addLine(to: CGPoint(x: x - 4, y: y + 4))
+                let cg = context.cgContext
+                let shard = UIBezierPath()
+                shard.move(to: CGPoint(x: 1, y: 12))
+                shard.addLine(to: CGPoint(x: 9, y: 7))
+                shard.addLine(to: CGPoint(x: 42, y: 2))
+                shard.addLine(to: CGPoint(x: 37, y: 9))
+                shard.addLine(to: CGPoint(x: 45, y: 13))
+                shard.addLine(to: CGPoint(x: 11, y: 14))
+                shard.close()
+                UIColor(red: 0.56, green: 0.34, blue: 0.17, alpha: 1).setFill()
+                shard.fill()
+                cg.saveGState()
+                shard.addClip()
+                for index in 0..<5 {
+                    let y = CGFloat(index) * 3 + 3
+                    cg.setStrokeColor((index.isMultiple(of: 2)
+                        ? UIColor(red: 0.88, green: 0.67, blue: 0.40, alpha: 0.8)
+                        : UIColor(red: 0.24, green: 0.12, blue: 0.05, alpha: 0.7)).cgColor)
+                    cg.setLineWidth(0.9)
+                    cg.move(to: CGPoint(x: 3, y: y + 2))
+                    cg.addLine(to: CGPoint(x: 44, y: y - 3))
+                    cg.strokePath()
                 }
-                context.cgContext.strokePath()
-                context.cgContext.setFillColor(UIColor(red: 0.32, green: 0.23, blue: 0.08, alpha: 0.65).cgColor)
-                for (x, y) in [(11.0, 10.0), (19.0, 15.0), (29.0, 7.0), (36.0, 13.0)] {
-                    context.cgContext.fillEllipse(in: CGRect(x: x, y: y, width: 1.1, height: 1.1))
-                }
+                cg.restoreGState()
             }
         }()
 
         private static let woodChipSprite: UIImage = {
-            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 14))
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = false
+            format.scale = 2
+            format.preferredRange = .standard
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 14), format: format)
             return renderer.image { context in
                 let path = UIBezierPath()
                 path.move(to: CGPoint(x: 2, y: 8))
