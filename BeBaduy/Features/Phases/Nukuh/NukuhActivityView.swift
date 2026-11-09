@@ -33,13 +33,22 @@ struct NukuhActivityView: View {
                 ForEach(0..<6) { index in
                     ActivityChoice(title: "Tebang pohon \(index + 1)", symbol: "tree", done: model.collected.contains(index), identifier: "nukuh.cut.\(index)") { model.collect(index) }
                 }.disabled(model.isDemonstrating)
-            case .prepared:
-                InstructionCard(title: "Pohon berhasil ditebang", message: "Selanjutnya, amati perubahan lahan saat sisa tumbuhan dibakar dalam adegan virtual.", identifier: "nukuh.burn", action: model.burn)
-            case .burning:
-                Text("Amati api mereda dan permukaan lahan berubah.")
-                ProgressView(value: model.scene.progress).accessibilityLabel("Perubahan lahan")
-                Button("Tampilkan kondisi setelah api reda") { model.scene.finishBurn() }.frame(minHeight: 44)
-                    .accessibilityIdentifier("nukuh.finishBurn")
+            case .prepared, .burning:
+                Text("Ketuk setiap lahan untuk menyalakan api virtual").font(.headline)
+                Text("Api hanya menyala pada lahan yang kamu ketuk. Geser untuk menemukan lahan lainnya, atau gunakan tombol di bawah.")
+                Text("\(model.scene.ignited.count) / 6 lahan dinyalakan")
+                    .accessibilityIdentifier("nukuh.fire.progress")
+                ForEach(0..<6) { index in
+                    ActivityChoice(title: "Nyalakan lahan \(index + 1)", symbol: "flame", done: model.scene.ignited.contains(index), identifier: "nukuh.ignite.\(index)") {
+                        model.burn(startingAt: index)
+                    }
+                }.disabled(model.isDemonstrating)
+                if model.scene.ignited.count == 6 {
+                    Text("Amati api mereda dan permukaan lahan berubah.")
+                    ProgressView(value: model.scene.progress).accessibilityLabel("Perubahan lahan")
+                    Button("Tampilkan kondisi setelah api reda") { model.scene.finishBurn() }.frame(minHeight: 44)
+                        .accessibilityIdentifier("nukuh.finishBurn")
+                }
             case .complete: Text("Lahan sudah siap")
             }
         }

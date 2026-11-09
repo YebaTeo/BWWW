@@ -23,6 +23,7 @@ import Foundation
             ActivityAudio.shared.play(.cut)
             self.session.feedback = "\(self.collected.count) dari 6 pohon pada ilustrasi telah ditebang."
         }
+        scene.onIgnitionRequested = { [weak self] index in self?.burn(startingAt: index) }
         scene.onBurnFinished = { [weak self] in
             guard let self, self.session.isActive else { return }
             self.session.finish(self.usedDemo ? .observed : .performed)
@@ -34,7 +35,11 @@ import Foundation
         guard session.isActive, !isDemonstrating else { return }
         scene.interact(index)
     }
-    func burn() { guard session.isActive else { return }; scene.ignite() }
+    func burn() { burn(startingAt: 0) }
+    func burn(startingAt index: Int) {
+        guard session.isActive, !isDemonstrating else { return }
+        scene.ignite(startingAt: index)
+    }
     func restore(_ outcome: ActivityOutcome?) { session.restore(outcome) }
     func setVisible(_ value: Bool) { visible = value; if !value { suspend() } else { scene.setSuspended(false); startLookMotion() } }
     func suspend() { stopLookMotion(); demoTask?.cancel(); demoTask = nil; isDemonstrating = false; scene.setSuspended(true) }
@@ -87,7 +92,11 @@ import Foundation
             }
             do { try await Task.sleep(for: .seconds(1)) } catch { return }
             guard let self, !Task.isCancelled else { return }
-            self.scene.ignite()
+            for index in 0..<6 {
+                guard !Task.isCancelled else { return }
+                self.scene.ignite(startingAt: index)
+                do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
+            }
         }
     }
 }

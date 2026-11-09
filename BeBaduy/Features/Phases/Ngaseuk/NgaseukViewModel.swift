@@ -11,6 +11,11 @@ import UIKit
     private(set) var lastDug = 0
     private(set) var motionActive = false
     private(set) var isDemonstrating = false
+    private(set) var peekTarget: Int?
+    private(set) var isPouring = false
+    private var pourDetector = SeedPourMotionDetector()
+    private var motionGeneration = 0
+    @ObservationIgnored private var pourTask: Task<Void, Never>?
     private var usedDemo = false
     private let motion: any MotionProviding
     private var detector = NgaseukMotionDetector()
@@ -38,18 +43,61 @@ import UIKit
         if seeds.count == 3 { session.finish(usedDemo ? .observed : .performed) }
         return true
     }
+    func peek(_ target: Int) {
+        guard session.isActive, step == .seeding, holes.contains(target), !isDemonstrating, !isPouring else { return }
+        closePeek()
+        peekTarget = target
+        if !seeds.contains(target) { startPourMotion() }
+    }
+    func closePeek() {
+        pauseMotion()
+        pourTask?.cancel(); pourTask = nil; isPouring = false; peekTarget = nil
+    }
+    func startPourMotion() {
+        guard session.isActive, step == .seeding, let target = peekTarget,
+              !seeds.contains(target), !isPouring, !isDemonstrating else { return }
+        pauseMotion()
+        guard motion.available else {
+            session.feedback = "Gunakan tombol Tuang benih untuk mengisi lubang."
+            return
+        }
+        pourDetector.reset(); motionActive = true
+        let generation = motionGeneration
+        motion.start { [weak self] sample in
+            guard let self, self.motionActive, self.motionGeneration == generation, self.peekTarget == target else { return }
+            guard let sample else {
+                self.pauseMotion(); self.session.feedback = "Gerakan dijeda. Ketuk Tuang benih untuk melanjutkan."
+                return
+            }
+            if self.pourDetector.consume(sample) { self.pourSeeds() }
+        }
+    }
+    func pourSeeds() {
+        guard session.isActive, let target = peekTarget, step == .seeding,
+              !seeds.contains(target), !isPouring, !isDemonstrating else { return }
+        pauseMotion(); isPouring = true
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        pourTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(850)) } catch { return }
+            guard let self, !Task.isCancelled, self.session.isActive, self.peekTarget == target else { return }
+            self.isPouring = false
+            self.seed(target)
+            self.pourTask = nil
+        }
+    }
     func startMotion() {
         guard session.isActive, step == .digging, !isDemonstrating else { return }
         guard motion.available else { session.feedback = "Sensor tidak tersedia. Ketuk tanah untuk membuat lubang."; return }
         detector.reset(); motionActive = true
+        let generation = motionGeneration
         motion.start { [weak self] sample in
-            guard let self, self.motionActive else { return }
+            guard let self, self.motionActive, self.motionGeneration == generation else { return }
             guard let sample else { self.pauseMotion(); self.session.feedback = "Gerakan dijeda. Kamu dapat melanjutkan dengan sentuhan."; return }
             if self.detector.consume(sample) { self.dig(self.selectedTarget) }
         }
     }
-    func pauseMotion() { motionActive = false; motion.stop(); detector.reset() }
-    func suspend() { demoTask?.cancel(); demoTask = nil; isDemonstrating = false; pauseMotion() }
+    func pauseMotion() { motionGeneration += 1; motionActive = false; motion.stop(); detector.reset(); pourDetector.reset() }
+    func suspend() { demoTask?.cancel(); demoTask = nil; isDemonstrating = false; closePeek() }
     func demonstrate() {
         guard session.isActive else { return }
         suspend(); usedDemo = true; isDemonstrating = true

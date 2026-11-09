@@ -9,6 +9,9 @@ import UIKit
 final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     enum Stage: Int { case entering, clearing, prepared, burning, complete }
     var onCut: ((Int) -> Void)?
+    var onIgnitionRequested: ((Int) -> Void)?
+    private(set) var ignited: Set<Int> = []
+    private var burnTimes: [Int: Double] = [:]
     var onBurnFinished: (() -> Void)?
     private(set) var stage: Stage = .entering
     private(set) var count = 0
@@ -33,7 +36,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var fireLight: PointLight?
     private var fireSoundSource: Entity?
     private var charred = Set<Int>()
-    private var elapsed: Double = 0
     private let preview = true
     private var audio: AudioPlaybackController?
     private var sound: AudioFileResource?
@@ -61,7 +63,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         switch stage {
         case .entering: "Lingkungan 3D sedang disiapkan. Kamera perangkat tidak digunakan."
         case .clearing: "Geser untuk melihat sekeliling dan ketuk rumpun untuk merapikan vegetasi. \(count)/6"
-        case .prepared: "Mulai adegan pembakaran virtual dan amati perubahan lahan."
+        case .prepared: "Ketuk lahan yang sudah dibersihkan untuk memulai api virtual."
         case .burning: "Api, bara, dan asap bergerak di atas lahan virtual."
         case .complete: "Anda telah menyelesaikan rangkaian simulasi ngahuma."
         }
@@ -129,11 +131,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         guard let view else { return }
         let location = gesture.location(in: view)
-        guard stage == .clearing else { return }
+        guard !suspended, stage == .clearing || stage == .prepared || stage == .burning else { return }
         var entity = view.entity(at: location)
         while let current = entity {
             if current.name.hasPrefix("patch-"), let index = Int(current.name.dropFirst(6)) {
-                interact(index)
+                if stage == .prepared || stage == .burning { onIgnitionRequested?(index) }
+                else { interact(index) }
                 return
             }
             entity = current.parent
@@ -148,7 +151,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         plants[index].orientation = simd_quatf(angle: 0.2, axis: [0, 1, 0])
         count = completed.count
         onCut?(index)
-        if count == 6 { stage = .prepared }
+        if count == 6 {
+            // After clearing, only the low ground patches should receive fire taps.
+            for patch in patches {
+                patch.components.set(CollisionComponent(shapes: [.generateBox(size: [1.15, 0.08, 1.15])]))
+            }
+            stage = .prepared
+        }
     }
 
     private func build(at transform: simd_float4x4) {
@@ -297,13 +306,21 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         return component
     }
 
-    func ignite() {
-        guard stage == .prepared else { return }
-        elapsed = 0
+    func ignite(startingAt index: Int = 0) {
+        guard !suspended, stage == .prepared || stage == .burning,
+              patches.indices.contains(index), ignited.insert(index).inserted else { return }
+        burnTimes[index] = 0
         stage = .burning
-        if reduceMotion { finishBurn(); return }
-        startAudio()
+        fireSoundSource?.position = patches[index].position + [0, 0.4, 0]
+        fireLight?.position = patches[index].position + [0, 0.6, 0]
         feedback.impactOccurred()
+        if reduceMotion {
+            plants[index].isEnabled = false
+            soils[index].model?.materials = materials.map { [$0.earth(burned: true)] } ?? []
+            burnTimes[index] = 10
+            progress = Double(ignited.count) / 6
+            if ignited.count == 6 { finishBurn() }
+        } else { startAudio() }
     }
 
     private func startAudio() {
@@ -321,31 +338,31 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
         guard stage == .burning else { return }
         fireLight?.light.intensity = 350 + 100 * sin(windTime * 13)
-        if audio?.isPlaying == false { audio?.play() }
-        elapsed += min(delta, 0.1)
-        progress = min(elapsed / 18, 1)
-        let activePatch = min(5, Int(elapsed / 0.85))
-        fireSoundSource?.position = patches[activePatch].position + [0, 0.4, 0]
-        fireLight?.position = patches[activePatch].position + [0, 0.6, 0]
-        if elapsed > 14 { fireLight?.light.intensity *= Float(max(0, (17 - elapsed) / 3)) }
-        for index in 0..<6 {
-            let localTime = elapsed - Double(index) * 0.85
+        let step = min(delta, 0.1)
+        for index in ignited {
+            let localTime = (burnTimes[index] ?? 0) + step
+            burnTimes[index] = localTime
             for kind in 0..<3 {
-                emitters[index * 3 + kind].isEnabled = localTime > 0 && localTime < (kind == 1 ? 10 : 7)
+                emitters[index * 3 + kind].isEnabled = localTime < (kind == 1 ? 10 : 7)
             }
-            if localTime > 0 && localTime < 3, let materials {
+            if localTime < 3, let materials {
                 var scorched = materials.earth()
                 let shade = CGFloat(1 - min(localTime / 3, 1) * 0.7)
                 scorched.baseColor.tint = UIColor(white: shade, alpha: 1)
                 soils[index].model?.materials = [scorched]
                 plants[index].scale.y = max(0.015, 0.12 * Float(1 - localTime / 3))
             }
-            if localTime > 3, charred.insert(index).inserted {
+            if localTime >= 3, charred.insert(index).inserted {
                 plants[index].isEnabled = false
                 soils[index].model?.materials = materials.map { [$0.earth(burned: true)] } ?? []
             }
         }
-        if elapsed >= 18 { finishBurn() }
+        let hasFire = burnTimes.values.contains { $0 < 10 }
+        if hasFire {
+            if audio?.isPlaying == false { audio?.play() }
+        } else { fireLight?.light.intensity = 0; audio?.pause() }
+        progress = burnTimes.values.reduce(0) { $0 + min($1 / 10, 1) } / 6
+        if ignited.count == 6 && !hasFire { finishBurn() }
     }
 
     private func setTrackingPaused(_ paused: Bool) {
@@ -359,7 +376,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func finishBurn() {
-        guard stage == .burning else { return }
+        guard stage == .burning, ignited.count == 6 else { return }
         fireLight?.light.intensity = 0
         emitters.forEach { $0.isEnabled = false }
         plants.forEach { $0.isEnabled = false }
@@ -384,7 +401,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         charred.removeAll()
         patches.removeAll(); plants.removeAll(); soils.removeAll(); emitters.removeAll()
         completed.removeAll()
-        count = 0; progress = 0; elapsed = 0
+        ignited.removeAll(); burnTimes.removeAll()
+        count = 0; progress = 0
         trackingPaused = false
         stage = .entering
         tracking = "Menyiapkan lingkungan 360°. Geser layar untuk melihat sekeliling."

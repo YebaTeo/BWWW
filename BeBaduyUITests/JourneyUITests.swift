@@ -50,7 +50,7 @@ import XCTest
         }
         for index in 0..<6 { tap("nukuh.cut.\(index)") }
         XCTAssertFalse(app.buttons["continue"].exists)
-        tap("nukuh.burn.continue"); tap("nukuh.finishBurn")
+        for index in 0..<6 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn")
     }
     func testFullFiveChapterTouchJourneyAndReplay() {
         prepare(); intro(); completeNukuh(); next()
@@ -60,7 +60,7 @@ import XCTest
         tap("ngaseuk.seeds.continue")
         for index in 0..<3 { tap("seed_\(index)") }
         next(); start()
-        for index in 0..<8 { tap("weed_\(index)") }
+        for index in 0..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
         tap("ngored.rain.continue"); capture("Ngored-rain"); tap("ngored.finishRain")
         next(); start()
         for index in 0..<4 { tap("harvest_\(index)") }
@@ -90,10 +90,10 @@ import XCTest
         let target = app.buttons["field.hole.0"]
         XCTAssertTrue(source.waitForExistence(timeout: 5))
         source.press(forDuration: 0.6, thenDragTo: target)
-        tap("field.hole.1"); tap("field.hole.2")
+        pourIntoHole(1); pourIntoHole(2)
         XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 5))
         next(); start(); tap("activity.sheet.collapse")
-        for index in 0..<8 { tap("field.weed.\(index)") }
+        for index in 0..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
         tap("ngored.rain.continue"); tap("activity.sheet.collapse"); capture("Rain-fullscreen")
         tap("activity.sheet.expand"); tap("ngored.finishRain"); next(); start()
         tap("activity.sheet.collapse")
@@ -107,6 +107,96 @@ import XCTest
         tap("activity.sheet.expand"); tap("leuit.interior.continue"); next()
         XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
     }
+    func pourIntoHole(_ index: Int) {
+        tap("field.hole.\(index)")
+        XCTAssertTrue(app.buttons["ngaseuk.peek.pour"].waitForExistence(timeout: 5))
+        capture("Ngaseuk-peek-\(index)")
+        tap("ngaseuk.peek.pour")
+        if index == 2 {
+            XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 5))
+        } else {
+            XCTAssertTrue(app.staticTexts["Benih sudah masuk"].waitForExistence(timeout: 5))
+            tap("ngaseuk.peek.back")
+        }
+    }
+
+    func testNgaseukAseukPressAndPlant() {
+        prepare(); intro(); completeNukuh(); next(); start()
+        tap("ngaseuk.instructions.continue")
+        XCTAssertTrue(app.buttons["activity.sheet.expand"].waitForExistence(timeout: 5))
+        capture("Ngaseuk-aseuk-ready")
+        for index in 0..<3 {
+            let hole = app.buttons["field.hole.\(index)"]
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: hole)
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+            hole.tap()
+            let dug = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Sudah dibuat"), object: hole)
+            XCTAssertEqual(XCTWaiter.wait(for: [dug], timeout: 5), .completed)
+        }
+        XCTAssertTrue(app.buttons["ngaseuk.seeds.continue"].waitForExistence(timeout: 5))
+        capture("Ngaseuk-three-soil-holes")
+        tap("ngaseuk.seeds.continue")
+        XCTAssertTrue(app.buttons["activity.sheet.expand"].waitForExistence(timeout: 5))
+        let seed = app.descendants(matching: .any)["field.seed"].firstMatch
+        seed.press(forDuration: 0.6, thenDragTo: app.buttons["field.hole.0"])
+        pourIntoHole(1); pourIntoHole(2)
+        next()
+        XCTAssertTrue(app.staticTexts["NGORED"].waitForExistence(timeout: 5))
+        start(); tap("ngored.field.begin")
+        capture("Ngored-kored-field")
+        tap("field.rice")
+        XCTAssertTrue(app.staticTexts["ngored.rice.feedback"].exists)
+        let weed = app.descendants(matching: .any)["field.weed.0"].firstMatch
+        weed.tap()
+        XCTAssertEqual(weed.value as? String, "0 dari 3 sapuan")
+        let tool = app.descendants(matching: .any)["field.kored"].firstMatch
+        XCTAssertTrue(tool.waitForExistence(timeout: 5))
+        for stroke in 1...3 {
+            let origin = tool.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: 28)), withVelocity: .slow, thenHoldForDuration: 0.1)
+            let expected = stroke == 3 ? "Bersih" : "\(stroke) dari 3 sapuan"
+            let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: weed)
+            XCTAssertEqual(XCTWaiter.wait(for: [applied], timeout: 5), .completed)
+            if stroke < 3 {
+                let lifted = tool.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                lifted.press(forDuration: 0.05, thenDragTo: lifted.withOffset(CGVector(dx: 0, dy: -28)), withVelocity: .slow, thenHoldForDuration: 0.1)
+                XCTAssertEqual(weed.value as? String, expected)
+            }
+        }
+        capture("Ngored-three-kored-strokes")
+        for index in 1..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
+        XCTAssertTrue(app.buttons["ngored.rain.continue"].waitForExistence(timeout: 5))
+        tap("ngored.rain.continue")
+        tap("activity.sheet.collapse"); capture("Ngored-time-passing-rain")
+        tap("activity.sheet.expand"); tap("ngored.finishRain"); next()
+        XCTAssertTrue(app.staticTexts["DIBUAT"].waitForExistence(timeout: 5))
+    }
+
+    func testNukuhStartsFireByTappingClearedLand() {
+        prepare(); intro(); start()
+        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        for index in 0..<6 { tap("nukuh.cut.\(index)") }
+        XCTAssertTrue(app.buttons["activity.sheet.expand"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
+        // Sky taps must not start a fire; only cleared ground receives ignition.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.3)).tap()
+        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
+        capture("Nukuh-ready-for-ground-tap")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)).tap()
+        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
+        // Repeating the same ground tap must not light a second patch.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)).tap()
+        capture("Nukuh-ground-ignition")
+        tap("activity.sheet.expand")
+        XCTAssertEqual(app.staticTexts["nukuh.fire.progress"].label, "1 / 6 lahan dinyalakan")
+        XCTAssertFalse(app.buttons["nukuh.finishBurn"].exists)
+        XCTAssertFalse(app.buttons["lesson.result.continue"].exists)
+        for index in 1..<6 { tap("nukuh.ignite.\(index)") }
+        tap("nukuh.finishBurn")
+        next()
+        XCTAssertTrue(app.staticTexts["NGASEUK"].waitForExistence(timeout: 5))
+    }
+
     func testNukuhDemoAndReplay() {
         prepare(); intro(); start()
         XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
@@ -114,7 +204,7 @@ import XCTest
         XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 40))
         capture("Nukuh-observed"); tap("replay")
         for index in 0..<6 { tap("nukuh.cut.\(index)") }
-        tap("nukuh.burn.continue"); tap("nukuh.finishBurn"); next()
+        for index in 0..<6 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn"); next()
         XCTAssertTrue(app.staticTexts["NGASEUK"].exists)
     }
     func testLargeTextButtonFlow() {

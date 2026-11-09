@@ -50,4 +50,50 @@ final class NgaseukTests: XCTestCase {
         await Task.yield()
         XCTAssertNil(vm.session.outcome); XCTAssertFalse(vm.isDemonstrating)
     }
+    func testPourDetectorNeedsSteadyHoldAndOppositeMovement() {
+        var detector = SeedPourMotionDetector()
+        XCTAssertFalse(detector.consume(.init(time: 0, verticalAcceleration: 0.5)))
+        XCTAssertFalse(detector.consume(.init(time: 1, verticalAcceleration: 0)))
+        XCTAssertFalse(detector.consume(.init(time: 1.1, verticalAcceleration: 0.1)))
+        XCTAssertFalse(detector.consume(.init(time: 1.2, verticalAcceleration: 0.25)))
+        XCTAssertFalse(detector.consume(.init(time: 1.3, verticalAcceleration: 0.3)))
+        XCTAssertTrue(detector.consume(.init(time: 1.4, verticalAcceleration: -0.25)))
+        XCTAssertFalse(detector.consume(.init(time: 1.5, verticalAcceleration: 0.3)))
+        XCTAssertFalse(detector.consume(.init(time: .nan, verticalAcceleration: -0.3)))
+    }
+
+    @MainActor func testPeekShakeFillsOnlySelectedHoleAndStopsMotion() async throws {
+        let motion = FakeMotion(); let vm = NgaseukViewModel(motion: motion)
+        vm.start(); vm.peek(0); XCTAssertNil(vm.peekTarget)
+        vm.proceed(); for index in 0..<3 { vm.dig(index) }; vm.proceed()
+        vm.peek(1); XCTAssertTrue(vm.motionActive)
+        let oldHandler = motion.handler
+        motion.handler?(.init(time: 1, verticalAcceleration: 0))
+        motion.handler?(.init(time: 1.1, verticalAcceleration: 0.25))
+        motion.handler?(.init(time: 1.2, verticalAcceleration: -0.25))
+        XCTAssertTrue(vm.isPouring); XCTAssertFalse(vm.motionActive)
+        XCTAssertTrue(vm.seeds.isEmpty)
+        try await Task.sleep(for: .milliseconds(1000))
+        XCTAssertEqual(vm.seeds, [1]); XCTAssertNil(vm.session.outcome)
+        vm.closePeek(); vm.peek(2)
+        oldHandler?(.init(time: 2, verticalAcceleration: 0))
+        oldHandler?(.init(time: 2.1, verticalAcceleration: 0.3))
+        oldHandler?(.init(time: 2.2, verticalAcceleration: -0.3))
+        XCTAssertFalse(vm.isPouring)
+        vm.pourSeeds(); vm.closePeek()
+        try await Task.sleep(for: .milliseconds(1000))
+        XCTAssertEqual(vm.seeds, [1]); XCTAssertNil(vm.peekTarget)
+        XCTAssertFalse(vm.motionActive)
+    }
+
+    @MainActor func testPeekWithoutSensorSupportsTouchAndCancelsOnSuspend() {
+        let motion = FakeMotion(); motion.available = false
+        let vm = NgaseukViewModel(motion: motion)
+        vm.start(); vm.proceed(); for index in 0..<3 { vm.dig(index) }; vm.proceed()
+        vm.peek(0); XCTAssertFalse(vm.motionActive)
+        vm.pourSeeds(); XCTAssertTrue(vm.isPouring)
+        vm.suspend(); XCTAssertFalse(vm.isPouring); XCTAssertNil(vm.peekTarget)
+        XCTAssertTrue(vm.seeds.isEmpty)
+    }
+
 }
