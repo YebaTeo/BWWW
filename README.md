@@ -32,7 +32,7 @@ The sheet pattern follows the local HIG-gym example, `HIG Camp/04 Sheet/01 Sheet
 
 ## Architecture
 
-MVVM organized by feature. Each folder under `Features/Phases` owns its content, activity, view model, description, and resources. Nukuh owns the imported RealityKit environment. The home preview imports PoCPadi's SceneKit crop scene and required textures under `Features/Home/PoCPadi`; it pauses rendering when the home is covered or the app is inactive. Drying images live in Dibuat. The unused six phase folders, Story Pilot, and standalone 3D overview have been removed.
+The app is organized into `View`, `Model`, `Services`, and `Asset`. View models live in `Model/ViewModels`. See [ARCHITECTURE.md](ARCHITECTURE.md) for responsibilities.
 
 `JourneyViewModel` owns saved progress. `PhaseSessionState` holds activity outcome. Phase view models validate distinct targets and stage order. `LessonFlowViewModel` handles presentation without granting completion. One motion service is shared by Nukuh, Ngaseuk, and Dibuat. Motion and demonstrations stop when leaving or backgrounding. Nukuh uses relative phone orientation to look around without a camera, automatically calibrating to the current pose when its activity becomes visible. It offers swipe-only and recenter controls; Reduce Motion defaults to swipe-only. Resuming recalibrates while preserving the current view. Ngaseuk and Dibuat motion still require explicit activation. Horizontal drags look around Nukuh; instructions scroll inside the sheet.
 
