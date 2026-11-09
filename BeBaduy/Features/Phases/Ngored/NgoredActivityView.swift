@@ -7,9 +7,9 @@ struct NgoredActivityView: View {
             switch model.step {
             case .weeding:
                 Text("Singkirkan gulma, pertahankan padi").font(.headline)
-                KoredTool().frame(width: 70, height: 120)
-                Text("Kored adalah alat seperti cangkul kecil untuk membersihkan gulma di sekitar padi. Sentuh gagang kored, lalu geser ke gulma. Sapukan ke bawah tiga kali pada setiap gulma; angkat kembali sebelum sapuan berikutnya. Tombol di bawah menjalankan satu sapuan.")
+                Text("Pegang kored di lahan. Sapukan ke bawah tiga kali pada setiap gulma, lalu angkat sebelum sapuan berikutnya.")
                 LessonButton(title: "Coba di lahan", identifier: "ngored.field.begin") { sheet.collapse() }
+                Text("Kored adalah alat seperti cangkul kecil untuk membersihkan gulma di sekitar padi. Jika lebih nyaman, gunakan tombol di bawah untuk satu sapuan.").font(.subheadline)
                 Text("Delapan gulma berikut adalah contoh untuk latihan.").font(.footnote)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
                     ForEach(0..<8) { index in

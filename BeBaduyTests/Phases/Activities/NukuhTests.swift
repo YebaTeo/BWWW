@@ -39,8 +39,12 @@ import XCTest
         XCTAssertEqual(vm.collected.count, 6)
         XCTAssertEqual(vm.scene.stage, .prepared)
 
+        vm.setVisible(true)
         vm.burn()
         XCTAssertEqual(vm.scene.stage, .burning)
+        vm.scene.finishBurn()
+        XCTAssertNil(vm.session.outcome)
+        for index in 1..<6 { vm.burn(startingAt: index) }
         vm.scene.finishBurn()
         XCTAssertEqual(vm.scene.stage, .complete)
         XCTAssertEqual(vm.session.outcome, .performed)

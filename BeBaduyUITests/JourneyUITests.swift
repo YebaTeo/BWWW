@@ -11,7 +11,10 @@ import XCTest
         let button = app.buttons[id].firstMatch
         _ = button.waitForExistence(timeout: 5)
         for _ in 0..<12 {
-            if button.exists && button.isHittable { button.tap(); return }
+            let scroll = app.scrollViews["activity.sheet.scroll"]
+            let insideSheet = scroll.exists && scroll.buttons[id].exists
+            let centerVisible = !insideSheet || (button.frame.midY >= scroll.frame.minY + 8 && button.frame.midY <= scroll.frame.maxY - 8)
+            if button.exists && button.isHittable && centerVisible { button.tap(); return }
             if app.buttons["activity.sheet.expand"].exists && !id.hasPrefix("field.") {
                 app.buttons["activity.sheet.expand"].tap()
             } else if app.scrollViews["activity.sheet.scroll"].exists {
@@ -142,24 +145,38 @@ import XCTest
         pourIntoHole(1); pourIntoHole(2)
         next()
         XCTAssertTrue(app.staticTexts["NGORED"].waitForExistence(timeout: 5))
+        checkKoredActivity()
+    }
+
+    func testKoredDraggingAndThreeStrokes() {
+        prepare(["--uitest-ngored"]); tap("resume")
+        checkKoredActivity()
+    }
+
+    private func checkKoredActivity() {
         start(); tap("ngored.field.begin")
+        XCTAssertTrue(app.buttons["activity.sheet.expand"].waitForExistence(timeout: 5))
         capture("Ngored-kored-field")
         tap("field.rice")
         XCTAssertTrue(app.staticTexts["ngored.rice.feedback"].exists)
+        XCTAssertTrue(app.buttons["activity.sheet.expand"].exists, "Sheet expanded after rice")
         let weed = app.descendants(matching: .any)["field.weed.0"].firstMatch
         weed.tap()
+        XCTAssertTrue(app.buttons["activity.sheet.expand"].exists, "Sheet expanded after weed")
         XCTAssertEqual(weed.value as? String, "0 dari 3 sapuan")
         let tool = app.descendants(matching: .any)["field.kored"].firstMatch
         XCTAssertTrue(tool.waitForExistence(timeout: 5))
         for stroke in 1...3 {
+            let previousY = tool.frame.midY
             let origin = tool.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: 28)), withVelocity: .slow, thenHoldForDuration: 0.1)
+            origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: 36)), withVelocity: .slow, thenHoldForDuration: 0.1)
+            XCTAssertGreaterThan(tool.frame.midY, previousY + 20)
             let expected = stroke == 3 ? "Bersih" : "\(stroke) dari 3 sapuan"
             let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: weed)
             XCTAssertEqual(XCTWaiter.wait(for: [applied], timeout: 5), .completed)
             if stroke < 3 {
                 let lifted = tool.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-                lifted.press(forDuration: 0.05, thenDragTo: lifted.withOffset(CGVector(dx: 0, dy: -28)), withVelocity: .slow, thenHoldForDuration: 0.1)
+                lifted.press(forDuration: 0.05, thenDragTo: lifted.withOffset(CGVector(dx: 0, dy: -36)), withVelocity: .slow, thenHoldForDuration: 0.1)
                 XCTAssertEqual(weed.value as? String, expected)
             }
         }

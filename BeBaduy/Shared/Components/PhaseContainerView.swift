@@ -46,24 +46,13 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
                     if flow.screen != .activity { header }
                     switch flow.screen {
                     case .introduction:
+                        ScrollView {
                         VStack(spacing: 0) {
-                            VStack(spacing: 2) {
-                                Image(systemName: "chevron.up.2")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .accessibilityHidden(true)
-                                Text("Geser ke bawah untuk mengulangi tahap sebelumnya.")
-                                    .font(.footnote)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .foregroundStyle(Color(red: 0.43, green: 0.31, blue: 0.23))
-                            .frame(maxWidth: 300)
-                            .padding(.top, 4)
-
                             Spacer(minLength: typeSize.isAccessibilitySize ? 28 : geometry.size.height * 0.30)
 
                             VStack(spacing: 10) {
                                 Text(content.title.uppercased())
-                                    .font(.system(size: 38, weight: .heavy, design: .rounded))
+                                    .font(.largeTitle.weight(.heavy))
                                     .fontWidth(.condensed)
                                     .accessibilityAddTraits(.isHeader)
                                 Text(content.introduction)
@@ -84,20 +73,21 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
                             Spacer(minLength: typeSize.isAccessibilitySize ? 28 : geometry.size.height * 0.12)
 
                             VStack(spacing: 2) {
-                                Text("Geser ke atas untuk lanjut ke tahap berikutnya.")
+                                Text("Geser ke atas untuk mulai aktivitas.")
                                     .font(.footnote)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Image(systemName: "chevron.down.2")
                                     .font(.system(size: 15, weight: .regular))
                                     .accessibilityHidden(true)
                             }
-                            .foregroundStyle(Color(red: 0.43, green: 0.31, blue: 0.23))
+                            .foregroundStyle(.white.opacity(0.9))
                             .frame(maxWidth: 300)
                             .padding(.bottom, 8)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity, minHeight: max(0, geometry.size.height - 80))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
+                        }
                         .simultaneousGesture(DragGesture(minimumDistance: 60).onEnded { value in
                             guard !typeSize.isAccessibilitySize, value.translation.height < -80,
                                   abs(value.translation.height) > abs(value.translation.width) else { return }
@@ -149,7 +139,7 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
                         LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : "Lanjut ke tahapan berikutnya", identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
                     }
-                }
+                }.allowsHitTesting(flow.screen != .activity)
             }
         }
         .foregroundStyle(.white).tint(.white)

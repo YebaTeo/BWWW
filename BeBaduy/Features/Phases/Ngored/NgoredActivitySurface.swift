@@ -38,36 +38,6 @@ struct NgoredActivitySurface: View {
                         .position(spot(index, geometry.size))
                 }
                 if model.step == .weeding {
-                    let initial = spot(0, geometry.size)
-                    let center = toolCenter ?? CGPoint(x: initial.x + 10, y: initial.y - 18)
-                    KoredTool().frame(width: 62, height: 118)
-                        .padding(10).contentShape(Rectangle()).accessibilityHidden(false)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Kored. Geser gagangnya ke gulma, lalu sapukan ke bawah tiga kali.")
-                        .accessibilityIdentifier("field.kored")
-                        .position(center)
-                        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("ngored.field"))
-                            .onChanged { value in
-                                guard !model.isDemonstrating, model.session.isActive else { return }
-                                if dragOrigin == nil {
-                                    dragOrigin = center; strokeTracker.reset()
-                                    _ = strokeTracker.move(blade: CGPoint(x: center.x - 10, y: center.y + 48), targets: [], removed: [])
-                                }
-                                guard let origin = dragOrigin else { return }
-                                let next = CGPoint(x: min(geometry.size.width - 30, max(30, origin.x + value.translation.width)),
-                                                   y: min(geometry.size.height - 145, max(90, origin.y + value.translation.height)))
-                                toolCenter = next
-                                let targets = (0..<8).map { index in
-                                    let p = spot(index, geometry.size)
-                                    return CGPoint(x: p.x, y: p.y + 30)
-                                }
-                                if let hit = strokeTracker.move(blade: CGPoint(x: next.x - 10, y: next.y + 48), targets: targets, removed: model.removed) {
-                                    model.remove(hit)
-                                }
-                            }
-                            .onEnded { _ in dragOrigin = nil; strokeTracker.reset() })
-                }
-                if model.step == .weeding {
                     Button { model.remove(8) } label: {
                         Label("Padi · pertahankan", systemImage: "leaf")
                             .font(.subheadline.weight(.semibold)).padding(12)
@@ -99,7 +69,34 @@ struct NgoredActivitySurface: View {
                         }
                     }.allowsHitTesting(false).accessibilityHidden(true)
                 }
-            }.coordinateSpace(name: "ngored.field").disabled(model.isDemonstrating)
+                if model.step == .weeding {
+                    let initial = spot(0, geometry.size)
+                    let center = toolCenter ?? CGPoint(x: initial.x + 10, y: initial.y - 18)
+                    ZStack {
+                        KoredTool().frame(width: 62, height: 118).allowsHitTesting(false)
+                        KoredDragHandle(move: { translation in
+                            guard model.session.isActive, !model.isDemonstrating else { return }
+                            if dragOrigin == nil {
+                                dragOrigin = center; strokeTracker.reset()
+                                _ = strokeTracker.move(blade: CGPoint(x: center.x - 10, y: center.y + 48), targets: [], removed: [])
+                            }
+                            guard let origin = dragOrigin else { return }
+                            let next = CGPoint(x: min(geometry.size.width - 30, max(30, origin.x + translation.width)),
+                                               y: min(geometry.size.height - 145, max(90, origin.y + translation.height)))
+                            toolCenter = next
+                            let targets = (0..<8).map { index in
+                                let p = spot(index, geometry.size)
+                                return CGPoint(x: p.x, y: p.y + 30)
+                            }
+                            if let hit = strokeTracker.move(blade: CGPoint(x: next.x - 10, y: next.y + 48), targets: targets, removed: model.removed) {
+                                model.remove(hit)
+                            }
+                        }, end: { dragOrigin = nil; strokeTracker.reset() })
+                    }.frame(width: 82, height: 138)
+                        .position(center)
+                }
+            }.contentShape(Rectangle()).coordinateSpace(name: "ngored.field").disabled(model.isDemonstrating)
+
         }
         .onChange(of: model.step) { _, step in
             if step != .cleared { sheet.expand() }

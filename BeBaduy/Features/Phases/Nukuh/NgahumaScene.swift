@@ -13,6 +13,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     enum Stage: Int { case entering, clearing, prepared, burning, complete }
 
     var onCut: ((Int) -> Void)?
+    var onIgnitionRequested: ((Int) -> Void)?
+    private(set) var ignited: Set<Int> = []
+    private var ignitionTimes: [Int: Double] = [:]
     var onBurnFinished: (() -> Void)?
 
     private(set) var stage: Stage = .entering
@@ -1113,7 +1116,24 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     // MARK: - User Interactions (Tap to Cut Tree, Pan & Motion to Look 360°, Ignite & Burn)
 
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
-        guard let view, stage == .clearing else { return }
+        guard let view, !suspended else { return }
+        if stage == .prepared || stage == .burning {
+            let point = gesture.location(in: view)
+            let near = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 0))
+            let far = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 1))
+            let direction = SIMD3<Float>(far.x - near.x, far.y - near.y, far.z - near.z)
+            guard direction.y < -0.0001 else { return }
+            let t = (soilY - near.y) / direction.y
+            guard t >= 0 else { return }
+            let ground = SIMD2<Float>(near.x + direction.x * t, near.z + direction.z * t)
+            if let index = patchPositions.indices.min(by: {
+                simd_distance(ground, SIMD2(patchPositions[$0].x, patchPositions[$0].z)) < simd_distance(ground, SIMD2(patchPositions[$1].x, patchPositions[$1].z))
+            }), simd_distance(ground, SIMD2(patchPositions[index].x, patchPositions[index].z)) < 0.85 {
+                onIgnitionRequested?(index)
+            }
+            return
+        }
+        guard stage == .clearing else { return }
         let location = gesture.location(in: view)
         let hits = view.hitTest(location, options: [
             SCNHitTestOption.boundingBoxOnly: true,
@@ -1197,16 +1217,32 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     // MARK: - Burning & Frame Update Loop
 
-    func ignite() {
-        guard stage == .prepared else { return }
-        elapsed = 0
+    func ignite(startingAt index: Int = 0) {
+        guard !suspended, stage == .prepared || stage == .burning,
+              patchPositions.indices.contains(index), ignited.insert(index).inserted else { return }
+        ignitionTimes[index] = elapsed - (reduceMotion ? 18 : 0)
         stage = .burning
         if reduceMotion {
-            finishBurn()
+            if treeEntries.indices.contains(index) {
+                treeEntries[index].trunk.isHidden = true
+                treeEntries[index].rootAnchor.isHidden = true
+            }
+            if ignited.count == 6 { finishBurn() }
             return
         }
         startAudio()
         feedback.impactOccurred()
+    }
+
+    private func patchBurnTime(_ index: Int) -> Double {
+        ignitionTimes[index].map { elapsed - $0 } ?? -1
+    }
+
+    private func nearestPatch(to node: SCNNode) -> Int? {
+        let position = node.presentation.worldPosition
+        return patchPositions.indices.min {
+            hypot(position.x - patchPositions[$0].x, position.z - patchPositions[$0].z) < hypot(position.x - patchPositions[$1].x, position.z - patchPositions[$1].z)
+        }
     }
 
     private func startAudio() {
@@ -1255,23 +1291,21 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
 
         elapsed += min(delta, 0.1)
-        progress = min(elapsed / 18.0, 1.0)
+        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / 18, 1) } / 6
 
-        let activePatch = min(5, max(0, Int(elapsed / 0.85)))
+        let activePatch = ignited.filter { patchBurnTime($0) < 11 }.sorted().first ?? 0
         if patchPositions.indices.contains(activePatch) {
             let pos = patchPositions[activePatch]
             fireGlowNode.position = SCNVector3(pos.x, soilY + 0.35, pos.z)
         }
 
         let flicker = 0.90 + 0.06 * sin(windTime * 8.2) + 0.04 * sin(windTime * 14.5)
-        var overallFireIntensity = Float(min(1.0, elapsed / 1.5)) * flicker * 180.0
-        if elapsed > 14.0 {
-            overallFireIntensity *= Float(max(0.0, (17.5 - elapsed) / 3.5))
-        }
-        fireLight.intensity = CGFloat(overallFireIntensity)
+        let hasActiveFire = ignited.contains { patchBurnTime($0) < 11 }
+        fireLight.intensity = hasActiveFire ? CGFloat(flicker * 180) : 0
+        if !hasActiveFire { audioPlayer?.pause() }
 
         for index in 0..<6 {
-            let localTime = elapsed - Double(index) * 0.85
+            let localTime = patchBurnTime(index)
             let isBurningPatch = localTime > 0 && localTime < 7.5
             let isSmokingPatch = localTime > 0 && localTime < 11.0
 
@@ -1314,7 +1348,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
 
         for ember in emberNodes {
-            let localTime = elapsed - Double(ember.patchIndex) * 0.85
+            let localTime = patchBurnTime(ember.patchIndex)
             let active = localTime > 0 && localTime < 8.0
             let fireT: Float = active ? Float(min(1.0, localTime / 1.0) * max(0.0, (8.0 - localTime) / 2.5)) : 0
             ember.node.opacity = CGFloat(fireT * 0.72)
@@ -1333,12 +1367,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             }
         }
 
-        let globalBurnT = Float(min(1.0, max(0.0, elapsed / 12.0)))
+        let globalBurnT = Float(progress)
 
         // Char, shrivel, and burn away the wild grass blades across the clearing (matching HomeView)
         for (bladeIdx, blade) in blades.enumerated() {
+            let localTime = nearestPatch(to: blade.pivot).map { patchBurnTime($0) } ?? -1
             let stagger = Float(bladeIdx % 6) * 0.08
-            let bladeBurnT = min(1.0, max(0.0, (globalBurnT - stagger) / max(0.1, 0.72 - stagger)))
+            let bladeBurnT = min(1.0, max(0.0, (Float(localTime / 12) - stagger) / max(0.1, 0.72 - stagger)))
             if bladeBurnT > 0.001 {
                 if bladeBurnT < 0.45 {
                     // Scorching amber-brown phase as flames engulf the grass blade
@@ -1375,17 +1410,20 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 alpha: 1
             )
         }
-        let ashAlpha = CGFloat(min(1.0, max(0.0, (elapsed - 2.2) / 4.5)))
         for clod in ashNodes {
+            let localTime = nearestPatch(to: clod).map { patchBurnTime($0) } ?? -1
+            let ashAlpha = CGFloat(min(1.0, max(0.0, (localTime - 2.2) / 4.5)))
             clod.opacity = ashAlpha
             clod.isHidden = ashAlpha < 0.01
         }
         // Match HomeView (SceneKitCropView line 1302): wild grass completely burns away into ash
-        let grassFade = max(0.0, 1.0 - smoothstep(0.35, 0.88, globalBurnT))
-        wildRoot.opacity = CGFloat(grassFade)
-        wildRoot.isHidden = grassFade < 0.005
-
-        if elapsed >= 18.0 {
+        // Fade only vegetation belonging to a patch the user actually lit.
+        for blade in blades {
+            let localTime = nearestPatch(to: blade.pivot).map { patchBurnTime($0) } ?? -1
+            let fade = max(0, 1 - smoothstep(0.35, 0.88, Float(max(0, localTime) / 12)))
+            blade.pivot.opacity = CGFloat(fade)
+        }
+        if ignited.count == 6 && ignited.allSatisfy({ patchBurnTime($0) >= 18 }) {
             finishBurn()
         }
     }
@@ -1470,7 +1508,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func finishBurn() {
-        guard stage == .burning else { return }
+        guard stage == .burning, ignited.count == 6 else { return }
         fireLight.intensity = 0
         flameSystems.forEach { $0.birthRate = 0 }
         smokeSystems.forEach { $0.birthRate = 0 }
@@ -1511,6 +1549,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         count = 0
         progress = 0
         elapsed = 0
+        ignited.removeAll(); ignitionTimes.removeAll()
         stage = .entering
         tracking = "Menyiapkan lingkungan 360°. Geser layar untuk melihat sekeliling."
         if materials != nil {

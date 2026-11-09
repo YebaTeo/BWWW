@@ -298,7 +298,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = DTTY9ZX5T4;
+				DEVELOPMENT_TEAM = Q8FV46GXD8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = BeBaduy;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
@@ -384,7 +384,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = DTTY9ZX5T4;
+				DEVELOPMENT_TEAM = Q8FV46GXD8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = BeBaduy;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
