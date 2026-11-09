@@ -34,6 +34,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private let horizonGrassLayerRoot = SCNNode()
     private let forestRoot = SCNNode()
     private let wildRoot = SCNNode()
+    private let atmosphereMotesRoot = SCNNode()
     private let fireRoot = SCNNode()
     private let ashRoot = SCNNode()
     private let cameraNode = SCNNode()
@@ -86,6 +87,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var flameSystems: [SCNParticleSystem] = []
     private var smokeSystems: [SCNParticleSystem] = []
     private var emberNodes: [(node: SCNNode, baseX: Float, baseZ: Float, phase: Float, patchIndex: Int)] = []
+    private var atmosphereMotes: [(node: SCNNode, baseX: Float, baseZ: Float, minY: Float, maxY: Float, speed: Float, phase: Float)] = []
     private var ashNodes: [SCNNode] = []
 
     private var completed = Set<Int>()
@@ -264,6 +266,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         horizonGrassLayerRoot.childNodes.forEach { $0.removeFromParentNode() }
         forestRoot.childNodes.forEach { $0.removeFromParentNode() }
         wildRoot.childNodes.forEach { $0.removeFromParentNode() }
+        atmosphereMotesRoot.childNodes.forEach { $0.removeFromParentNode() }
         fireRoot.childNodes.forEach { $0.removeFromParentNode() }
         ashRoot.childNodes.forEach { $0.removeFromParentNode() }
 
@@ -277,6 +280,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         flameSystems.removeAll()
         smokeSystems.removeAll()
         emberNodes.removeAll()
+        atmosphereMotes.removeAll()
         ashNodes.removeAll()
 
         // 1. Spatial 3-Layer Environment + 3D SceneKit Sun Light Source
@@ -291,7 +295,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // 4. HomeView 3D Wild Grass Blades distributed 360° around the huma clearing
         buildWildGrass(using: materials)
 
-        // 5. Fire, Embers & Ash Clods (for the burning phase)
+        // 5. 3D Floating Golden Dust Motes integrated throughout the 360° AR space
+        buildAtmosphericMotes(using: materials)
+
+        // 6. Fire, Embers & Ash Clods (for the burning phase)
         buildFireAndAsh(using: materials)
 
         stage = .clearing
@@ -914,6 +921,64 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    // MARK: - 3D Atmospheric Golden Dust Motes (Integrated in 360° World Space)
+
+    private func buildAtmosphericMotes(using materials: NgahumaMaterials) {
+        atmosphereMotesRoot.name = "atmosphereMotes"
+        worldRoot.addChildNode(atmosphereMotesRoot)
+
+        let moteMaterial = SCNMaterial()
+        moteMaterial.lightingModel = .constant
+        moteMaterial.diffuse.contents = materials.particleSprite
+        // Warm golden sunlight speck matching HomeView's Color(red: 1, green: 0.90, blue: 0.65)
+        // with HDR camera exposure compensation
+        moteMaterial.multiply.contents = UIColor(red: 1.48, green: 1.33, blue: 0.96, alpha: 1)
+        moteMaterial.blendMode = .alpha
+        moteMaterial.writesToDepthBuffer = false
+        moteMaterial.readsFromDepthBuffer = true
+        moteMaterial.isDoubleSided = true
+
+        let billboard = SCNBillboardConstraint()
+        billboard.freeAxes = .all
+
+        // Distribute 90 3D golden dust motes across all 360° at depths from 1.05m to 4.2m
+        // so they float in front of, between, and behind the 3D trees and grass with real depth occlusion.
+        for i in 0..<90 {
+            let fi = Float(i)
+            let angle = fi * 2.399963
+            let distance = 1.05 + Float((i * 19) % 43) * 0.072
+            let baseX = sin(angle) * distance
+            let baseZ = -cos(angle) * distance
+            let minY = soilY + 0.04 + Float(i % 5) * 0.05
+            let maxY = minY + 1.05 + Float(i % 4) * 0.22
+            let speed = 0.040 + Float(i % 5) * 0.012
+            let phase = (fi * 0.17).truncatingRemainder(dividingBy: 1.0)
+
+            let diameter = CGFloat(0.012 + Float(i % 3) * 0.005)
+            let plane = SCNPlane(width: diameter, height: diameter)
+            plane.materials = [moteMaterial]
+
+            let moteNode = SCNNode(geometry: plane)
+            moteNode.name = "atmosphereMote_\(i)"
+            moteNode.constraints = [billboard]
+            moteNode.castsShadow = false
+            let initialY = minY + (maxY - minY) * phase
+            moteNode.position = SCNVector3(baseX, initialY, baseZ)
+            moteNode.opacity = CGFloat(sin(phase * .pi) * 0.72)
+            atmosphereMotesRoot.addChildNode(moteNode)
+
+            atmosphereMotes.append((
+                node: moteNode,
+                baseX: baseX,
+                baseZ: baseZ,
+                minY: minY,
+                maxY: maxY,
+                speed: speed,
+                phase: phase
+            ))
+        }
+    }
+
     // MARK: - HomeView Fire, Embers & Ash Clods
 
     private func buildFireAndAsh(using materials: NgahumaMaterials) {
@@ -1151,6 +1216,18 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 fallT = 0
             }
             applyTreeFallState(index: index, fallT: fallT)
+        }
+
+        // 1b. Update 3D floating golden dust motes in world space
+        let moteTime = reduceMotion ? Float(0) : windTime
+        for mote in atmosphereMotes {
+            let rawCycle = (moteTime * mote.speed + mote.phase).truncatingRemainder(dividingBy: 1.0)
+            let cycle = rawCycle < 0 ? rawCycle + 1.0 : rawCycle
+            let y = mote.minY + (mote.maxY - mote.minY) * cycle
+            let swayX = sin(moteTime * 0.8 + mote.phase * 6.283) * 0.065
+            let swayZ = cos(moteTime * 0.65 + mote.phase * 6.283) * 0.065
+            mote.node.position = SCNVector3(mote.baseX + swayX, y, mote.baseZ + swayZ)
+            mote.node.opacity = CGFloat(sin(cycle * .pi) * 0.72)
         }
 
         // 2. Update burning choreography
