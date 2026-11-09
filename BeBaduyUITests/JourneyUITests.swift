@@ -66,9 +66,7 @@ import XCTest
         for index in 0..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
         tap("ngored.rain.continue"); capture("Ngored-rain"); tap("ngored.finishRain")
         next(); start()
-        for index in 0..<4 { tap("harvest_\(index)") }
-        tap("dibuat.balance.continue"); tap("dibuat.balance.center")
-        tap("dibuat.drying.continue"); next(); start()
+        completeMipit(); next(); start()
         for index in 0..<3 { tap("bundle_\(index)"); tap("space_\(index)") }
         XCTAssertFalse(app.buttons["lesson.result.continue"].exists)
         tap("leuit.inspect"); capture("Leuit-interior"); tap("leuit.interior.continue"); next()
@@ -99,9 +97,7 @@ import XCTest
         for index in 0..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
         tap("ngored.rain.continue"); tap("activity.sheet.collapse"); capture("Rain-fullscreen")
         tap("activity.sheet.expand"); tap("ngored.finishRain"); next(); start()
-        tap("activity.sheet.collapse")
-        for index in 0..<4 { tap("field.harvest.\(index)") }
-        tap("dibuat.balance.continue"); tap("dibuat.balance.center"); tap("dibuat.drying.continue")
+        completeMipit()
         next(); start(); tap("activity.sheet.collapse")
         for index in 0..<3 {
             tap("field.bundle.\(index)"); tap("field.leuit.\(index)")
@@ -109,6 +105,43 @@ import XCTest
         tap("leuit.inspect"); tap("activity.sheet.collapse"); capture("Leuit-fullscreen")
         tap("activity.sheet.expand"); tap("leuit.interior.continue"); next()
         XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
+    }
+    func testMipitLandscapeAndDemonstration() {
+        defer { XCUIDevice.shared.orientation = .portrait }
+        prepare(["--uitest-mipit"]); tap("resume"); start()
+        for index in 0..<3 { tap("field.harvest.\(index)") }
+        tap("dibuat.rotate")
+        XCTAssertFalse(app.buttons["dibuat.balance.continue"].exists)
+        XCUIDevice.shared.orientation = .landscapeRight
+        tap("dibuat.balance.continue")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        tap("dibuat.balance.continue")
+        tap("lesson.back")
+        XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 10))
+
+        XCUIDevice.shared.orientation = .portrait
+        tap("resume"); start()
+        tap("demonstrate")
+        tap("dibuat.drying.continue")
+        tap("lesson.result.continue")
+        XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
+        tap("replay")
+        XCTAssertTrue(app.buttons["field.harvest.0"].waitForExistence(timeout: 5))
+        completeMipit()
+        next()
+        XCTAssertTrue(app.staticTexts["LEUIT"].waitForExistence(timeout: 5))
+    }
+
+    func completeMipit() {
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for index in 0..<3 { tap("field.harvest.\(index)") }
+        tap("dibuat.rotate")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        tap("dibuat.balance.continue")
+        if app.buttons["dibuat.balance.touch"].exists { tap("dibuat.balance.touch") }
+        tap("dibuat.balance.center")
+        // Let the uninterrupted hold finish and the app request portrait itself.
+        tap("dibuat.drying.continue")
     }
     func pourIntoHole(_ index: Int) {
         tap("field.hole.\(index)")
@@ -186,7 +219,7 @@ import XCTest
         tap("ngored.rain.continue")
         tap("activity.sheet.collapse"); capture("Ngored-time-passing-rain")
         tap("activity.sheet.expand"); tap("ngored.finishRain"); next()
-        XCTAssertTrue(app.staticTexts["DIBUAT"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["MIPIT"].waitForExistence(timeout: 5))
     }
 
     func testNukuhStartsFireByTappingClearedLand() {

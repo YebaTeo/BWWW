@@ -33,13 +33,47 @@ import XCTest
     func testHarvestBalanceAndDryingCannotBeSkipped() {
         let vm = DibuatViewModel(motion: FakeMotion()); vm.start()
         vm.finishDrying(); XCTAssertNil(vm.session.outcome)
-        for i in 0..<4 { vm.harvest(i); vm.harvest(i) }
+        for i in 0..<3 { vm.harvest(i); vm.harvest(i) }
+        vm.harvest(3)
+        XCTAssertEqual(vm.harvested.count, 3)
+        XCTAssertEqual(vm.step, .harvestSuccess)
+        vm.beginBalance(); XCTAssertEqual(vm.step, .harvestSuccess)
+        vm.requestLandscape()
+        XCTAssertEqual(vm.step, .awaitingLandscape)
+        vm.orientationChanged(-1)
         XCTAssertEqual(vm.step, .balanceInstructions)
         vm.beginBalance(); vm.tick(100); XCTAssertEqual(vm.steadyTime, 0)
         vm.setBalance(0)
-        for _ in 0..<31 { vm.tick(0.1) }
+        for _ in 0..<20 { vm.tick(0.1) }
+        vm.setBalance(0.2)
+        XCTAssertEqual(vm.steadyTime, 0)
+        vm.setBalance(0)
+        vm.tick(0.1)
+        vm.showHelp()
+        XCTAssertEqual(vm.steadyTime, 0)
+        vm.tick(0.1)
+        XCTAssertEqual(vm.steadyTime, 0)
+        vm.beginBalance()
+        vm.orientationChanged(1)
+        XCTAssertEqual(vm.step, .balanceInstructions)
+        vm.beginBalance()
+        vm.suspend()
+        vm.tick(0.1)
+        XCTAssertEqual(vm.steadyTime, 0)
+        vm.resume()
+        for _ in 0..<29 { vm.tick(0.1) }
+        XCTAssertEqual(vm.step, .balancing)
+        vm.tick(0.1)
+        XCTAssertEqual(vm.step, .awaitingPortrait)
+        vm.finishDrying(); XCTAssertNil(vm.session.outcome)
+        vm.orientationChanged(0)
         XCTAssertEqual(vm.step, .drying); XCTAssertNil(vm.session.outcome)
         vm.finishDrying(); XCTAssertEqual(vm.session.outcome, .performed)
+        let event = vm.session.event
+        vm.finishDrying(); XCTAssertEqual(vm.session.event, event)
+        vm.start()
+        XCTAssertEqual(vm.step, .harvesting)
+        XCTAssertTrue(vm.harvested.isEmpty)
         vm.suspend()
     }
     func testLeuitUniqueBundlesAndInteriorGate() {

@@ -12,23 +12,23 @@ The project uses filesystem-synchronized folders. Add or remove files directly i
 
 | Chapter | Activity sequence |
 | --- | --- |
-| Nukuh | Cut six example trees in a camera-free 3D field → acknowledge the result → observe virtual burning and the changed field |
-| Ngaseuk | Meet the aseuk → instructions → make three holes by touch or gentle phone motion → acknowledge → drag or tap seeds into holes |
-| Ngored | Remove eight example weeds, retaining rice → acknowledge → observe rain |
-| Dibuat | Meet the etem → pinch or tap four rice heads → balance bundles using tilt or touch → learn about drying |
+| Nukuh | Cut six example trees in a camera-free 3D field → tap six patches individually to start the virtual fires → observe the changed field |
+| Ngaseuk | Meet the aseuk → instructions → make three holes by touch or gentle phone motion → acknowledge → peek inside a hole and pour seeds by gentle motion or touch |
+| Ngored | Use three downward kored strokes on each of eight example weeds, retaining rice → acknowledge → observe rain |
+| Dibuat | Meet the etem → pinch or tap four rice heads → balance bundles continuously for three seconds using tilt or touch → learn about drying |
 | Leuit | Drag or select three bundles into three example granaries → inspect the interior |
 
-Each chapter has an introduction, activity, result, and explanation. An upward swipe on a chapter introduction behaves like **Explore**. It never skips unfinished work. Completed chapters offer **Lewati** and direct access to their explanation. Instructions can be tapped and also have a visible **Lanjut** button. Long text scrolls within the current screen; large-text users have explicit buttons for all navigation.
+Each chapter has an introduction, activity, result, and explanation. An upward swipe on a chapter introduction behaves like **Jelajahi**. It never skips unfinished work. Completed chapters offer **Lewati** and direct access to their explanation. Instructions can be tapped and also have a visible **Lanjut** button. Long text scrolls within the current screen; large-text users have explicit buttons for all navigation.
 
-The first visit shows a two-page introduction. Returning home shows the five-stage PoCPadi field. In the Leuit preview, bamboo posts rise from the soil, a crossbar appears, and three harvested rice bundles hang from it. Swipe the scene or tap a stage dot to inspect it; this preview does not change saved chapter progress. **Mulai menjelajah / Lanjutkan perjalanan** resumes the current chapter, and **Lihat tahapan** opens the chapter menu and About. Restart is in the home menu and asks for confirmation. **Jelajahi ulang** returns home without deleting progress; only **Mulai Ulang** clears it.
+The first visit shows a two-page introduction. Returning home shows the five-stage PoCPadi field. In the Leuit preview, bamboo posts rise from the soil, a crossbar appears, and three harvested rice bundles hang from it. Swipe the scene or tap a stage dot to inspect it; this preview does not change saved chapter progress. The main action opens the displayed unlocked chapter. Locked previews offer **Lanjutkan perjalanan**. **Akhiri animasi** finishes the preview transition. **Lihat tahapan** opens the chapter menu and About. Restart is in the home menu and asks for confirmation. **Jelajahi ulang** returns home without deleting progress; only **Mulai Ulang** clears it.
 
 ## Full-screen activities
 
-All five activities have a full-bleed surface. Nukuh renders its camera-free RealityKit field across the display; Ngaseuk, Ngored, Dibuat, and Leuit layer their interactions over the existing realistic images. Instructions, touch alternatives, sound controls, demonstrations live in a native draggable sheet during activities only. Results and the final explanation are regular full-screen pages, with no sheet.
+All five activities have a full-bleed surface. Nukuh renders its camera-free SceneKit field across the display; Ngaseuk, Ngored, Dibuat, and Leuit layer their interactions over the existing realistic images. Instructions, touch alternatives, sound controls, demonstrations live in a native draggable sheet during activities only. Results and the final explanation are regular full-screen pages, with no sheet.
 
 The sheet supports compact, medium, and large heights. Pull it down (or use the down arrow) to see more of the activity; expand it for instructions and controls. The visible scene remains interactive at compact and medium heights. New instructional steps reopen the sheet at the top. At accessibility text sizes it opens large and remains scrollable; all scene gestures have alternatives in the sheet. Exit and replay preserve the existing progress rules.
 
-The sheet pattern follows the local HIG-gym example, `HIG Camp/04 Sheet/01 Sheet Configurations.swift`, particularly native detents, the visible drag indicator, and background interaction. Each phase keeps its `ActivitySurface` and `ActivityView` (sheet controls) alongside its view model.
+The sheet pattern follows the local HIG-gym example, `HIG Camp/04 Sheet/01 Sheet Configurations.swift`, particularly native detents, the visible drag indicator, and background interaction. Each chapter groups its full-screen activity surface and sheet controls under `View/Gameplay`. Chapter explanations live under `View/Info`.
 
 ## Architecture
 

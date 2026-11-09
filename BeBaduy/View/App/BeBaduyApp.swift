@@ -1,5 +1,6 @@
 import SwiftUI
 @main struct BeBaduyApp: App {
+    @UIApplicationDelegateAdaptor(HarvestOrientationDelegate.self) private var orientationDelegate
     @State private var dependencies = AppDependencies()
     private var testAppearance: ColorScheme? {
         #if DEBUG

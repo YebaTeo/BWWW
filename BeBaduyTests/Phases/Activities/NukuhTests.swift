@@ -4,7 +4,7 @@ import XCTest
 @MainActor final class NukuhTests: XCTestCase {
     func testSceneCannotCompleteWithoutPreparation() {
         let vm = NukuhViewModel(); vm.start()
-        vm.burn(); vm.scene.finishBurn(); vm.collect(-1)
+        vm.burn(); vm.finishBurn(); vm.collect(-1)
         XCTAssertNil(vm.session.outcome)
         XCTAssertTrue(vm.collected.isEmpty)
         vm.suspend(); XCTAssertTrue(vm.scene.suspended)
@@ -31,22 +31,22 @@ import XCTest
         let vm = NukuhViewModel()
         vm.start()
         await vm.scene.prepareAssets()
-        XCTAssertEqual(vm.scene.stage, .clearing)
+        XCTAssertEqual(vm.stage, .clearing)
 
         for index in 0..<6 {
             vm.collect(index)
         }
         XCTAssertEqual(vm.collected.count, 6)
-        XCTAssertEqual(vm.scene.stage, .prepared)
+        XCTAssertEqual(vm.stage, .prepared)
 
         vm.setVisible(true)
         vm.burn()
-        XCTAssertEqual(vm.scene.stage, .burning)
-        vm.scene.finishBurn()
+        XCTAssertEqual(vm.stage, .burning)
+        vm.finishBurn()
         XCTAssertNil(vm.session.outcome)
         for index in 1..<6 { vm.burn(startingAt: index) }
-        vm.scene.finishBurn()
-        XCTAssertEqual(vm.scene.stage, .complete)
+        vm.finishBurn()
+        XCTAssertEqual(vm.stage, .complete)
         XCTAssertEqual(vm.session.outcome, .performed)
     }
 }

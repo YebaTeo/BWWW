@@ -17,6 +17,7 @@ final class HomePreviewViewModel {
         transitionTask?.cancel()
         transitionTask = nil
         isTransitioning = false
+        progress = GrowthStage.allStages[selectedStage].targetProgress
     }
 
     func swipe(direction: Int, reduceMotion: Bool) {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Sketch's Explore → activity → result → explanation sequence, shared by all phases.
-struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Description: View>: View {
+struct PhaseContainerView<Activity: View, Surface: View, Description: View>: View {
     let content: PhaseContent
     let session: PhaseSessionState
     let journey: JourneyViewModel
@@ -12,7 +12,7 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
     let advance: () -> Void
     var suspend: () -> Void = {}
     var activityVisibility: (Bool) -> Void = { _ in }
-    @ViewBuilder let introduction: () -> Introduction
+    var usesActivitySheet = true
     @ViewBuilder let surface: () -> Surface
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
@@ -46,53 +46,10 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
                     if flow.screen != .activity { header }
                     switch flow.screen {
                     case .introduction:
-                        ScrollView {
-                        VStack(spacing: 0) {
-                            Spacer(minLength: typeSize.isAccessibilitySize ? 28 : geometry.size.height * 0.30)
-
-                            VStack(spacing: 10) {
-                                Text(content.title.uppercased())
-                                    .font(.largeTitle.weight(.heavy))
-                                    .fontWidth(.condensed)
-                                    .accessibilityAddTraits(.isHeader)
-                                Text(content.introduction)
-                                    .font(.body)
-                                    .frame(maxWidth: 330)
-                                LessonButton(title: "Explore", identifier: "start") { explore() }
-                                    .frame(maxWidth: 190)
-                                    .padding(.top, 8)
-                                if flow.canSkip {
-                                    Button("Lihat penjelasan") { flow.explain() }
-                                        .frame(minHeight: 40)
-                                        .accessibilityIdentifier("lesson.explanation")
-                                }
-                            }
-                            .multilineTextAlignment(.center)
-                            .padding(typeSize.isAccessibilitySize ? 16 : 8)
-
-                            Spacer(minLength: typeSize.isAccessibilitySize ? 28 : geometry.size.height * 0.12)
-
-                            VStack(spacing: 2) {
-                                Text("Geser ke atas untuk mulai aktivitas.")
-                                    .font(.footnote)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Image(systemName: "chevron.down.2")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .accessibilityHidden(true)
-                            }
-                            .foregroundStyle(.white.opacity(0.9))
-                            .frame(maxWidth: 300)
-                            .padding(.bottom, 8)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: max(0, geometry.size.height - 80))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                        }
-                        .simultaneousGesture(DragGesture(minimumDistance: 60).onEnded { value in
-                            guard !typeSize.isAccessibilitySize, value.translation.height < -80,
-                                  abs(value.translation.height) > abs(value.translation.width) else { return }
-                            explore()
-                        })
+                        ChapterIntroductionView(
+                            content: content, viewportHeight: geometry.size.height,
+                            canReview: flow.canSkip, explore: explore, review: flow.explain
+                        )
                     case .equipment:
                         ScrollView {
                         Spacer(minLength: 24)
@@ -116,14 +73,18 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
                         Spacer(minLength: 24)
                         }
                     case .activity:
-                        Spacer().allowsHitTesting(false)
+                        if usesActivitySheet {
+                            Spacer().allowsHitTesting(false)
+                        } else {
+                            activity().disabled(!session.isActive)
+                        }
                     case .result:
                         ScrollView {
                             VStack(alignment: .leading, spacing: 20) {
                                 Text("\(content.title) selesai!").font(.title2.bold())
                                 Text(session.outcome == .observed ? "Demonstrasi selesai." : content.result)
                                 LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
-                                Button("Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
+                                Button(content.id == .dibuat ? "Ulang" : "Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
                             }.padding(24).background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 24))
                                 .padding(24)
                         }
@@ -136,10 +97,10 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
                                     .background(.black.opacity(typeSize.isAccessibilitySize ? 1 : 0.72), in: RoundedRectangle(cornerRadius: 24))
                             }.padding(24)
                         }.accessibilityIdentifier("lesson.explanation.page")
-                        LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : "Lanjut ke tahapan berikutnya", identifier: "continue", action: advance)
+                        LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : (content.id == .dibuat ? "Lanjut ke tahap berikutnya" : "Lanjut ke tahapan berikutnya"), identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
                     }
-                }.allowsHitTesting(flow.screen != .activity)
+                }.allowsHitTesting(flow.screen != .activity || !usesActivitySheet)
             }
         }
         .foregroundStyle(.white).tint(.white)
@@ -166,7 +127,7 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
             if activitySheet.collapsed { activitySheet.collapse() } else { activitySheet.expand() }
         }
         .onChange(of: flow.screen) { _, value in
-            let needsSheet = value == .activity
+            let needsSheet = value == .activity && usesActivitySheet
             if needsSheet { activitySheet.expand() }
             showsActivitySheet = needsSheet
             activityVisibility(value == .activity)
@@ -263,7 +224,7 @@ struct PhaseContainerView<Introduction: View, Activity: View, Surface: View, Des
             Text("\(content.id.index + 1) / 5").font(.caption.monospacedDigit())
             Spacer()
             if flow.screen == .explanation {
-                Button("Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
+                Button(content.id == .dibuat ? "Ulang" : "Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
                     .background(.ultraThinMaterial, in: Capsule()).accessibilityIdentifier("replay")
             } else if flow.canSkip && (flow.screen == .activity || flow.screen == .equipment) {
                 Button("Lewati") { flow.explain() }.frame(minWidth: 60, minHeight: 44)

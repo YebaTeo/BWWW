@@ -3,14 +3,18 @@ import SwiftUI
 /// Five-stage PoCPadi preview, with the saved learning journey kept separate.
 struct WelcomeHomeView: View {
     let journey: JourneyViewModel
-    let onResume: () -> Void
+    let onOpen: (PhaseID) -> Void
     let onJourney: () -> Void
     let onCompletion: () -> Void
     let isActive: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var largeText: Bool { typeSize.isAccessibilitySize }
     @State private var preview = HomePreviewViewModel()
     @State private var confirmsRestart = false
+    @State private var initializedPreview = false
     private var progress: CGFloat { preview.progress }
     private var isTransitioning: Bool { preview.isTransitioning }
     private var selectedStage: Int { preview.selectedStage }
@@ -18,7 +22,7 @@ struct WelcomeHomeView: View {
     private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
     private let gold = Color(red: 0.98, green: 0.84, blue: 0.44)
     private let darkCard = Color(red: 0.12, green: 0.08, blue: 0.05)
-    private var stage: GrowthStage { GrowthStage.currentStage(for: progress) }
+    private var stage: GrowthStage { GrowthStage.allStages[selectedStage] }
 
     var body: some View {
         GeometryReader { viewport in
@@ -31,15 +35,18 @@ struct WelcomeHomeView: View {
                     .allowsHitTesting(false)
                 VStack(spacing: 0) {
                     header
-                        .transitionOverlay(isVisible: !isTransitioning, exitOffset: viewport.size.height + 120)
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(stageSwipe)
                         .accessibilityHidden(true)
-                    stageCard
+                    ScrollView {
+                        stageCard
+                            .frame(maxWidth: 440)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .frame(maxHeight: viewport.size.height * (largeText ? 0.35 : 0.33))
+                    actions
                         .frame(maxWidth: 440)
-                        .frame(maxHeight: viewport.size.height * 0.58)
-                        .transitionOverlay(isVisible: !isTransitioning, exitOffset: viewport.size.height + 120)
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
@@ -50,6 +57,15 @@ struct WelcomeHomeView: View {
         .tint(gold)
         .preferredColorScheme(.dark)
         .sensoryFeedback(.selection, trigger: selectedStage)
+        .onChange(of: reduceMotion) { _, enabled in if enabled { preview.stop() } }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { preview.stop() } }
+        .onAppear {
+            guard !initializedPreview else { return }
+            initializedPreview = true
+            if let stage = GrowthStage.allStages.first(where: { $0.phase == journey.progress.currentPhase }) {
+                preview.selectStage(stage.id, reduceMotion: true)
+            }
+        }
         .onDisappear {
             preview.stop()
         }
@@ -63,7 +79,7 @@ struct WelcomeHomeView: View {
             Button("Mulai Ulang", role: .destructive) {
                 journey.restart()
                 selectStage(0)
-                onResume()
+                onOpen(journey.progress.currentPhase)
             }
             .accessibilityIdentifier("home.restart.confirm")
         } message: {
@@ -86,6 +102,9 @@ struct WelcomeHomeView: View {
                 Spacer(minLength: 0)
                 Menu {
                     Button("Tahapan belajar", action: onJourney)
+                    if journey.progress.isUnlocked(stage.phase), stage.phase != journey.progress.currentPhase {
+                        Button("Lanjutkan perjalanan") { onOpen(journey.progress.currentPhase) }
+                    }
                     if journey.progress.allComplete {
                         Button("Lihat rangkuman", action: onCompletion)
                     }
@@ -156,9 +175,24 @@ struct WelcomeHomeView: View {
                 .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
                 .accessibilityIdentifier("home.progress")
                 .padding(.top, 2)
-            Button(action: onResume) {
+            if !journey.progress.isUnlocked(stage.phase) {
+                Text("Selesaikan tahap sebelumnya untuk membuka tahap ini.").font(.footnote)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 8)
+    }
+
+    private var actions: some View {
+        let unlocked = journey.progress.isUnlocked(stage.phase)
+        let completed = journey.progress.record(for: stage.phase).explanationAvailable
+        return VStack(spacing: 4) {
+            Button {
+                onOpen(unlocked ? stage.phase : journey.progress.currentPhase)
+            } label: {
                 HStack(spacing: 8) {
-                    Text(journey.completedCount > 0 ? "Lanjutkan perjalanan" : "Mulai menjelajah")
+                    Text(unlocked ? (completed ? "Tinjau \(stage.name)" : "Jelajahi \(stage.name)") : "Lanjutkan perjalanan")
                     Image(systemName: "arrow.right")
                 }
                 .font(.headline)
@@ -167,6 +201,11 @@ struct WelcomeHomeView: View {
                 .background(gold, in: Capsule())
             }
             .accessibilityIdentifier("resume")
+            if isTransitioning {
+                Button("Akhiri animasi", action: preview.stop)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("home.preview.finish")
+            }
             Button("Lihat tahapan", action: onJourney)
                 .font(.subheadline.weight(.semibold))
                 .frame(minHeight: 38)
@@ -187,7 +226,7 @@ struct WelcomeHomeView: View {
         .padding(.horizontal, 22)
         .padding(.top, 18)
         .padding(.bottom, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+
     }
 
     private var stageSwipe: some Gesture {
@@ -204,13 +243,4 @@ struct WelcomeHomeView: View {
         preview.selectStage(index, reduceMotion: reduceMotion)
     }
 
-}
-
-private extension View {
-    func transitionOverlay(isVisible: Bool, exitOffset: CGFloat) -> some View {
-        offset(y: isVisible ? 0 : exitOffset)
-            .animation(.easeInOut(duration: 0.35), value: isVisible)
-            .allowsHitTesting(isVisible)
-            .accessibilityHidden(!isVisible)
-    }
 }

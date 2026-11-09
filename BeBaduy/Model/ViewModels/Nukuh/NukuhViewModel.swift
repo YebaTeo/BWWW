@@ -1,6 +1,9 @@
 import Observation
 import Foundation
 @Observable @MainActor final class NukuhViewModel {
+    enum Stage { case entering, clearing, prepared, burning, complete }
+    private(set) var stage: Stage = .entering
+    private(set) var ignited: Set<Int> = []
     var session = PhaseSessionState()
     private(set) var collected: Set<Int> = []
     private(set) var isDemonstrating = false
@@ -17,29 +20,62 @@ import Foundation
     private(set) var motionMessage = ""
     init(motion: (any MotionProviding)? = nil) {
         self.motion = motion
-        scene.onCut = { [weak self] index in
-            guard let self, self.session.isActive else { return }
-            self.collected.insert(index)
-            ActivityAudio.shared.play(.cut)
-            self.session.feedback = "\(self.collected.count) dari 6 pohon pada ilustrasi telah ditebang."
+        scene.activityStage = { [weak self] in self?.stage ?? .entering }
+        scene.onReady = { [weak self] in
+            guard let self, self.stage == .entering else { return }
+            self.stage = .clearing
         }
+        scene.onTreeTapped = { [weak self] index in self?.collect(index) }
         scene.onIgnitionRequested = { [weak self] index in self?.burn(startingAt: index) }
-        scene.onBurnFinished = { [weak self] in
-            guard let self, self.session.isActive else { return }
-            self.session.finish(self.usedDemo ? .observed : .performed)
-            self.isDemonstrating = false
-        }
+        scene.onFireSettled = { [weak self] in self?.finishBurn() }
     }
-    func start() { suspend(); collected = []; usedDemo = false; session.start(); scene.reset(); scene.setSuspended(!visible); if visible { startLookMotion() } }
+
+    func start() {
+        suspend()
+        stage = .entering
+        collected.removeAll()
+        ignited.removeAll()
+        usedDemo = false
+        session.start()
+        scene.reset()
+        scene.setSuspended(!visible)
+        if visible { startLookMotion() }
+    }
+
     func collect(_ index: Int) {
-        guard session.isActive, !isDemonstrating else { return }
-        scene.interact(index)
+        guard !isDemonstrating else { return }
+        cutTree(index)
     }
-    func burn() { burn(startingAt: 0) }
-    func burn(startingAt index: Int) {
-        guard session.isActive, !isDemonstrating else { return }
-        scene.ignite(startingAt: index)
+
+    private func cutTree(_ index: Int) {
+        guard session.isActive, stage == .clearing, (0..<6).contains(index),
+              collected.insert(index).inserted else { return }
+        scene.animateCut(index)
+        ActivityAudio.shared.play(.cut)
+        session.feedback = "\(collected.count) dari 6 pohon pada ilustrasi telah ditebang."
+        if collected.count == 6 { stage = .prepared }
     }
+
+    func burn(startingAt index: Int = 0) {
+        guard !isDemonstrating else { return }
+        ignitePatch(index)
+    }
+
+    private func ignitePatch(_ index: Int) {
+        guard visible, session.isActive, stage == .prepared || stage == .burning,
+              (0..<6).contains(index), ignited.insert(index).inserted else { return }
+        stage = .burning
+        scene.animateIgnition(at: index)
+    }
+
+    func finishBurn() {
+        guard session.isActive, stage == .burning, ignited.count == 6 else { return }
+        stage = .complete
+        scene.showBurnedField()
+        session.finish(usedDemo ? .observed : .performed)
+        isDemonstrating = false
+    }
+
     func restore(_ outcome: ActivityOutcome?) { session.restore(outcome) }
     func setVisible(_ value: Bool) { visible = value; if !value { suspend() } else { scene.setSuspended(false); startLookMotion() } }
     func suspend() { stopLookMotion(); demoTask?.cancel(); demoTask = nil; isDemonstrating = false; scene.setSuspended(true) }
@@ -82,19 +118,19 @@ import Foundation
         motionActive = false; lookMotion.reset()
     }
     func demonstrate() {
-        guard session.isActive, scene.stage != .entering else { return }
+        guard session.isActive, visible, stage != .entering, stage != .complete else { return }
         demoTask?.cancel(); usedDemo = true; isDemonstrating = true
         demoTask = Task { [weak self] in
             for index in 0..<6 {
                 do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
                 guard let self, !Task.isCancelled else { return }
-                self.scene.interact(index)
+                self.cutTree(index)
             }
             do { try await Task.sleep(for: .seconds(1)) } catch { return }
             guard let self, !Task.isCancelled else { return }
             for index in 0..<6 {
                 guard !Task.isCancelled else { return }
-                self.scene.ignite(startingAt: index)
+                self.ignitePatch(index)
                 do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
             }
         }

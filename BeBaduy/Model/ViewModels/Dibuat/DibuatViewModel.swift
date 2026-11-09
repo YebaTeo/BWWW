@@ -1,80 +1,180 @@
 import Observation
 import Foundation
+
 @Observable @MainActor final class DibuatViewModel {
-    enum Step { case harvesting, balanceInstructions, balancing, drying }
+    enum Step { case harvesting, harvestSuccess, awaitingLandscape, balanceInstructions, balancing, balanceDemo, awaitingPortrait, drying, complete }
+    static let harvestCount = 3
     var session = PhaseSessionState()
     private(set) var harvested: Set<Int> = []
+    private(set) var lastHarvest: Int?
     private(set) var step: Step = .harvesting
     private(set) var balance = 0.65
-    private(set) var steadyTime: Double = 0
+    private(set) var steadyTime = 0.0
     private(set) var motionActive = false
     private(set) var isDemonstrating = false
+    private(set) var usesTouch = false
+    private var landscapeDirection = 0
+    private var visible = false
     private var usedDemo = false
     private let motion: any MotionProviding
-    private var lastSample: Double?
-    private var baseRoll: Double?
+    private var baseline: Double?
     @ObservationIgnored private var timer: Task<Void, Never>?
     @ObservationIgnored private var demoTask: Task<Void, Never>?
+
+    var allowsLandscape: Bool {
+        step == .awaitingLandscape || step == .balanceInstructions || step == .balancing || (step == .balanceDemo && landscapeDirection != 0)
+    }
+
     init(motion: any MotionProviding) { self.motion = motion }
-    func start() { suspend(); harvested = []; step = .harvesting; balance = 0.65; steadyTime = 0; usedDemo = false; session.start() }
+
+    func start() {
+        suspend()
+        harvested = []; lastHarvest = nil; step = .harvesting
+        balance = 0.65; steadyTime = 0; usedDemo = false; usesTouch = false
+        landscapeDirection = 0
+        session.start()
+    }
+
     func harvest(_ head: Int) {
-        guard session.isActive, step == .harvesting, (0..<4).contains(head), harvested.insert(head).inserted else { return }
+        guard session.isActive, step == .harvesting,
+              (0..<Self.harvestCount).contains(head), harvested.insert(head).inserted else { return }
+        lastHarvest = head
         ActivityAudio.shared.play(.harvest)
-        if harvested.count == 4 { step = .balanceInstructions }
+        if harvested.count == Self.harvestCount { step = .harvestSuccess }
     }
+
+    func requestLandscape() {
+        guard step == .harvestSuccess else { return }
+        step = .awaitingLandscape
+    }
+
+    func orientationChanged(_ direction: Int) {
+        guard landscapeDirection != direction else { return }
+        landscapeDirection = direction
+        stopBalance()
+        if step == .balanceDemo { return }
+        if direction == 0 {
+            if step == .awaitingPortrait { step = .drying }
+            else if allowsLandscape { step = .awaitingLandscape }
+        } else if allowsLandscape && step != .balanceDemo {
+            step = .balanceInstructions
+        }
+    }
+
     func beginBalance() {
-        guard session.isActive, step == .balanceInstructions else { return }
-        step = .balancing; ActivityAudio.shared.play(.bamboo); resume()
+        guard session.isActive, step == .balanceInstructions, landscapeDirection != 0 else { return }
+        step = .balancing
+        ActivityAudio.shared.play(.bamboo)
+        resume()
     }
+
+    func showHelp() {
+        guard step == .balancing else { return }
+        stopBalance()
+        step = .balanceInstructions
+    }
+
     func setBalance(_ value: Double) {
         guard step == .balancing, value.isFinite else { return }
         balance = min(1, max(-1, value))
+        if abs(balance) >= 0.18 { steadyTime = 0 }
     }
+
     func tick(_ seconds: Double) {
-        guard session.isActive, step == .balancing, seconds.isFinite, seconds > 0, abs(balance) < 0.18 else { return }
+        guard visible, session.isActive, step == .balancing, landscapeDirection != 0,
+              seconds.isFinite, seconds > 0, abs(balance) < 0.18 else { return }
         steadyTime = min(3, steadyTime + min(seconds, 0.1))
-        if steadyTime >= 3 { pauseMotion(); timer?.cancel(); step = .drying }
+        if steadyTime >= 3 - 1e-9 { finishBalance() }
     }
+
+    private func finishBalance() {
+        stopBalance()
+        step = landscapeDirection == 0 ? .drying : .awaitingPortrait
+    }
+
     func resume() {
-        guard step == .balancing, session.isActive, timer == nil else { return }
+        visible = true
+        guard step == .balancing, landscapeDirection != 0, session.isActive, timer == nil else { return }
+        if !usesTouch { startMotion() }
         timer = Task { [weak self] in
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
-                guard !Task.isCancelled, let self else { return }; self.tick(0.1)
+                guard let self, self.visible else { return }
+                if self.usesTouch || self.baseline != nil { self.tick(0.1) }
             }
         }
     }
+
+    func useTouch() {
+        pauseMotion()
+        usesTouch = true
+    }
+
     func startMotion() {
-        guard session.isActive, step == .balancing else { return }
-        guard motion.available else { session.feedback = "Sensor tidak tersedia. Geser pengatur keseimbangan di bawah."; return }
-        baseRoll = nil; lastSample = nil; motionActive = true; resume()
+        guard visible, session.isActive, step == .balancing, landscapeDirection != 0 else { return }
+        guard motion.available else { useTouch(); return }
+        usesTouch = false; baseline = nil; steadyTime = 0; motionActive = true
+        let direction = Double(landscapeDirection)
         motion.start { [weak self] sample in
             guard let self, self.motionActive else { return }
-            guard let sample, sample.roll.isFinite, sample.time.isFinite else { self.pauseMotion(); return }
-            guard self.lastSample == nil || sample.time > self.lastSample! else { return }
-            self.lastSample = sample.time
-            if self.baseRoll == nil { self.baseRoll = sample.roll }
-            self.setBalance((sample.roll - (self.baseRoll ?? 0)) * 2 + 0.65)
+            guard let gravity = sample?.gravity, gravity.y.isFinite else { self.useTouch(); return }
+            // The landscape screen's horizontal axis is the device's portrait Y axis.
+            let tilt = gravity.y * direction
+            if self.baseline == nil { self.baseline = tilt }
+            let target = (tilt - (self.baseline ?? tilt)) * 3 + 0.45
+            self.setBalance(self.balance + (target - self.balance) * 0.2)
         }
     }
-    func pauseMotion() { motionActive = false; motion.stop(); baseRoll = nil; lastSample = nil }
-    func finishDrying() { guard session.isActive, step == .drying else { return }; session.finish(usedDemo ? .observed : .performed) }
-    func suspend() { pauseMotion(); timer?.cancel(); timer = nil; demoTask?.cancel(); demoTask = nil; isDemonstrating = false }
+
+    private func pauseMotion() {
+        if motionActive { motion.stop() }
+        motionActive = false
+        baseline = nil
+    }
+
+    private func stopBalance() {
+        pauseMotion()
+        timer?.cancel(); timer = nil
+        steadyTime = 0
+    }
+
+    func finishDrying() {
+        guard session.isActive, step == .drying else { return }
+        step = .complete
+        session.finish(usedDemo ? .observed : .performed)
+    }
+
+    func suspend() {
+        visible = false
+        stopBalance()
+        demoTask?.cancel(); demoTask = nil
+        isDemonstrating = false
+        if step == .balanceDemo {
+            step = landscapeDirection == 0 ? .awaitingLandscape : .balanceInstructions
+        }
+    }
+
     func demonstrate() {
-        guard session.isActive else { return }
-        suspend(); usedDemo = true; isDemonstrating = true
+        guard session.isActive, !isDemonstrating, step != .awaitingPortrait, step != .drying else { return }
+        stopBalance()
+        isDemonstrating = true
         demoTask = Task { [weak self] in
-            for i in 0..<4 {
-                do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
-                guard !Task.isCancelled, let self else { return }; self.harvest(i)
-            }
             guard let self else { return }
-            self.beginBalance(); self.resume(); self.setBalance(0)
-            while self.step == .balancing {
+            defer { self.isDemonstrating = false }
+            for index in 0..<Self.harvestCount where !self.harvested.contains(index) {
+                self.harvest(index)
+                do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+            }
+            guard !Task.isCancelled else { return }
+            self.step = .balanceDemo
+            for frame in 0...37 {
+                self.balance = 0.45 * max(0, 1 - Double(frame) / 7)
+                self.steadyTime = Double(max(0, frame - 7)) / 10
                 do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
             }
-            do { try await Task.sleep(for: .seconds(2)) } catch { return }
-            guard !Task.isCancelled else { return }; self.finishDrying(); self.isDemonstrating = false
+            guard !Task.isCancelled else { return }
+            self.usedDemo = true
+            self.finishBalance()
         }
     }
 }

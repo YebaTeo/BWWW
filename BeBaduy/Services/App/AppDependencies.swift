@@ -15,11 +15,13 @@ import Foundation
         journey = JourneyViewModel(store: ProgressStore(defaults: defaults)); motion = MotionService()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--uitesting"),
-           ProcessInfo.processInfo.arguments.contains("--uitest-ngored") {
+           let phase = ProcessInfo.processInfo.arguments.contains("--uitest-mipit") ? PhaseID.dibuat :
+                       ProcessInfo.processInfo.arguments.contains("--uitest-ngored") ? PhaseID.ngored : nil {
             journey.finishIntroduction()
             journey.record(.nukuh, outcome: .observed)
             journey.record(.ngaseuk, outcome: .observed)
-            journey.open(.ngored)
+            if phase == .dibuat { journey.record(.ngored, outcome: .observed) }
+            journey.open(phase)
         }
         #endif
     }

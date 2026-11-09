@@ -13,7 +13,7 @@ struct HomeView: View {
                 if journey.progress.introductionSeen {
                     WelcomeHomeView(
                         journey: journey,
-                        onResume: { model.open(journey.progress.currentPhase, journey: journey) },
+                        onOpen: { model.open($0, journey: journey) },
                         onJourney: { showsJourney = true },
                         onCompletion: { model.showsCompletion = true },
                         isActive: model.path.isEmpty && !showsJourney && !model.showsCompletion

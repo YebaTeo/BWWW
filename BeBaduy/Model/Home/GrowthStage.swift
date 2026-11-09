@@ -11,6 +11,7 @@ import SwiftUI
 /// A stage in the BeBaduy huma agricultural journey.
 struct GrowthStage: Identifiable, Equatable {
     let id: Int
+    let phase: PhaseID
     let code: String
     let name: String
     let subtitle: String
@@ -27,6 +28,7 @@ struct GrowthStage: Identifiable, Equatable {
     static let allStages: [GrowthStage] = [
         GrowthStage(
             id: 0,
+            phase: .nukuh,
             code: "NUKUH",
             name: "NUKUH",
             subtitle: "Pemilihan & Penyiapan Lahan",
@@ -37,6 +39,7 @@ struct GrowthStage: Identifiable, Equatable {
         ),
         GrowthStage(
             id: 1,
+            phase: .ngaseuk,
             code: "NGASEUK",
             name: "NGASEUK",
             subtitle: "Menanam Benih Bersama",
@@ -47,18 +50,20 @@ struct GrowthStage: Identifiable, Equatable {
         ),
         GrowthStage(
             id: 2,
+            phase: .ngored,
             code: "NGORED",
             name: "NGORED",
             subtitle: "Penyortiran Gulma & Pertumbuhan",
             culturalContext: "Perawatan Tanaman Suci",
-            narrative: "Dengan kored (arit kecil), rumput liar disiangi teliti agar tidak mengganggu padi. Rumpun padi huma tumbuh subur dan rimbun menghijau.",
+            narrative: "Dengan kored (alat seperti cangkul kecil), rumput liar disiangi teliti agar tidak mengganggu padi. Rumpun padi huma tumbuh subur dan rimbun menghijau.",
             targetProgress: 0.666,
             leafColor: Color(red: 0.24, green: 0.56, blue: 0.16)
         ),
         GrowthStage(
             id: 3,
-            code: "DIBUAT",
-            name: "DIBUAT",
+            phase: .dibuat,
+            code: "MIPIT",
+            name: "MIPIT",
             subtitle: "Panen Padi Keemasan",
             culturalContext: "Puncak Rasa Syukur Kanekes",
             narrative: "Bulir padi telah menguning keemasan dan merunduk sarat kemakmuran. Panen dilakukan dengan ketam (ani-ani) sebagai penghormatan kepada Dewi Sri.",
@@ -67,11 +72,12 @@ struct GrowthStage: Identifiable, Equatable {
         ),
         GrowthStage(
             id: 4,
+            phase: .ngaleuitkeunPare,
             code: "LEUIT",
             name: "LEUIT",
             subtitle: "Menyiapkan Padi untuk Leuit",
             culturalContext: "Ikatan Padi pada Bambu",
-            narrative: "Padi hasil panen digantung pada rak bambu.",
+            narrative: "Pratinjau ini memperlihatkan ikatan padi di rak bambu. Di bab Leuit, kamu akan melihat cara padi yang sudah kering disimpan.",
             targetProgress: 1.0,
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         )
