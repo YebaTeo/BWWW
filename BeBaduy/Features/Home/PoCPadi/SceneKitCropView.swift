@@ -88,6 +88,11 @@ struct SceneKitCropView: UIViewRepresentable {
         private var rackBraces: [SCNNode] = []
         private let rackBeam = SCNNode()
         private var hangingBundles: [SCNNode] = []
+        private let rackShadowRoot = SCNNode()
+        private var rackPostShadows: [SCNNode] = []
+        private var rackPostContactShadows: [SCNNode] = []
+        private let rackBeamShadow = SCNNode()
+        private var rackBundleShadows: [SCNNode] = []
         private var harvestTransferNodes: [(
             node: SCNNode,
             target: SCNNode,
@@ -101,8 +106,8 @@ struct SceneKitCropView: UIViewRepresentable {
         private let cameraNode   = SCNNode()
 
         // ── Per-tree state ───────────────────────────────────────────────────
-        /// (trunk node, canopy node, natural fall-start offset in [0,1])
-        private var treeNodes: [(trunk: SCNNode, canopy: SCNNode, fallAngle: Float, origin: SCNVector3)] = []
+        /// (trunk node, canopy node, directional shadow, natural fall-start offset in [0,1])
+        private var treeNodes: [(trunk: SCNNode, canopy: SCNNode, shadow: SCNNode, fallAngle: Float, origin: SCNVector3)] = []
         private var impactedTrees = Set<Int>()
         private var crackedTrees = Set<Int>()
         private var fracturePairs: [(base: SCNNode, falling: SCNNode)] = []
@@ -203,6 +208,7 @@ struct SceneKitCropView: UIViewRepresentable {
             buildPlantingStage() // Stage 2
             buildRicePlant()     // Stage 3 + 4
             buildLeuitRack()     // Stage 5
+            configureObjectShadows()
             frameTarget.owner = self
             let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
             link.add(to: .main, forMode: .common)
@@ -259,7 +265,11 @@ struct SceneKitCropView: UIViewRepresentable {
             moonLight.color = UIColor(red: 0.42, green: 0.62, blue: 1.0, alpha: 1)
             moonLight.intensity = 0
             moonLight.castsShadow = true
-            moonLight.shadowRadius = 5
+            moonLight.shadowMode = .deferred
+            moonLight.shadowMapSize = CGSize(width: 2048, height: 2048)
+            moonLight.orthographicScale = 4
+            moonLight.shadowSampleCount = 8
+            moonLight.shadowRadius = 3
             moonLight.shadowBias = 0.003
             moonLight.shadowColor = UIColor(white: 0, alpha: 0.65)
             let moonNode = moonOrbitNode
@@ -274,12 +284,13 @@ struct SceneKitCropView: UIViewRepresentable {
             sun.color         = UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1)
             sun.intensity     = 155
             sun.castsShadow   = true
-            sun.shadowMode    = .deferred
-            sun.shadowRadius  = 10
+            sun.shadowMode    = .forward
+            sun.shadowRadius  = 2.5
+            sun.orthographicScale = 3.6
             sun.shadowSampleCount = 8
-            sun.shadowBias = 0.003
-            sun.shadowMapSize = CGSize(width: 1024, height: 1024)
-            sun.shadowColor   = UIColor(white: 0.05, alpha: 0.30)
+            sun.shadowBias = 0.002
+            sun.shadowMapSize = CGSize(width: 2048, height: 2048)
+            sun.shadowColor   = UIColor(white: 0.02, alpha: 0.70)
             let sunNode       = sunOrbitNode
             sunNode.light     = sun
             sunNode.position  = SCNVector3(2.6, 3.2, -2.4)
@@ -379,7 +390,7 @@ struct SceneKitCropView: UIViewRepresentable {
             receiverMaterial.lightingModel = .shadowOnly
             receiverMaterial.isDoubleSided = true
             receiverMaterial.writesToDepthBuffer = false
-            let receiverGeometry = SCNPlane(width: 3, height: 3)
+            let receiverGeometry = SCNPlane(width: 8, height: 8)
             receiverGeometry.materials = [receiverMaterial]
             let receiver = SCNNode(geometry: receiverGeometry)
             receiver.name = "soilShadowReceiver"
@@ -387,6 +398,24 @@ struct SceneKitCropView: UIViewRepresentable {
             receiver.eulerAngles.x = -.pi / 2
             receiver.castsShadow = false
             scene.rootNode.addChildNode(receiver)
+        }
+
+        private func configureObjectShadows() {
+            // Include the entire farming sequence, including cloned harvest
+            // bundles. Preserve explicit exclusions for painted contact shadows.
+            for root in [forestRoot, rootFlareRoot, stumpRoot, wildRoot,
+                         plantingRoot, leavesRoot, paniclesRoot, ashRoot, leuitRoot] {
+                root.enumerateChildNodes { node, _ in
+                    guard node.geometry != nil else { return }
+                    if node.name?.contains("Shadow") == true || node.name?.contains("shadow") == true {
+                        node.castsShadow = false
+                        return
+                    }
+                    node.castsShadow = true
+                    node.geometry?.materials.forEach { $0.readsFromDepthBuffer = true }
+                }
+            }
+            fireRoot.enumerateChildNodes { node, _ in node.castsShadow = false }
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -397,6 +426,7 @@ struct SceneKitCropView: UIViewRepresentable {
             forestRoot.name = "forest"
             scene.rootNode.addChildNode(forestRoot)
             shadowRoot.name = "treeShadows"
+            shadowRoot.renderingOrder = -2
             scene.rootNode.addChildNode(shadowRoot)
 
             // Deliberately irregular placement: varied depth, scale and yaw
@@ -499,8 +529,42 @@ struct SceneKitCropView: UIViewRepresentable {
             canopy.addChildNode(rearBranches)
             pivot.addChildNode(canopy)
 
-            forestRoot.addChildNode(pivot)
-            treeNodes.append((trunk: pivot, canopy: canopy, fallAngle: Float(index) / 4, origin: pivot.position))
+            // Unified directional tree shadow cast behind the object (dibelakang objek)
+            let shadowYaw: Float = atan2(-2.6, 2.4)
+            let dirShadowRoot = SCNNode()
+            dirShadowRoot.name = "treeDirectionalShadow_\(index)"
+            dirShadowRoot.position = SCNVector3(x, soilY + 0.0003, z)
+            dirShadowRoot.eulerAngles.y = shadowYaw
+            dirShadowRoot.renderingOrder = -2
+            dirShadowRoot.castsShadow = false
+
+            // Soft, blurred directional tree shadow cast behind the object (dibelakang objek)
+            let shadowMat = SCNMaterial()
+            shadowMat.lightingModel = .constant
+            shadowMat.diffuse.contents = UIColor(red: 0.12, green: 0.08, blue: 0.05, alpha: 1)
+            shadowMat.isDoubleSided = true
+            shadowMat.writesToDepthBuffer = false
+            shadowMat.shaderModifiers = [.fragment: """
+            #pragma transparent
+            #pragma body
+            float2 uv = _surface.diffuseTexcoord;
+            // Teardrop profile: gently wider at the canopy and tapered at trunk base
+            float widthScale = 0.50 + 0.50 * (1.0 - uv.y);
+            float dx = abs(uv.x - 0.5) * 2.0 / widthScale;
+            float dy = (uv.y - 0.5) * 2.0;
+            float r = sqrt(dx * dx + dy * dy);
+            // Ultra-soft quadratic bell-curve falloff for natural diffuse blur
+            float blur = exp(-4.0 * r * r) * (1.0 - smoothstep(0.65, 1.0, r));
+            _output.color.a *= blur * 0.15;
+            """]
+            let shadowGeo = SCNPlane(width: CGFloat(0.26 * scale), height: CGFloat(0.34 * scale))
+            shadowGeo.materials = [shadowMat]
+            let shadowNode = SCNNode(geometry: shadowGeo)
+            shadowNode.eulerAngles.x = -.pi / 2
+            shadowNode.position = SCNVector3(0, 0.0001, -0.15 * scale)
+            shadowNode.castsShadow = false
+            dirShadowRoot.addChildNode(shadowNode)
+            shadowRoot.addChildNode(dirShadowRoot)
 
             // The original image's root flare stays planted as the upper
             // tree rotates away. Its opacity follows the cut/fall progress.
@@ -534,22 +598,14 @@ struct SceneKitCropView: UIViewRepresentable {
             fallingFracture.opacity = 0
             fracturePairs.append((baseFracture, fallingFracture))
 
-            // Keep only a feathered contact shadow at the tree base. A raised
-            // soil lip reads like a hole punched through the photographic field.
-            let shadowMaterial = SCNMaterial()
-            shadowMaterial.lightingModel = .constant
-            shadowMaterial.diffuse.contents = particleSprite
-            shadowMaterial.multiply.contents = UIColor(white: 0.08, alpha: 1)
-            shadowMaterial.transparency = 0.36
-            shadowMaterial.isDoubleSided = true
-            shadowMaterial.writesToDepthBuffer = false
-            let shadowGeometry = SCNPlane(width: CGFloat(0.19 * scale), height: CGFloat(0.11 * scale))
-            shadowGeometry.materials = [shadowMaterial]
-            let shadow = SCNNode(geometry: shadowGeometry)
-            shadow.eulerAngles.x = -.pi / 2
-            shadow.position = SCNVector3(x, soilY + 0.0003, z)
-            shadow.castsShadow = false
-            shadowRoot.addChildNode(shadow)
+            forestRoot.addChildNode(pivot)
+            treeNodes.append((
+                trunk: pivot,
+                canopy: canopy,
+                shadow: dirShadowRoot,
+                fallAngle: Float(index) / 4,
+                origin: pivot.position
+            ))
         }
 
         /// One shared mesh: original full-resolution artwork on the front,
@@ -771,24 +827,8 @@ struct SceneKitCropView: UIViewRepresentable {
                 elements: [.init(indices: indices, primitiveType: .triangles)])
         }()
 
-        /// A tight contact shadow and a shallow, irregular soil lip. Both are
-        /// fixed to the ground, so cutting moves the tree but never its soil.
+        /// A shallow, irregular soil lip fixed to the ground.
         private func addRootContact(to parent: SCNNode, x: Float, z: Float, radius: Float) {
-            let shadowMaterial = SCNMaterial()
-            shadowMaterial.lightingModel = .constant
-            shadowMaterial.diffuse.contents = particleSprite
-            shadowMaterial.multiply.contents = UIColor(white: 0.025, alpha: 1)
-            shadowMaterial.transparency = 0.50
-            shadowMaterial.isDoubleSided = true
-            shadowMaterial.writesToDepthBuffer = false
-            let plane = SCNPlane(width: CGFloat(radius * 2.8), height: CGFloat(radius * 2.8))
-            plane.materials = [shadowMaterial]
-            let shadow = SCNNode(geometry: plane)
-            shadow.position = SCNVector3(x, soilY + 0.0002, z)
-            shadow.eulerAngles.x = -.pi / 2
-            shadow.castsShadow = false
-            parent.addChildNode(shadow)
-
             var positions: [SCNVector3] = []
             var coords: [CGPoint] = []
             var triangles: [UInt32] = []
@@ -1213,6 +1253,123 @@ struct SceneKitCropView: UIViewRepresentable {
                     delay: Float(index % 4) * 0.045
                 ))
             }
+            buildRackDirectionalShadows()
+        }
+
+        private func buildRackDirectionalShadows() {
+            rackShadowRoot.name = "rackDirectionalShadows"
+            rackShadowRoot.renderingOrder = -2
+            rackShadowRoot.castsShadow = false
+            leuitRoot.addChildNode(rackShadowRoot)
+
+            // 1. Post contact shadow material (deep dark occlusion at ground entrance)
+            let contactShadowMat = SCNMaterial()
+            contactShadowMat.lightingModel = .constant
+            contactShadowMat.diffuse.contents = UIColor(red: 0.04, green: 0.02, blue: 0.01, alpha: 1)
+            contactShadowMat.isDoubleSided = true
+            contactShadowMat.writesToDepthBuffer = false
+            contactShadowMat.shaderModifiers = [.fragment: """
+            #pragma transparent
+            #pragma body
+            float2 d = (_surface.diffuseTexcoord - float2(0.5)) * 2.0;
+            float r = length(d);
+            _output.color.a *= (1.0 - smoothstep(0.35, 1.0, r)) * 0.88;
+            """]
+
+            // 2. Directional post shadow material (thick, elongated shadow extending forward)
+            let postShadowMat = SCNMaterial()
+            postShadowMat.lightingModel = .constant
+            postShadowMat.diffuse.contents = UIColor(red: 0.05, green: 0.03, blue: 0.02, alpha: 1)
+            postShadowMat.isDoubleSided = true
+            postShadowMat.writesToDepthBuffer = false
+            postShadowMat.shaderModifiers = [.fragment: """
+            #pragma transparent
+            #pragma body
+            float dx = abs(_surface.diffuseTexcoord.x - 0.5) * 2.0;
+            float dy = abs(_surface.diffuseTexcoord.y - 0.5) * 2.0;
+            float edgeX = 1.0 - smoothstep(0.35, 1.0, dx);
+            float edgeY = 1.0 - smoothstep(0.85, 1.0, dy);
+            _output.color.a *= edgeX * edgeY * 0.82;
+            """]
+
+            // 3. Directional crossbar shadow material (solid horizontal stroke)
+            let beamShadowMat = SCNMaterial()
+            beamShadowMat.lightingModel = .constant
+            beamShadowMat.diffuse.contents = UIColor(red: 0.05, green: 0.03, blue: 0.02, alpha: 1)
+            beamShadowMat.isDoubleSided = true
+            beamShadowMat.writesToDepthBuffer = false
+            beamShadowMat.shaderModifiers = [.fragment: """
+            #pragma transparent
+            #pragma body
+            float dx = abs(_surface.diffuseTexcoord.x - 0.5) * 2.0;
+            float dy = abs(_surface.diffuseTexcoord.y - 0.5) * 2.0;
+            float edgeX = 1.0 - smoothstep(0.88, 1.0, dx);
+            float edgeY = 1.0 - smoothstep(0.35, 1.0, dy);
+            _output.color.a *= edgeX * edgeY * 0.78;
+            """]
+
+            // 4. Directional rice bundle shadow material (rich teardrop-shaped sheaf silhouettes)
+            let bundleShadowMat = SCNMaterial()
+            bundleShadowMat.lightingModel = .constant
+            bundleShadowMat.diffuse.contents = UIColor(red: 0.06, green: 0.04, blue: 0.02, alpha: 1)
+            bundleShadowMat.isDoubleSided = true
+            bundleShadowMat.writesToDepthBuffer = false
+            bundleShadowMat.shaderModifiers = [.fragment: """
+            #pragma transparent
+            #pragma body
+            float2 uv = _surface.diffuseTexcoord;
+            float widthScale = 0.52 + 0.48 * uv.y;
+            float dx = abs(uv.x - 0.5) * 2.0 / widthScale;
+            float dy = abs(uv.y - 0.5) * 2.0;
+            float r = sqrt(dx * dx + dy * dy);
+            _output.color.a *= (1.0 - smoothstep(0.40, 1.0, r)) * 0.75;
+            """]
+
+            // Build Post Shadows (Left & Right)
+            for x: Float in [-0.245, 0.245] {
+                let contactGeo = SCNPlane(width: 0.075, height: 0.065)
+                contactGeo.materials = [contactShadowMat]
+                let contactNode = SCNNode(geometry: contactGeo)
+                contactNode.name = x < 0 ? "leftPostContactShadow" : "rightPostContactShadow"
+                contactNode.eulerAngles.x = -.pi / 2
+                contactNode.position = SCNVector3(x, 0.0004, 0)
+                contactNode.castsShadow = false
+                rackShadowRoot.addChildNode(contactNode)
+                rackPostContactShadows.append(contactNode)
+
+                let postShadowGeo = SCNPlane(width: 0.054, height: 0.52)
+                postShadowGeo.materials = [postShadowMat]
+                let postShadowNode = SCNNode(geometry: postShadowGeo)
+                postShadowNode.name = x < 0 ? "leftPostDirectionalShadow" : "rightPostDirectionalShadow"
+                postShadowNode.eulerAngles.x = -.pi / 2
+                postShadowNode.position = SCNVector3(x, 0.0006, 0.26)
+                postShadowNode.castsShadow = false
+                rackShadowRoot.addChildNode(postShadowNode)
+                rackPostShadows.append(postShadowNode)
+            }
+
+            // Build Crossbar Shadow
+            let beamShadowGeo = SCNPlane(width: 0.58, height: 0.065)
+            beamShadowGeo.materials = [beamShadowMat]
+            rackBeamShadow.name = "bambooBeamDirectionalShadow"
+            rackBeamShadow.geometry = beamShadowGeo
+            rackBeamShadow.eulerAngles.x = -.pi / 2
+            rackBeamShadow.position = SCNVector3(0, 0.0007, 0.50)
+            rackBeamShadow.castsShadow = false
+            rackShadowRoot.addChildNode(rackBeamShadow)
+
+            // Build Rice Sheaf Shadows (Three Bundles)
+            for (index, x) in [-0.15, 0.0, 0.15].enumerated() {
+                let bundleShadowGeo = SCNPlane(width: 0.13, height: 0.26)
+                bundleShadowGeo.materials = [bundleShadowMat]
+                let bundleShadowNode = SCNNode(geometry: bundleShadowGeo)
+                bundleShadowNode.name = "hangingBundleShadow_\(index)"
+                bundleShadowNode.eulerAngles.x = -.pi / 2
+                bundleShadowNode.position = SCNVector3(Float(x), 0.0008, 0.32)
+                bundleShadowNode.castsShadow = false
+                rackShadowRoot.addChildNode(bundleShadowNode)
+                rackBundleShadows.append(bundleShadowNode)
+            }
         }
 
         /// Reuses the exact golden panicle geometry grown in DIBUAT, arranged
@@ -1289,7 +1446,7 @@ struct SceneKitCropView: UIViewRepresentable {
             rootFlareRoot.opacity = CGFloat(1 - smoothstep(0.29, 0.37, p))
             rootFlareRoot.isHidden = rootFlareRoot.opacity < 0.005
             setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p))
-            shadowRoot.opacity = CGFloat(forestOpacity * (1 - 0.45 * smoothstep(0.02, 0.12, p)))
+            shadowRoot.opacity = CGFloat(forestOpacity)
             setVisibility(wildRoot, opacity: 1 - smoothstep(0.28, 0.37, p))
             // Cut stumps must not be present in the untouched Nukuh state.
             // Reveal them only as the tree finishes its fall, then let the
@@ -1362,24 +1519,20 @@ struct SceneKitCropView: UIViewRepresentable {
                 }
                 entry.canopy.childNode(withName: "radialBranches", recursively: false)?.opacity =
                     0
-                let shadow = shadowRoot.childNodes[index]
-                let reachX = abs(sin(trunk.eulerAngles.z)) * 0.36 * trunk.scale.y
-                let reachZ = abs(sin(trunk.eulerAngles.x)) * 0.36 * trunk.scale.y
-                let signX: Float = trunk.eulerAngles.z >= 0 ? 1 : -1
-                let signZ: Float = trunk.eulerAngles.x >= 0 ? 1 : -1
-                shadow.position.x = entry.origin.x + reachX * signX
-                shadow.position.z = entry.origin.z + reachZ * signZ
-                shadow.opacity = CGFloat(0.10 + descent * 0.12)
-                shadow.scale.x = 0.8 + abs(sin(trunk.eulerAngles.z)) * 0.4
-                shadow.scale.y = 0.8 + abs(sin(trunk.eulerAngles.x)) * 0.4
+                // Directional tree shadow sits behind the object and tracks celestial sun orbit
+                let treeSunPhase = HomeCelestialCycle.phase(progress: progress)
+                let treeShadowYaw = Float(sin(treeSunPhase)) * -0.35
+                entry.shadow.eulerAngles.y = treeShadowYaw
+                entry.shadow.opacity = CGFloat(0.55 * treeFade * (1.0 - descent * 0.85))
+                entry.shadow.isHidden = treeFade < 0.005
 
                 entry.canopy.childNode(withName: "treeSilhouette", recursively: false)?
                     .geometry?.materials.last?.transparency = 0
                 if fallT >= contactTime && !impactedTrees.contains(index) {
                     impactedTrees.insert(index)
                     if isWindEnabled {
-                        emitDust(at: shadow.position)
-                        emitTreeDebris(at: shadow.position, phase: Float(index) * 0.73)
+                        emitDust(at: entry.origin)
+                        emitTreeDebris(at: entry.origin, phase: Float(index) * 0.73)
                     }
                 } else if fallT < 0.75 {
                     impactedTrees.remove(index)
@@ -1526,6 +1679,30 @@ struct SceneKitCropView: UIViewRepresentable {
                 bundle.position.y = 0.62
                 setVisibility(bundle, opacity: drop)
             }
+
+            // Directional sunlight shadows tracking post rise, beam expansion, and hanging sheaves
+            let rackSunPhase = HomeCelestialCycle.phase(progress: progress)
+            let rackShadowYaw = Float(sin(rackSunPhase)) * -0.35
+            rackShadowRoot.eulerAngles.y = rackShadowYaw
+
+            for shadow in rackPostContactShadows {
+                shadow.opacity = CGFloat(postRise)
+            }
+            for shadow in rackPostShadows {
+                shadow.scale.y = max(0.001, postRise)
+                shadow.position.z = 0.26 * postRise
+                shadow.opacity = CGFloat(postRise)
+            }
+            rackBeamShadow.scale.x = max(0.001, beamGrow)
+            rackBeamShadow.position.z = 0.50 * postRise
+            rackBeamShadow.opacity = CGFloat(beamGrow * postRise)
+            for (index, bundleShadow) in rackBundleShadows.enumerated() {
+                let offset = Float(index) * 0.014
+                let drop = smoothstep(0.88 + offset, 0.96 + offset, fullP)
+                bundleShadow.position.z = 0.32 * postRise
+                bundleShadow.opacity = CGFloat(drop)
+            }
+
             setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p) * (1 - transfer))
             // Hold the rack in the middle of the open field above the text card.
             cameraNode.position = SCNVector3(0, 0.52, 1.75)
@@ -1550,6 +1727,11 @@ struct SceneKitCropView: UIViewRepresentable {
             moonLight.intensity = 55 * moonStrength
             sunKeyLight.castsShadow = sunStrength > 0
             moonLight.castsShadow = moonStrength > 0
+            // Soften the opening forest shadows, then restore the later
+            // stages' shadow treatment as Nukuh finishes.
+            let nukuhShadowBlend = CGFloat(smoothstep(0.20, 0.33, Float(progress)))
+            sunKeyLight.shadowColor = UIColor(white: 0.02, alpha: 0.30 + 0.40 * nukuhShadowBlend)
+            sunKeyLight.shadowRadius = 8 - 5.5 * nukuhShadowBlend
             sunKeyLight.color = blendColor(
                 UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1),
                 UIColor(red: 1.0, green: 0.65, blue: 0.40, alpha: 1),
