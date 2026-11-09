@@ -46,7 +46,7 @@ struct NgahumaMaterials {
         let rawTree = UIImage(named: "HumaTreeNatural")
             ?? UIImage(named: "HumaTree")
             ?? UIImage()
-        let treeTexture = Self.cleanTreeDefringe(from: rawTree)
+        let treeTexture = rawTree
 
         let rootFlareTexture = Self.extractRootFlareTexture(from: treeTexture)
 
@@ -511,82 +511,68 @@ struct NgahumaMaterials {
 
         var outPixels = [UInt8](repeating: 255, count: outSize * outSize * 4)
 
-        if terrainSource != nil && srcW >= outSize + overlap && srcH >= outSize + overlap {
-            // Toroidal seamless mapping from high-resolution Baduy terrain texture
-            let ox0 = Double(max(0, (srcW - (outSize + overlap)) / 2))
-            let oy0 = Double(max(0, (srcH - (outSize + overlap)) / 2))
+        // Direct extraction from HumaEnvironment photographic soil region so the 3D terrain floor
+        // has the exact same natural photographic earth colors and texture as HomeView
+        let envData = source.dataProvider?.data
+        let envPtr = envData.flatMap { CFDataGetBytePtr($0) } ?? srcPtr
+        let envW = source.width
+        let envH = source.height
+        let envBPR = source.bytesPerRow
+        let envBPP = max(4, source.bitsPerPixel / 8)
 
-            for y in 0..<outSize {
-                let wy = y < overlap ? (0.5 - 0.5 * cos(.pi * Double(y) / Double(overlap))) : 1.0
-                let yA = oy0 + Double(y)
-                let yB = oy0 + Double(y + outSize)
-
-                for x in 0..<outSize {
-                    let wx = x < overlap ? (0.5 - 0.5 * cos(.pi * Double(x) / Double(overlap))) : 1.0
-                    let xA = ox0 + Double(x)
-                    let xB = ox0 + Double(x + outSize)
-
-                    let s00 = samplePix(xA, yA).0
-                    let s10 = samplePix(xB, yA).0
-                    let s01 = samplePix(xA, yB).0
-                    let s11 = samplePix(xB, yB).0
-
-                    let lum = wx * wy * s00 + (1.0 - wx) * wy * s10 + wx * (1.0 - wy) * s01 + (1.0 - wx) * (1.0 - wy) * s11
-                    let normL = min(1.0, max(0.0, lum / 255.0))
-
-                    // Authentic Baduy soil grading matching HomeView (#6A4B33 midtones):
-                    // Low (crevices): RGB(44, 30, 20)
-                    // Mid (HomeView #6A4B33 base earth): RGB(106, 75, 51)
-                    // High (sun-dried pebbles & soil clods): RGB(156, 120, 88)
-                    let r = 44.0 + normL * 112.0
-                    let g = 30.0 + normL * 90.0
-                    let b = 20.0 + normL * 68.0
-
-                    let idx = (y * outSize + x) * 4
-                    outPixels[idx]     = UInt8(max(0, min(255, Int(r.rounded()))))
-                    outPixels[idx + 1] = UInt8(max(0, min(255, Int(g.rounded()))))
-                    outPixels[idx + 2] = UInt8(max(0, min(255, Int(b.rounded()))))
-                    outPixels[idx + 3] = 255
-                }
+        func sampleEnvPix(_ x: Double, _ y: Double) -> (Double, Double, Double) {
+            let cx = max(0.0, min(Double(envW - 2), x))
+            let cy = max(0.0, min(Double(envH - 2), y))
+            let x0 = Int(cx), y0 = Int(cy)
+            let fx = cx - Double(x0), fy = cy - Double(y0)
+            func pix(_ ix: Int, _ iy: Int) -> (Double, Double, Double) {
+                let p = iy * envBPR + ix * envBPP
+                return (Double(envPtr[p]), Double(envPtr[p + 1]), Double(envPtr[p + 2]))
             }
-        } else {
-            // Fallback direct extraction from HumaEnvironment photographic soil region
-            let sx0 = 180.0, sxW = min(640.0, Double(max(1, srcW - 200)))
-            let sy0 = min(720.0, Double(max(0, srcH - 620))), syH = min(580.0, Double(max(1, srcH - Int(sy0) - 1)))
-            let period = 480
-            let patchOverlap = 120
+            let c00 = pix(x0, y0), c10 = pix(x0 + 1, y0)
+            let c01 = pix(x0, y0 + 1), c11 = pix(x0 + 1, y0 + 1)
+            return (
+                (1 - fx) * (1 - fy) * c00.0 + fx * (1 - fy) * c10.0 + (1 - fx) * fy * c01.0 + fx * fy * c11.0,
+                (1 - fx) * (1 - fy) * c00.1 + fx * (1 - fy) * c10.1 + (1 - fx) * fy * c01.1 + fx * fy * c11.1,
+                (1 - fx) * (1 - fy) * c00.2 + fx * (1 - fy) * c10.2 + (1 - fx) * fy * c01.2 + fx * fy * c11.2
+            )
+        }
 
-            for y in 0..<outSize {
-                let ty = Int((Double(y) / Double(outSize)) * Double(period)) % period
-                let wy = ty < patchOverlap ? (0.5 - 0.5 * cos(.pi * Double(ty) / Double(patchOverlap))) : 1.0
-                let vA = Double(ty) / Double(period)
-                let vB = Double(ty + (period - patchOverlap)) / Double(period)
-                let yA = sy0 + vA * syH
-                let yB = sy0 + vB * syH
+        let sx0 = 180.0, sxW = min(640.0, Double(max(1, envW - 200)))
+        let sy0 = min(700.0, Double(max(0, envH - 640))), syH = min(460.0, Double(max(1, envH - Int(sy0) - 1)))
+        let period = 480
+        let patchOverlap = 120
 
-                for x in 0..<outSize {
-                    let tx = Int((Double(x) / Double(outSize)) * Double(period)) % period
-                    let wx = tx < patchOverlap ? (0.5 - 0.5 * cos(.pi * Double(tx) / Double(patchOverlap))) : 1.0
-                    let uA = Double(tx) / Double(period)
-                    let uB = Double(tx + (period - patchOverlap)) / Double(period)
-                    let xA = sx0 + uA * sxW
-                    let xB = sx0 + uB * sxW
+        for y in 0..<outSize {
+            let ty = Int((Double(y) / Double(outSize)) * Double(period)) % period
+            let wy = ty < patchOverlap ? (0.5 - 0.5 * cos(.pi * Double(ty) / Double(patchOverlap))) : 1.0
+            let vA = Double(ty) / Double(period)
+            let vB = Double(ty + (period - patchOverlap)) / Double(period)
+            let yA = sy0 + vA * syH
+            let yB = sy0 + vB * syH
 
-                    let c00 = samplePix(xA, yA)
-                    let c10 = samplePix(xB, yA)
-                    let c01 = samplePix(xA, yB)
-                    let c11 = samplePix(xB, yB)
+            for x in 0..<outSize {
+                let tx = Int((Double(x) / Double(outSize)) * Double(period)) % period
+                let wx = tx < patchOverlap ? (0.5 - 0.5 * cos(.pi * Double(tx) / Double(patchOverlap))) : 1.0
+                let uA = Double(tx) / Double(period)
+                let uB = Double(tx + (period - patchOverlap)) / Double(period)
+                let xA = sx0 + uA * sxW
+                let xB = sx0 + uB * sxW
 
-                    let r = wx * wy * c00.0 + (1.0 - wx) * wy * c10.0 + wx * (1.0 - wy) * c01.0 + (1.0 - wx) * (1.0 - wy) * c11.0
-                    let g = wx * wy * c00.1 + (1.0 - wx) * wy * c10.1 + wx * (1.0 - wy) * c01.1 + (1.0 - wx) * (1.0 - wy) * c11.1
-                    let b = wx * wy * c00.2 + (1.0 - wx) * wy * c10.2 + wx * (1.0 - wy) * c01.2 + (1.0 - wx) * (1.0 - wy) * c11.2
+                let c00 = sampleEnvPix(xA, yA)
+                let c10 = sampleEnvPix(xB, yA)
+                let c01 = sampleEnvPix(xA, yB)
+                let c11 = sampleEnvPix(xB, yB)
 
-                    let idx = (y * outSize + x) * 4
-                    outPixels[idx]     = UInt8(max(0, min(255, Int(r.rounded()))))
-                    outPixels[idx + 1] = UInt8(max(0, min(255, Int(g.rounded()))))
-                    outPixels[idx + 2] = UInt8(max(0, min(255, Int(b.rounded()))))
-                    outPixels[idx + 3] = 255
-                }
+                let r = wx * wy * c00.0 + (1.0 - wx) * wy * c10.0 + wx * (1.0 - wy) * c01.0 + (1.0 - wx) * (1.0 - wy) * c11.0
+                let g = wx * wy * c00.1 + (1.0 - wx) * wy * c10.1 + wx * (1.0 - wy) * c01.1 + (1.0 - wx) * (1.0 - wy) * c11.1
+                let b = wx * wy * c00.2 + (1.0 - wx) * wy * c10.2 + wx * (1.0 - wy) * c01.2 + (1.0 - wx) * (1.0 - wy) * c11.2
+
+                let idx = (y * outSize + x) * 4
+                outPixels[idx]     = UInt8(max(0, min(255, Int(r.rounded()))))
+                outPixels[idx + 1] = UInt8(max(0, min(255, Int(g.rounded()))))
+                outPixels[idx + 2] = UInt8(max(0, min(255, Int(b.rounded()))))
+                outPixels[idx + 3] = 255
             }
         }
 
@@ -1019,6 +1005,7 @@ struct NgahumaMaterials {
         let material = SCNMaterial()
         material.lightingModel = .constant
         material.diffuse.contents = texture
+        material.multiply.contents = UIColor(red: 1.48, green: 1.45, blue: 1.38, alpha: 1)
         material.isDoubleSided = true
         material.writesToDepthBuffer = !transparent
         material.readsFromDepthBuffer = true
@@ -1079,6 +1066,7 @@ struct NgahumaMaterials {
         let material = SCNMaterial()
         material.lightingModel = .constant
         material.diffuse.contents = texture
+        material.multiply.contents = UIColor(red: 1.48, green: 1.45, blue: 1.38, alpha: 1)
         material.isDoubleSided = true
         material.writesToDepthBuffer = false
         material.readsFromDepthBuffer = false
@@ -1137,23 +1125,25 @@ struct NgahumaMaterials {
 
         let material = SCNMaterial()
         material.name = "humaSoil"
-        // Lambertian lighting lets the warm 3D directional sun illuminate the soil with rich highlights
-        // and organic shadow depth, matching HomeView
-        material.lightingModel = .lambert
+        // Unlit photographic soil matching HomeView (SceneKitCropView line 350 & CinematicAtmosphereView)
+        material.lightingModel = .constant
         material.diffuse.contents = texture
         material.diffuse.wrapS = .repeat
         material.diffuse.wrapT = .repeat
-        material.ambient.contents = UIColor(red: 0.56, green: 0.48, blue: 0.40, alpha: 1)
         material.roughness.contents = 0.94
         material.multiply.contents = UIColor.white
         material.isDoubleSided = false
         material.transparencyMode = .aOne
         material.writesToDepthBuffer = true
-        // Circular soft feather: perfectly rounds the terrain and smoothly blends the edge into the horizon
+        // Circular soft feather + HomeView's foreground earth depth gradient & HDR exposure compensation
         material.shaderModifiers = [.fragment: """
         #pragma transparent
         #pragma body
         float r = length(_surface.position.xz);
+        float depthT = 1.0 - smoothstep(0.5, 4.8, r);
+        float3 hdrComp = float3(1.48, 1.45, 1.38);
+        float3 earthDepth = mix(float3(1.0, 0.98, 0.95), float3(0.54, 0.44, 0.36), depthT * 0.55);
+        _output.color.rgb *= hdrComp * earthDepth;
         float edgeFade = 1.0 - smoothstep(10.8, 12.2, r);
         _output.color.a *= edgeFade;
         if (_output.color.a < 0.02) {

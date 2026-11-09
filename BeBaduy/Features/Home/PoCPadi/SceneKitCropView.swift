@@ -554,8 +554,8 @@ struct SceneKitCropView: UIViewRepresentable {
             float dy = (uv.y - 0.5) * 2.0;
             float r = sqrt(dx * dx + dy * dy);
             // Ultra-soft quadratic bell-curve falloff for natural diffuse blur
-            float blur = exp(-4.0 * r * r) * (1.0 - smoothstep(0.65, 1.0, r));
-            _output.color.a *= blur * 0.15;
+            float blur = max(0.0, 1.0 - r);
+            _output.color.a *= blur * blur * 0.25;
             """]
             let shadowGeo = SCNPlane(width: CGFloat(0.26 * scale), height: CGFloat(0.34 * scale))
             shadowGeo.materials = [shadowMat]
@@ -1727,11 +1727,6 @@ struct SceneKitCropView: UIViewRepresentable {
             moonLight.intensity = 55 * moonStrength
             sunKeyLight.castsShadow = sunStrength > 0
             moonLight.castsShadow = moonStrength > 0
-            // Soften the opening forest shadows, then restore the later
-            // stages' shadow treatment as Nukuh finishes.
-            let nukuhShadowBlend = CGFloat(smoothstep(0.20, 0.33, Float(progress)))
-            sunKeyLight.shadowColor = UIColor(white: 0.02, alpha: 0.30 + 0.40 * nukuhShadowBlend)
-            sunKeyLight.shadowRadius = 8 - 5.5 * nukuhShadowBlend
             sunKeyLight.color = blendColor(
                 UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1),
                 UIColor(red: 1.0, green: 0.65, blue: 0.40, alpha: 1),
