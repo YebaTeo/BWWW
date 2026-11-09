@@ -15,10 +15,7 @@ struct CinematicAtmosphereView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var orbitPhase: Double {
-        let t = min(1, max(0, (progress - 0.666) / (0.75 - 0.666)))
-        // Ten half-orbits make five complete day/night cycles and return to
-        // the same morning light at the Dibuat endpoint.
-        return Double(t) * .pi * 10
+        HomeCelestialCycle.phase(progress: progress)
     }
 
     private var daylight: CGFloat {

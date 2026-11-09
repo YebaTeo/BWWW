@@ -115,6 +115,8 @@ struct SceneKitCropView: UIViewRepresentable {
         private let warmFillLight = SCNLight()
         private let sunsetRimLight = SCNLight()
         private let moonLight = SCNLight()
+        private let sunOrbitNode = SCNNode()
+        private let moonOrbitNode = SCNNode()
         private let animationEpoch = CACurrentMediaTime()
 
         // ── Ember / seed nodes ───────────────────────────────────────────────
@@ -260,7 +262,7 @@ struct SceneKitCropView: UIViewRepresentable {
             moonLight.shadowRadius = 5
             moonLight.shadowBias = 0.003
             moonLight.shadowColor = UIColor(white: 0, alpha: 0.65)
-            let moonNode = SCNNode()
+            let moonNode = moonOrbitNode
             moonNode.light = moonLight
             moonNode.position = SCNVector3(2.5, 3, 1.5)
             moonNode.look(at: SCNVector3(0, 0.1, 0))
@@ -278,7 +280,7 @@ struct SceneKitCropView: UIViewRepresentable {
             sun.shadowBias = 0.003
             sun.shadowMapSize = CGSize(width: 1024, height: 1024)
             sun.shadowColor   = UIColor(white: 0.05, alpha: 0.30)
-            let sunNode       = SCNNode()
+            let sunNode       = sunOrbitNode
             sunNode.light     = sun
             sunNode.position  = SCNVector3(2.6, 3.2, -2.4)
             sunNode.look(at: SCNVector3(0, 0.1, 0))
@@ -305,17 +307,18 @@ struct SceneKitCropView: UIViewRepresentable {
             rimNode.position  = SCNVector3(0.65, 0.72, -0.65)
             scene.rootNode.addChildNode(rimNode)
 
-            // Soft, warm fill reaches every plant category: trees, weeds,
-            // and rice. Keep it broad and low so it blends with the sunset.
+            // Broad reflected fill on the viewer-facing trunk and crown.
+            // Its energy follows the celestial lights without a second shadow.
             let fill = warmFillLight
             fill.type = .omni
-            fill.color = UIColor(red: 1.0, green: 0.79, blue: 0.57, alpha: 1)
-            fill.intensity = 58
-            fill.attenuationStartDistance = 0.5
-            fill.attenuationEndDistance = 3.5
+            fill.color = UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1)
+            fill.intensity = 0
+            fill.castsShadow = false
+            fill.attenuationStartDistance = 1.5
+            fill.attenuationEndDistance = 5
             let fillNode = SCNNode()
             fillNode.light = fill
-            fillNode.position = SCNVector3(0.45, 0.75, -0.35)
+            fillNode.position = SCNVector3(0, 0.70, 1.1)
             scene.rootNode.addChildNode(fillNode)
 
         }
@@ -418,20 +421,6 @@ struct SceneKitCropView: UIViewRepresentable {
 
         private func addTexturedTree(index: Int, x: Float, z: Float,
                                      yaw: Float, scale: Float) {
-            let texture = UIImage(named: "HumaTreeNatural") ?? UIImage(named: "HumaTree")
-            let material = SCNMaterial()
-            // The tree atlas already carries painted sunset shading. Preserve
-            // its colors and let the shared scene lighting shade the 3D trunk,
-            // grass, and rice together.
-            material.lightingModel = .constant
-            material.diffuse.contents = texture
-            material.multiply.contents = UIColor.white
-            material.isDoubleSided = true
-            material.transparencyMode = .aOne
-            material.writesToDepthBuffer = false
-            material.readsFromDepthBuffer = true
-            smoothTextureSampling(material.diffuse)
-
             let pivot = SCNNode()
             pivot.name = "treeCutPivot_\(index)"
             let cutHeight: Float = 0.075 // six of forty mesh rows; bottom 15% stays rooted
@@ -522,6 +511,7 @@ struct SceneKitCropView: UIViewRepresentable {
             let rootMaterial = SCNMaterial()
             rootMaterial.lightingModel = .constant
             rootMaterial.diffuse.contents = Self.rootFlareTexture
+            rootMaterial.multiply.contents = UIColor(red: 1.48, green: 1.45, blue: 1.38, alpha: 1)
             rootMaterial.isDoubleSided = true
             rootMaterial.transparencyMode = .aOne
             rootMaterial.writesToDepthBuffer = false
@@ -662,6 +652,7 @@ struct SceneKitCropView: UIViewRepresentable {
             let front = SCNMaterial()
             front.lightingModel = .constant
             front.diffuse.contents = image
+            front.multiply.contents = UIColor(red: 1.48, green: 1.45, blue: 1.38, alpha: 1)
             front.isDoubleSided = true
             front.transparencyMode = .aOne
             front.writesToDepthBuffer = true
@@ -714,7 +705,7 @@ struct SceneKitCropView: UIViewRepresentable {
             smoothTextureSampling(front.diffuse)
             let body = front.copy() as! SCNMaterial
             body.lightingModel = .constant
-            body.multiply.contents = UIColor(white: 0.83, alpha: 1)
+            body.multiply.contents = UIColor(red: 1.15, green: 1.12, blue: 1.05, alpha: 1)
             body.isDoubleSided = true
             body.setValue(Float(0), forKey: "treeCrownBlend")
             let geometry = SCNGeometry(sources: [.init(vertices: vertices), .init(normals: normals),
@@ -845,10 +836,10 @@ struct SceneKitCropView: UIViewRepresentable {
 
         private func stumpMaterial(index: Int) -> SCNMaterial {
             let material = SCNMaterial()
-            material.lightingModel = .lambert
+            material.lightingModel = .constant
             material.diffuse.contents = UIImage(named: "HumaWoodTexture")
                 ?? UIColor(red: 0.32, green: 0.20, blue: 0.12, alpha: 1)
-            material.multiply.contents = UIColor(red: 0.78, green: 0.62, blue: 0.46, alpha: 1)
+            material.multiply.contents = UIColor(red: 1.25, green: 1.10, blue: 0.95, alpha: 1)
             material.roughness.contents = 1.0
             smoothTextureSampling(material.diffuse)
             return material
@@ -1544,21 +1535,43 @@ struct SceneKitCropView: UIViewRepresentable {
         /// Mirrors the background's five complete day/night cycles
         /// while the preview moves from Ngored to Dibuat.
         private func updateHarvestLighting(progress: CGFloat) {
-            let t = min(1, max(0, (progress - 0.666) / (0.75 - 0.666)))
-            let night = CGFloat((1 - cos(Double(t) * .pi * 10)) / 2)
-            sunKeyLight.intensity = 155 * (1 - night)
-            moonLight.intensity = 110 * night
+            let phase = HomeCelestialCycle.phase(progress: progress)
+            let altitude = cos(phase)
+            let night = CGFloat((1 - altitude) / 2)
+            let sunStrength = CGFloat(min(1, max(0, altitude * 5)))
+            let moonStrength = CGFloat(min(1, max(0, -altitude * 5)))
+            sunOrbitNode.position = SCNVector3(Float(sin(phase) * 4),
+                                              Float(altitude * 3) + soilY, -2.4)
+            moonOrbitNode.position = SCNVector3(Float(-sin(phase) * 4),
+                                               Float(-altitude * 3) + soilY, -2.4)
+            sunOrbitNode.look(at: SCNVector3(0, soilY, 0))
+            moonOrbitNode.look(at: SCNVector3(0, soilY, 0))
+            sunKeyLight.intensity = 155 * sunStrength
+            moonLight.intensity = 55 * moonStrength
+            sunKeyLight.castsShadow = sunStrength > 0
+            moonLight.castsShadow = moonStrength > 0
             sunKeyLight.color = blendColor(
                 UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1),
-                UIColor(red: 0.36, green: 0.48, blue: 0.78, alpha: 1), amount: night
+                UIColor(red: 1.0, green: 0.65, blue: 0.40, alpha: 1),
+                amount: CGFloat(1 - max(0, altitude))
             )
-            skyAmbientLight.intensity = 230 - 208 * night
+            skyAmbientLight.intensity = 65 - 53 * night
             skyAmbientLight.color = blendColor(
                 UIColor(red: 0.88, green: 0.82, blue: 0.70, alpha: 1),
                 UIColor(red: 0.32, green: 0.40, blue: 0.62, alpha: 1), amount: night
             )
-            sunsetRimLight.intensity = 18 * (1 - night)
-            warmFillLight.intensity = 58 * (1 - night)
+            sunsetRimLight.intensity = 0
+            let stage5Progress = CGFloat(smoothstep(0.74, 0.85, Float(progress)))
+            // Reduce front bounce light significantly in Stage 5 (Leuit) so the bamboo rack
+            // and hanging rice sheaves have rich contrast and are not washed out by harsh bounce fill.
+            let bounceMultiplier: CGFloat = 1.0 - 0.80 * stage5Progress
+            warmFillLight.intensity = (sunKeyLight.intensity * bounceMultiplier)
+                + moonLight.intensity * 0.80 * (1.0 - 0.5 * stage5Progress)
+            warmFillLight.color = blendColor(
+                UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1),
+                UIColor(red: 0.62, green: 0.72, blue: 0.90, alpha: 1),
+                amount: night
+            )
         }
 
         private func blendColor(_ day: UIColor, _ night: UIColor, amount: CGFloat) -> UIColor {
@@ -1814,7 +1827,7 @@ struct SceneKitCropView: UIViewRepresentable {
             let root = SCNNode()
             let wood = SCNMaterial()
             wood.lightingModel = .constant
-            wood.diffuse.contents = UIColor(red: 0.59, green: 0.40, blue: 0.22, alpha: 1)
+            wood.diffuse.contents = UIColor(red: 0.88, green: 0.68, blue: 0.45, alpha: 1)
             wood.isDoubleSided = true
             let count = 13
             var vertices = [SCNVector3(0, 0.001, 0)]
