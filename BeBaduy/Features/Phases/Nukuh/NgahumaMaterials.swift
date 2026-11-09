@@ -791,8 +791,6 @@ struct NgahumaMaterials {
         }
     }
 
-    /// Generates an organic, S-curved multi-tongue flame wisp sprite so fire particles
-    /// look like licking tongues of fire rather than circular dots.
     static func makeFireSparks(sprite: UIImage, scale: CGFloat) -> SCNParticleSystem {
         let sparks = SCNParticleSystem()
         sparks.birthRate = 0

@@ -48,6 +48,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private let fireGlowNode = SCNNode()
 
     private var groundMaterial: SCNMaterial?
+    private var skyDomeMaterial: SCNMaterial?
+    private var mountainLayerMaterial: SCNMaterial?
+    private var horizonLayerMaterial: SCNMaterial?
+    private var sunDiskMaterial: SCNMaterial?
+    private var sunHaloMaterial: SCNMaterial?
+    private var atmosphereMoteMaterial: SCNMaterial?
 
     private final class Blade {
         let pivot: SCNNode
@@ -87,7 +93,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var flameSystems: [SCNParticleSystem] = []
     private var sparkSystems: [SCNParticleSystem] = []
     private var smokeSystems: [SCNParticleSystem] = []
-    private var emberNodes: [(node: SCNNode, baseX: Float, baseZ: Float, phase: Float, patchIndex: Int)] = []
     private var atmosphereMotes: [(node: SCNNode, baseX: Float, baseZ: Float, minY: Float, maxY: Float, speed: Float, phase: Float)] = []
     private var ashNodes: [SCNNode] = []
 
@@ -281,7 +286,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         flameSystems.removeAll()
         sparkSystems.removeAll()
         smokeSystems.removeAll()
-        emberNodes.removeAll()
         atmosphereMotes.removeAll()
         ashNodes.removeAll()
 
@@ -311,6 +315,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // ── Layer 1 (Outermost Back): 360° Sky Layer ("layer langit") ─────────
         skyLayerRoot.name = "spatialSkyLayer"
         let skyGeometry = NgahumaMaterials.makeSkyDome(radius: 24.0, texture: materials.skyTexture)
+        skyDomeMaterial = skyGeometry.firstMaterial
         let skyNode = SCNNode(geometry: skyGeometry)
         skyNode.position = SCNVector3(0, 0.52, 0)
         skyNode.renderingOrder = -30
@@ -336,6 +341,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunMaterial.readsFromDepthBuffer = false
         sunMaterial.isDoubleSided = true
         sunPlane.materials = [sunMaterial]
+        sunDiskMaterial = sunMaterial
         let sunDiskNode = SCNNode(geometry: sunPlane)
         sunDiskNode.name = "homeSunDisk"
         let sunBillboard = SCNBillboardConstraint()
@@ -356,6 +362,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         haloMaterial.readsFromDepthBuffer = false
         haloMaterial.isDoubleSided = true
         haloPlane.materials = [haloMaterial]
+        sunHaloMaterial = haloMaterial
         let haloNode = SCNNode(geometry: haloPlane)
         haloNode.name = "homeSunSkyGlow"
         let billboard = SCNBillboardConstraint()
@@ -425,6 +432,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             texture: materials.mountainTexture,
             transparent: true
         )
+        mountainLayerMaterial = mountainGeometry.firstMaterial
         let mountainNode = SCNNode(geometry: mountainGeometry)
         mountainNode.renderingOrder = -20
         mountainNode.castsShadow = false
@@ -440,6 +448,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             texture: materials.horizonGrassTexture,
             transparent: true
         )
+        horizonLayerMaterial = horizonGeometry.firstMaterial
         let horizonNode = SCNNode(geometry: horizonGeometry)
         horizonNode.renderingOrder = -10
         horizonNode.castsShadow = false
@@ -939,6 +948,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         moteMaterial.writesToDepthBuffer = false
         moteMaterial.readsFromDepthBuffer = true
         moteMaterial.isDoubleSided = true
+        atmosphereMoteMaterial = moteMaterial
 
         let billboard = SCNBillboardConstraint()
         billboard.freeAxes = .all
@@ -981,7 +991,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    // MARK: - HomeView Fire, Embers & Ash Clods
+    // MARK: - HomeView Fire & Ash Particle Systems (Scaled for 360° Nukuh AR)
 
     private func buildFireAndAsh(using materials: NgahumaMaterials) {
         fireRoot.name = "fire"
@@ -992,50 +1002,74 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         fireLight.type = .omni
         fireLight.color = UIColor(red: 1.0, green: 0.48, blue: 0.12, alpha: 1)
         fireLight.intensity = 0
-        fireLight.attenuationStartDistance = 0.2
-        fireLight.attenuationEndDistance = 5.5
+        fireLight.attenuationStartDistance = 0.4
+        fireLight.attenuationEndDistance = 7.0
         fireGlowNode.light = fireLight
-        fireGlowNode.position = SCNVector3(0, soilY + 0.32, -1.7)
+        fireGlowNode.position = SCNVector3(0, soilY + 0.35, -1.7)
         fireRoot.addChildNode(fireGlowNode)
 
         for (patchIndex, patchPos) in patchPositions.enumerated() {
-            // 1. Primary stump & root-collar fire emitter
-            let stumpEmitter = SCNNode()
-            stumpEmitter.position = SCNVector3(patchPos.x, soilY + 0.04, patchPos.z)
-            let stumpFlames = makeFlames(sprite: materials.flameTongueSprite)
-            let stumpSmoke = makeSmoke(sprite: materials.particleSprite)
-            stumpEmitter.addParticleSystem(stumpFlames)
-            stumpEmitter.addParticleSystem(stumpSmoke)
-            fireRoot.addChildNode(stumpEmitter)
-            flameSystems.append(stumpFlames)
-            let stumpSparks = NgahumaMaterials.makeFireSparks(sprite: materials.particleSprite, scale: 1)
-            stumpEmitter.addParticleSystem(stumpSparks)
-            sparkSystems.append(stumpSparks)
-            smokeSystems.append(stumpSmoke)
-
-            // 2. Surrounding wild-grass bed fire emitters so the undergrowth catches fire too
             let patchAngle = atan2(patchPos.x, -patchPos.z)
-            for g in 0..<2 {
-                let grassFireAngle = patchAngle + (g == 0 ? -0.24 : 0.26)
-                let grassFireRadius: Float = g == 0 ? 1.38 : 1.68
-                let gx = sin(grassFireAngle) * grassFireRadius
-                let gz = -cos(grassFireAngle) * grassFireRadius
 
-                let grassEmitter = SCNNode()
-                grassEmitter.position = SCNVector3(gx, soilY + 0.03, gz)
-                let grassFlames = makeFlames(sprite: materials.flameTongueSprite)
-                let grassSmoke = makeSmoke(sprite: materials.particleSprite)
-                grassEmitter.addParticleSystem(grassFlames)
-                grassEmitter.addParticleSystem(grassSmoke)
-                fireRoot.addChildNode(grassEmitter)
-                flameSystems.append(grassFlames)
-                let sparks = NgahumaMaterials.makeFireSparks(sprite: materials.particleSprite, scale: 1)
-                grassEmitter.addParticleSystem(sparks)
-                sparkSystems.append(sparks)
-                smokeSystems.append(grassSmoke)
+            // 1. Four 3D perimeter flame emitters encircling the OUTSIDE of the trunk bark (radius 0.18m)
+            let perimeterOffsets: [(x: Float, z: Float)] = [
+                ( 0.18,  0.00), // East
+                (-0.18,  0.00), // West
+                ( 0.00,  0.18), // North
+                ( 0.00, -0.18)  // South
+            ]
+            for (pIdx, offset) in perimeterOffsets.enumerated() {
+                let pNode = SCNNode()
+                pNode.name = "flamePerimeter_\(patchIndex)_\(pIdx)"
+                pNode.position = SCNVector3(patchPos.x + offset.x, soilY + 0.03, patchPos.z + offset.z)
+                pNode.renderingOrder = 25
+                let flames = makeFlames(sprite: materials.flameTongueSprite)
+                pNode.addParticleSystem(flames)
+                fireRoot.addChildNode(pNode)
+                flameSystems.append(flames)
             }
 
-            // 4. HomeView-matched dark ash clods left behind across burned stumps & grass
+            // 2. Stump top fracture flame emitter (bursting up from the cut wood cross-section)
+            let fractureNode = SCNNode()
+            fractureNode.name = "flameFracture_\(patchIndex)"
+            fractureNode.position = SCNVector3(patchPos.x, soilY + 0.195, patchPos.z)
+            fractureNode.renderingOrder = 26
+            let fractureFlames = makeFlames(sprite: materials.flameTongueSprite)
+            fractureFlames.emitterShape = SCNBox(width: 0.10, height: 0.01, length: 0.10, chamferRadius: 0)
+            fractureNode.addParticleSystem(fractureFlames)
+            fireRoot.addChildNode(fractureNode)
+            flameSystems.append(fractureFlames)
+
+            // 3. Surrounding ground brushfire emitters (radiating in the grass around the tree)
+            let groundOffsets: [(x: Float, z: Float)] = [
+                ( sin(patchAngle + 0.75) * 0.36, -cos(patchAngle + 0.75) * 0.36),
+                ( sin(patchAngle - 0.85) * 0.48, -cos(patchAngle - 0.85) * 0.48)
+            ]
+            for (gIdx, gOffset) in groundOffsets.enumerated() {
+                let gNode = SCNNode()
+                gNode.name = "flameGround_\(patchIndex)_\(gIdx)"
+                gNode.position = SCNVector3(patchPos.x + gOffset.x, soilY + 0.02, patchPos.z + gOffset.z)
+                gNode.renderingOrder = 24
+                let gFlames = makeFlames(sprite: materials.flameTongueSprite)
+                gFlames.emitterShape = SCNBox(width: 0.20, height: 0.01, length: 0.20, chamferRadius: 0)
+                gNode.addParticleSystem(gFlames)
+                fireRoot.addChildNode(gNode)
+                flameSystems.append(gFlames)
+            }
+
+            // 4. Upward swirling sparks and thermal smoke plume
+            let atmosphereNode = SCNNode()
+            atmosphereNode.position = SCNVector3(patchPos.x, soilY + 0.08, patchPos.z)
+            let sparks = NgahumaMaterials.makeFireSparks(sprite: materials.particleSprite, scale: 1.15)
+            sparks.emitterShape = SCNBox(width: 0.36, height: 0.02, length: 0.36, chamferRadius: 0)
+            let smoke = makeSmoke(sprite: materials.particleSprite)
+            atmosphereNode.addParticleSystem(sparks)
+            atmosphereNode.addParticleSystem(smoke)
+            fireRoot.addChildNode(atmosphereNode)
+            sparkSystems.append(sparks)
+            smokeSystems.append(smoke)
+
+            // 5. HomeView dark ash clods left behind across burned stumps & grass
             for c in 0..<5 {
                 let cAngle = Float(patchIndex * 5 + c) * 1.047
                 let dist: Float = 0.08 + Float(c % 3) * 0.16
@@ -1199,15 +1233,21 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
 
         // 1b. Update 3D floating golden dust motes in world space
+        //     (During burning, motes transform into fast-rising fiery cinders)
         let moteTime = reduceMotion ? Float(0) : windTime
+        let burnCinderBoost: Float = stage == .burning
+            ? smoothstep(0.0, 2.0, Float(elapsed)) * (1.0 - smoothstep(13.5, 17.5, Float(elapsed)))
+            : 0.0
         for mote in atmosphereMotes {
-            let rawCycle = (moteTime * mote.speed + mote.phase).truncatingRemainder(dividingBy: 1.0)
+            let effectiveSpeed = mote.speed * (1.0 + burnCinderBoost * 2.5)
+            let rawCycle = (moteTime * effectiveSpeed + mote.phase).truncatingRemainder(dividingBy: 1.0)
             let cycle = rawCycle < 0 ? rawCycle + 1.0 : rawCycle
             let y = mote.minY + (mote.maxY - mote.minY) * cycle
-            let swayX = sin(moteTime * 0.8 + mote.phase * 6.283) * 0.065
-            let swayZ = cos(moteTime * 0.65 + mote.phase * 6.283) * 0.065
+            let swayAmp: Float = 0.065 + burnCinderBoost * 0.085
+            let swayX = sin(moteTime * (0.8 + burnCinderBoost * 1.6) + mote.phase * 6.283) * swayAmp
+            let swayZ = cos(moteTime * (0.65 + burnCinderBoost * 1.3) + mote.phase * 6.283) * swayAmp
             mote.node.position = SCNVector3(mote.baseX + swayX, y, mote.baseZ + swayZ)
-            mote.node.opacity = CGFloat(sin(cycle * .pi) * 0.72)
+            mote.node.opacity = CGFloat(sin(cycle * .pi) * (0.72 + burnCinderBoost * 0.26))
         }
 
         // 2. Update burning choreography
@@ -1220,14 +1260,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         elapsed += min(delta, 0.1)
         progress = min(elapsed / 18.0, 1.0)
 
+        let flicker = 0.90 + 0.06 * sin(windTime * 4.1) + 0.04 * sin(windTime * 7.3)
+
         let activePatch = min(5, max(0, Int(elapsed / 0.85)))
         if patchPositions.indices.contains(activePatch) {
             let pos = patchPositions[activePatch]
-            fireGlowNode.position = SCNVector3(pos.x, soilY + 0.35, pos.z)
+            fireGlowNode.position = SCNVector3(pos.x, soilY + 0.40, pos.z)
         }
 
-        let flicker = 0.90 + 0.06 * sin(windTime * 8.2) + 0.04 * sin(windTime * 14.5)
-        var overallFireIntensity = Float(min(1.0, elapsed / 1.5)) * flicker * 180.0
+        var overallFireIntensity = Float(min(1.0, elapsed / 1.5)) * flicker * 32.0
         if elapsed > 14.0 {
             overallFireIntensity *= Float(max(0.0, (17.5 - elapsed) / 3.5))
         }
@@ -1235,34 +1276,37 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         for index in 0..<6 {
             let localTime = elapsed - Double(index) * 0.85
-            let isBurningPatch = localTime > 0 && localTime < 7.5
-            let isSmokingPatch = localTime > 0 && localTime < 11.0
+            let isBurningPatch = localTime > 0 && localTime < 8.2
+            let isSmokingPatch = localTime > 0 && localTime < 11.8
 
-            // Each patch owns 3 emitters (1 stump + 2 surrounding wild-grass emitters)
-            let baseEmitterIdx = index * 3
-            for sub in 0..<3 {
+            // Each patch owns 7 3D flame emitters (4 perimeter base + 1 fracture top + 2 ground brush)
+            let baseEmitterIdx = index * 7
+            for sub in 0..<7 {
                 let sysIdx = baseEmitterIdx + sub
-                let subDelay = Double(sub) * 0.25
-                let subBurn = (localTime - subDelay) > 0 && (localTime - subDelay) < 7.5
-                let subSmoke = (localTime - subDelay) > 0 && (localTime - subDelay) < 11.0
+                let subDelay = Double(sub % 4) * 0.12
+                let subBurn = (localTime - subDelay) > 0 && (localTime - subDelay) < 8.2
                 if flameSystems.indices.contains(sysIdx) {
-                    flameSystems[sysIdx].birthRate = (subBurn && !reduceMotion && isBurningPatch) ? 95 : 0
+                    flameSystems[sysIdx].birthRate = (subBurn && !reduceMotion && isBurningPatch) ? 46 : 0
                 }
-                if sparkSystems.indices.contains(sysIdx) {
-                    sparkSystems[sysIdx].birthRate = (subBurn && !reduceMotion && isBurningPatch) ? 3 : 0
-                }
-                if smokeSystems.indices.contains(sysIdx) {
-                    smokeSystems[sysIdx].birthRate = (subSmoke && !reduceMotion && isSmokingPatch) ? 7 : 0
-                }
+            }
+            if sparkSystems.indices.contains(index) {
+                sparkSystems[index].birthRate = (!reduceMotion && isBurningPatch) ? 16 : 0
+            }
+            if smokeSystems.indices.contains(index) {
+                smokeSystems[index].birthRate = (!reduceMotion && isSmokingPatch) ? 8 : 0
             }
 
             if localTime > 0 && localTime < 3.5 {
                 let burnFraction = Float(min(1.0, localTime / 3.5))
-                let charShade = CGFloat(1.0 - burnFraction * 0.82)
                 if treeEntries.indices.contains(index) {
                     let rootAnchor = treeEntries[index].rootAnchor
+                    let rTint = CGFloat(1.0 - burnFraction * 0.55)
+                    let gTint = CGFloat(1.0 - burnFraction * 0.78)
+                    let bTint = CGFloat(1.0 - burnFraction * 0.90)
                     rootAnchor.childNodes.forEach { child in
-                        child.geometry?.materials.forEach { $0.multiply.contents = UIColor(white: charShade, alpha: 1) }
+                        child.geometry?.materials.forEach {
+                            $0.multiply.contents = UIColor(red: rTint, green: gTint, blue: bTint, alpha: 1)
+                        }
                     }
                     rootAnchor.opacity = CGFloat(max(0.0, 1.0 - burnFraction * 0.90))
                 }
@@ -1276,18 +1320,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                     treeEntries[index].directionalShadow.opacity = 0
                     treeEntries[index].directionalShadow.isHidden = true
                 }
-            }
-        }
-
-        for ember in emberNodes {
-            let localTime = elapsed - Double(ember.patchIndex) * 0.85
-            let active = localTime > 0 && localTime < 8.0
-            let fireT: Float = active ? Float(min(1.0, localTime / 0.85) * max(0.0, (8.0 - localTime) / 2.5)) : 0
-            ember.node.opacity = CGFloat(fireT)
-            ember.node.isHidden = fireT < 0.01
-            if active, let mat = ember.node.geometry?.firstMaterial {
-                mat.setValue(windTime, forKey: "flameTime")
-                mat.setValue(fireT, forKey: "flameIntensity")
             }
         }
 
@@ -1428,10 +1460,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         flameSystems.forEach { $0.birthRate = 0 }
         sparkSystems.forEach { $0.birthRate = 0 }
         smokeSystems.forEach { $0.birthRate = 0 }
-        emberNodes.forEach {
-            $0.node.opacity = 0
-            $0.node.isHidden = true
-        }
         for entry in treeEntries {
             entry.trunk.opacity = 0
             entry.trunk.isHidden = true
@@ -1865,89 +1893,38 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         return root
     }
 
-    private func makeProceduralFlameSheetMaterial(phase: Float) -> SCNMaterial {
-        let mat = SCNMaterial()
-        mat.lightingModel = .constant
-        mat.blendMode = .alpha
-        mat.writesToDepthBuffer = false
-        mat.readsFromDepthBuffer = true
-        mat.isDoubleSided = true
-        mat.shaderModifiers = [.fragment: """
-        #pragma arguments
-        float flameTime;
-        float flameIntensity;
-        float flamePhase;
-        #pragma transparent
-        #pragma body
-        float2 uv = _surface.diffuseTexcoord;
-        float h = 1.0 - uv.y;
-        float x = (uv.x - 0.5) * 2.0;
-
-        float t = flameTime * 2.6 + flamePhase;
-        float sway = sin(h * 4.8 - t * 1.5 + flamePhase) * (0.20 * h)
-                   + sin(h * 9.6 - t * 2.5 + x * 2.8) * (0.12 * h * h)
-                   + cos(h * 15.5 - t * 3.8 - x * 3.5) * (0.07 * h);
-        float wx = x + sway;
-
-        float mainTongue = abs(wx) / max(0.06, (1.0 - h * 0.85) * (0.58 + 0.28 * sin(h * 3.14159)));
-        float sideL = abs(wx + 0.28 * (1.0 - h * 0.48) + 0.07 * sin(t * 2.2 + h * 6.2)) / max(0.05, max(0.02, 0.74 - h) * 0.42);
-        float sideR = abs(wx - 0.26 * (1.0 - h * 0.45) + 0.07 * cos(t * 2.0 + h * 5.8)) / max(0.05, max(0.02, 0.70 - h) * 0.40);
-        float shape = min(mainTongue, min(sideL, sideR));
-
-        float n1 = sin(wx * 7.0 + sin(h * 8.5 - t * 2.8)) * cos(h * 11.0 - t * 3.3 + wx * 4.2);
-        float n2 = sin(wx * 14.0 - cos(h * 17.0 - t * 4.6)) * 0.5;
-        float turb = (n1 + n2) * (0.24 + 0.50 * h);
-
-        float flameMask = 1.0 - smoothstep(0.22, 0.96, shape + turb + h * 0.26);
-        float baseMask = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(0.70, 0.98, h));
-        float alpha = clamp(flameMask * baseMask * flameIntensity, 0.0, 1.0);
-
-        float core = clamp(1.0 - shape * 0.82 - h * 0.52 + turb * 0.25, 0.0, 1.0);
-        float3 tipColor  = float3(0.72, 0.20, 0.045);
-        float3 midColor  = float3(1.0, 0.52, 0.16);
-        float3 coreColor = float3(1.20, 1.03, 0.70);
-        float3 col = mix(tipColor, midColor, smoothstep(0.0, 0.46, core));
-        col = mix(col, coreColor, smoothstep(0.46, 0.86, core));
-
-        _output.color.rgb = col;
-        _output.color.a = alpha;
-        """]
-        mat.setValue(Float(0), forKey: "flameTime")
-        mat.setValue(Float(0), forKey: "flameIntensity")
-        mat.setValue(phase, forKey: "flamePhase")
-        return mat
-    }
-
     private func makeFlames(sprite: UIImage) -> SCNParticleSystem {
         let system = SCNParticleSystem()
         system.birthRate = 0
-        system.particleLifeSpan = 0.72
-        system.particleLifeSpanVariation = 0.22
-        system.particleSize = 0.15
-        system.particleSizeVariation = 0.05
-        system.particleVelocity = 0.34
+        system.particleLifeSpan = 0.78
+        system.particleLifeSpanVariation = 0.20
+        system.particleSize = 0.25
+        system.particleSizeVariation = 0.07
+        system.particleVelocity = 0.38
         system.particleVelocityVariation = 0.12
         system.emittingDirection = SCNVector3(0, 1, 0)
-        system.spreadingAngle = 20
-        system.particleAngleVariation = 18
-        system.acceleration = SCNVector3(0.03, 0.22, 0)
-        system.emitterShape = SCNBox(width: 0.40, height: 0.015, length: 0.32, chamferRadius: 0)
+        system.spreadingAngle = 22
+        system.particleAngleVariation = 25
+        system.acceleration = SCNVector3(0.018, 0.22, 0)
+        system.emitterShape = SCNBox(width: 0.14, height: 0.015, length: 0.14, chamferRadius: 0)
         system.particleImage = sprite
         system.blendMode = .additive
+        system.orientationMode = .billboardYAligned
         system.isLightingEnabled = false
+        system.writesToDepthBuffer = false
 
         let color = CAKeyframeAnimation()
         color.values = [
-            UIColor(red: 1.0, green: 0.96, blue: 0.68, alpha: 0.95),
-            UIColor(red: 1.0, green: 0.58, blue: 0.08, alpha: 0.85),
-            UIColor(red: 0.88, green: 0.18, blue: 0.02, alpha: 0.55),
-            UIColor(red: 0.38, green: 0.04, blue: 0.0, alpha: 0.0)
+            UIColor(red: 1.0, green: 0.98, blue: 0.80, alpha: 0.98),
+            UIColor(red: 1.0, green: 0.65, blue: 0.10, alpha: 0.90),
+            UIColor(red: 0.90, green: 0.20, blue: 0.03, alpha: 0.65),
+            UIColor(red: 0.40, green: 0.04, blue: 0.0, alpha: 0.0)
         ]
-        color.keyTimes = [0, 0.30, 0.72, 1]
+        color.keyTimes = [0, 0.24, 0.68, 1]
 
         let size = CAKeyframeAnimation()
-        size.values = [0.14, 0.34, 0.21, 0.03]
-        size.keyTimes = [0, 0.28, 0.70, 1]
+        size.values = [0.12, 0.36, 0.24, 0.04]
+        size.keyTimes = [0, 0.25, 0.70, 1]
 
         system.propertyControllers = [
             .color: SCNParticlePropertyController(animation: color),
@@ -1959,31 +1936,33 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func makeSmoke(sprite: UIImage) -> SCNParticleSystem {
         let system = SCNParticleSystem()
         system.birthRate = 0
-        system.particleLifeSpan = 2.0
-        system.particleLifeSpanVariation = 0.4
-        system.particleSize = 0.16
-        system.particleSizeVariation = 0.05
-        system.particleVelocity = 0.28
-        system.particleVelocityVariation = 0.07
-        system.emittingDirection = SCNVector3(0, 1, 0)
-        system.spreadingAngle = 26
-        system.acceleration = SCNVector3(0.04, 0.14, 0)
-        system.emitterShape = SCNSphere(radius: 0.15)
         system.particleImage = sprite
         system.blendMode = .alpha
         system.isLightingEnabled = false
-        let color = CAKeyframeAnimation()
-        color.values = [
-            UIColor(red: 0.38, green: 0.35, blue: 0.30, alpha: 0.20),
-            UIColor(red: 0.48, green: 0.45, blue: 0.40, alpha: 0.10),
-            UIColor(white: 0.68, alpha: 0.0)
+        system.writesToDepthBuffer = false
+        system.particleLifeSpan = 2.4
+        system.particleLifeSpanVariation = 0.5
+        system.particleSize = 0.24
+        system.particleSizeVariation = 0.08
+        system.particleVelocity = 0.16
+        system.particleVelocityVariation = 0.05
+        system.emittingDirection = SCNVector3(0, 1, 0)
+        system.acceleration = SCNVector3(0.025, 0.065, 0)
+        system.spreadingAngle = 24
+        system.particleColor = UIColor(red: 0.38, green: 0.35, blue: 0.30, alpha: 0.18)
+
+        let smokeSize = CAKeyframeAnimation()
+        smokeSize.values = [0.08, 0.28, 0.54]
+        smokeSize.keyTimes = [0, 0.5, 1]
+
+        let smokeFade = CAKeyframeAnimation()
+        smokeFade.values = [0, 0.18, 0.09, 0]
+        smokeFade.keyTimes = [0, 0.15, 0.6, 1]
+
+        system.propertyControllers = [
+            .size: SCNParticlePropertyController(animation: smokeSize),
+            .opacity: SCNParticlePropertyController(animation: smokeFade)
         ]
-        color.keyTimes = [0, 0.5, 1]
-        let expansion = CAKeyframeAnimation()
-        expansion.values = [0.08, 0.22, 0.40]
-        expansion.keyTimes = [0, 0.5, 1]
-        system.propertyControllers = [.color: SCNParticlePropertyController(animation: color),
-                                      .size: SCNParticlePropertyController(animation: expansion)]
         return system
     }
 
