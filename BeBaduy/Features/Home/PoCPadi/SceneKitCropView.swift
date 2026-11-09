@@ -134,6 +134,7 @@ struct SceneKitCropView: UIViewRepresentable {
         // ── Blade / material arrays ──────────────────────────────────────────
         private var blades:        [Blade]       = []
         private var leafMaterials: [SCNMaterial] = []
+        private var panicleMaterials: [SCNMaterial] = []
 
         // ── Ground material (tinted dynamically) ─────────────────────────────
         private var groundMaterial: SCNMaterial?
@@ -1198,18 +1199,16 @@ struct SceneKitCropView: UIViewRepresentable {
 
             for index in 0..<11 {
                 let angle  = Float(index) * 2.3999
-                let mat    = addBlade(
+                let mat    = addRicePanicle(
                     to: paniclesRoot,
                     base: SCNVector3(cos(angle) * 0.025, 0.038, sin(angle) * 0.025),
-                    height: 0.48 + Float(index % 3) * 0.025,
-                    width: 0.012,
+                    height: 0.46 + Float(index % 4) * 0.022,
                     yaw: angle,
                     mass: 0.52,
                     response: 0.48,
-                    tint: UIColor(red: 0.88, green: 0.69, blue: 0.18, alpha: 1),
                     phase: Float(index) * 0.47
                 )
-                mat.multiply.contents = UIColor(red: 0.88, green: 0.69, blue: 0.18, alpha: 1)
+                panicleMaterials.append(mat)
             }
         }
 
@@ -1684,8 +1683,8 @@ struct SceneKitCropView: UIViewRepresentable {
             let transfer = smoothstep(0.75, 0.91, fullP)
             setVisibility(leavesRoot, opacity: riceGrowth * (1 - transfer))
 
-            // ── 8. Panicles – DIBUAT only (p 0.94 → 1.0) ──────────────────
-            let panicleGrowth = smoothstep(0.94, 1.0, p)
+            // ── 8. Panicles – Tumbuh bersamaan dengan tanaman padi (p 0.90 → 0.98)
+            let panicleGrowth = riceGrowth
             paniclesRoot.scale = SCNVector3(panicleGrowth, panicleGrowth, panicleGrowth)
             setVisibility(paniclesRoot, opacity: panicleGrowth * (1 - transfer))
 
@@ -1732,6 +1731,7 @@ struct SceneKitCropView: UIViewRepresentable {
                 blue: CGFloat(mixed.z),
                 alpha: 1)
             leafMaterials.forEach { $0.multiply.contents = tint }
+            panicleMaterials.forEach { $0.multiply.contents = tint }
 
             // ── 10. Bamboo rises; harvested sheaves hang beneath it ───────
             let postRise = smoothstep(0.76, 0.88, fullP)
@@ -1812,11 +1812,11 @@ struct SceneKitCropView: UIViewRepresentable {
             )
             sunsetRimLight.intensity = 0
             let stage5Progress = CGFloat(smoothstep(0.74, 0.85, Float(progress)))
-            // Reduce front bounce light significantly in Stage 5 (Leuit) so the bamboo rack
-            // and hanging rice sheaves have rich contrast and are not washed out by harsh bounce fill.
-            let bounceMultiplier: CGFloat = 1.0 - 0.80 * stage5Progress
+            // Soft front bounce fill: reduced to ~25% of key light so the scene retains
+            // rich depth and contrast without being washed out by harsh bounce light.
+            let bounceMultiplier: CGFloat = 0.25 * (1.0 - 0.60 * stage5Progress)
             warmFillLight.intensity = (sunKeyLight.intensity * bounceMultiplier)
-                + moonLight.intensity * 0.80 * (1.0 - 0.5 * stage5Progress)
+                + moonLight.intensity * 0.20 * (1.0 - 0.5 * stage5Progress)
             warmFillLight.color = blendColor(
                 UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1),
                 UIColor(red: 0.62, green: 0.72, blue: 0.90, alpha: 1),
@@ -1895,6 +1895,179 @@ struct SceneKitCropView: UIViewRepresentable {
             blades.append(blade)
             startBreeze(on: blade)
             return material
+        }
+
+        private func addRicePanicle(
+            to root: SCNNode,
+            base: SCNVector3,
+            height: Float,
+            yaw: Float,
+            mass: CGFloat,
+            response: Float,
+            phase: Float
+        ) -> SCNMaterial {
+            let material = SCNMaterial()
+            material.lightingModel = .physicallyBased
+            material.normal.contents = leafNormal
+            material.normal.intensity = 0.12
+            material.diffuse.contents = UIImage(named: "HumaYoungRice")
+                ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
+            material.multiply.contents = UIColor(red: 0.96, green: 0.82, blue: 0.32, alpha: 1)
+            material.roughness.contents = 0.58
+            material.metalness.contents = 0.02
+            material.isDoubleSided = true
+            material.writesToDepthBuffer = true
+            smoothTextureSampling(material.diffuse)
+
+            let geometry = makeRicePanicleGeometry(
+                height: height,
+                droopArch: height * 0.32,
+                material: material
+            )
+            let pivot = SCNNode(geometry: geometry)
+            pivot.name = "ricePanicle"
+            pivot.position = base
+            pivot.eulerAngles.y = yaw
+            root.addChildNode(pivot)
+
+            let blade = Blade(
+                pivot: pivot,
+                root: root,
+                phase: phase,
+                response: response / Float(max(mass, 0.08)),
+                restYaw: yaw
+            )
+            blades.append(blade)
+            startBreeze(on: blade)
+            return material
+        }
+
+        private func makeRicePanicleGeometry(
+            height: Float,
+            droopArch: Float,
+            material: SCNMaterial
+        ) -> SCNGeometry {
+            var vertices: [SCNVector3] = []
+            var normals: [SCNVector3] = []
+            var uvs: [CGPoint] = []
+            var indices: [UInt32] = []
+
+            // 1. Central arching rachis / stalk (tangkai malai padi)
+            let stemSegments = 20
+            func stalkCurve(_ t: Float) -> SIMD3<Float> {
+                let y: Float
+                let z: Float
+                if t <= 0.45 {
+                    let u = t / 0.45
+                    y = height * 0.58 * u
+                    z = 0.012 * u * u
+                } else {
+                    let u = (t - 0.45) / 0.55
+                    y = height * (0.58 + 0.28 * u - 0.22 * u * u)
+                    z = 0.012 + droopArch * (0.35 * u + 0.65 * u * u)
+                }
+                let x: Float = 0.008 * sin(t * .pi * 1.5)
+                return SIMD3<Float>(x, y, z)
+            }
+
+            let stemSides = 4
+            for seg in 0...stemSegments {
+                let t = Float(seg) / Float(stemSegments)
+                let center = stalkCurve(t)
+                let nextCenter = stalkCurve(min(1.0, t + 0.02))
+                let prevCenter = stalkCurve(max(0.0, t - 0.02))
+                let tangent = simd_normalize(nextCenter - prevCenter)
+                let up = SIMD3<Float>(0, 1, 0)
+                let right = simd_normalize(simd_cross(tangent, up))
+                let fwd = simd_normalize(simd_cross(right, tangent))
+                let radius = max(0.0010, 0.0028 * (1.0 - 0.58 * t))
+
+                for side in 0...stemSides {
+                    let angle = Float(side) / Float(stemSides) * 2.0 * .pi
+                    let n = right * cos(angle) + fwd * sin(angle)
+                    let p = center + n * radius
+                    vertices.append(SCNVector3(p))
+                    normals.append(SCNVector3(n))
+                    uvs.append(CGPoint(x: Double(side) / Double(stemSides), y: Double(t)))
+
+                    if seg < stemSegments && side < stemSides {
+                        let b = UInt32(seg * (stemSides + 1) + side)
+                        let nxt = b + UInt32(stemSides + 1)
+                        indices += [b, nxt, b + 1, b + 1, nxt, nxt + 1]
+                    }
+                }
+            }
+
+            // 2. 3D Golden Rice Grains (Bulir Padi / Gabah) clustered along the drooping panicle
+            let grainCount = 22
+            let grainLength: Float = 0.0155
+            let grainWidth: Float = 0.0042
+            let grainDepth: Float = 0.0035
+
+            let grainRings = 5
+            let grainSides = 6
+
+            for g in 0..<grainCount {
+                let gt = 0.42 + 0.54 * (Float(g) / Float(grainCount - 1))
+                let stemPos = stalkCurve(gt)
+                let tangent = simd_normalize(stalkCurve(min(1.0, gt + 0.02)) - stalkCurve(max(0.0, gt - 0.02)))
+                let up = SIMD3<Float>(0, 1, 0)
+                let stemRight = simd_normalize(simd_cross(tangent, up))
+                let stemFwd = simd_normalize(simd_cross(stemRight, tangent))
+
+                let sideSign: Float = g.isMultiple(of: 2) ? 1.0 : -1.0
+                let splayAngle = 0.42 + 0.12 * sin(Float(g) * 1.8)
+                let droopBias = 0.48 + 0.15 * cos(Float(g) * 2.1)
+
+                let grainDir = simd_normalize(
+                    tangent * droopBias +
+                    stemRight * (sideSign * splayAngle) +
+                    stemFwd * 0.35
+                )
+
+                let grainSideAxis = simd_normalize(simd_cross(grainDir, tangent))
+                let grainNormAxis = simd_normalize(simd_cross(grainSideAxis, grainDir))
+
+                let pedicelOffset: Float = 0.0035
+                let grainCenter = stemPos + grainDir * (pedicelOffset + grainLength * 0.5)
+
+                let baseVertIndex = UInt32(vertices.count)
+
+                for r in 0...grainRings {
+                    let s = Float(r) / Float(grainRings) * 2.0 - 1.0
+                    let radiusProfile = sqrt(max(0.0, 1.0 - s * s)) * (1.0 - 0.16 * s)
+                    let curveBelly = 0.0012 * (1.0 - s * s)
+                    let ringCenter = grainCenter + grainDir * (s * grainLength * 0.5) + grainNormAxis * curveBelly
+
+                    for slice in 0...grainSides {
+                        let phi = Float(slice) / Float(grainSides) * 2.0 * .pi
+                        let localOffset = (grainSideAxis * cos(phi) * grainWidth + grainNormAxis * sin(phi) * grainDepth) * radiusProfile
+                        let pos = ringCenter + localOffset
+                        let norm = simd_normalize(localOffset + grainDir * (s * 0.002))
+
+                        vertices.append(SCNVector3(pos))
+                        normals.append(SCNVector3(norm))
+                        uvs.append(CGPoint(x: Double(slice) / Double(grainSides), y: Double(r) / Double(grainRings)))
+
+                        if r < grainRings && slice < grainSides {
+                            let b = baseVertIndex + UInt32(r * (grainSides + 1) + slice)
+                            let nxt = b + UInt32(grainSides + 1)
+                            indices += [b, nxt, b + 1, b + 1, nxt, nxt + 1]
+                        }
+                    }
+                }
+            }
+
+            let geometry = SCNGeometry(
+                sources: [
+                    SCNGeometrySource(vertices: vertices),
+                    SCNGeometrySource(normals: normals),
+                    SCNGeometrySource(textureCoordinates: uvs)
+                ],
+                elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)]
+            )
+            geometry.materials = [material]
+            return geometry
         }
 
         /// One keyed action owns each blade's wind sway.

@@ -413,10 +413,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         rimNode.look(at: SCNVector3(0, soilY, 0))
         worldRoot.addChildNode(rimNode)
 
-        // Warm Fill matching HomeView (SceneKitCropView lines 323-333 & 1745-1751)
+        // Warm Fill / bounce matching HomeView (SceneKitCropView lines 323-333 & 1745-1751)
         warmFillLight.type = .omni
         warmFillLight.color = UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1)
-        warmFillLight.intensity = 155
+        warmFillLight.intensity = 38
         warmFillLight.castsShadow = false
         warmFillLight.attenuationStartDistance = 2.0
         warmFillLight.attenuationEndDistance = 12.0
