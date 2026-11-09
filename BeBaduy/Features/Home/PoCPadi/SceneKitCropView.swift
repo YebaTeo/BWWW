@@ -116,6 +116,7 @@ struct SceneKitCropView: UIViewRepresentable {
         private var flameSystems: [SCNParticleSystem] = []
         private var sparkSystems: [SCNParticleSystem] = []
         private var smokeSystems: [SCNParticleSystem] = []
+        private var groundGlowNodes: [SCNNode] = []
         private let fireLight = SCNLight()
         private let sunKeyLight = SCNLight()
         private let skyAmbientLight = SCNLight()
@@ -967,53 +968,111 @@ struct SceneKitCropView: UIViewRepresentable {
             fireRoot.name = "fire"
             scene.rootNode.addChildNode(fireRoot)
             fireLight.type = .omni
-            fireLight.color = UIColor(red: 1, green: 0.48, blue: 0.12, alpha: 1)
+            fireLight.color = UIColor(red: 1.0, green: 0.48, blue: 0.12, alpha: 1)
             fireLight.intensity = 0
-            fireLight.attenuationEndDistance = 0.9
+            fireLight.attenuationStartDistance = 0.12
+            fireLight.attenuationEndDistance = 2.4
             let glow = SCNNode()
             glow.light = fireLight
-            glow.position = SCNVector3(0, 0.18, 0)
+            glow.position = SCNVector3(0, 0.15, 0)
             fireRoot.addChildNode(glow)
 
-            // Five small emitters keep the flame silhouette rich without
-            // waking eight particle systems at the same instant.
-            for i in 0..<5 {
-                let angle: Float = Float(i) * 1.3
-                let dist:  Float = 0.05 + Float(i % 4) * 0.055
-                let baseX: Float = cos(angle) * dist
-                let baseZ: Float = sin(angle) * dist
-                let emitter = SCNNode()
-                emitter.position = SCNVector3(baseX, 0.05, baseZ)
-                let flames = makeFlames()
-                emitter.addParticleSystem(flames)
-                fireRoot.addChildNode(emitter)
-                flameSystems.append(flames)
-                let sparks = NgahumaMaterials.makeFireSparks(sprite: particleSprite, scale: 0.35)
-                emitter.addParticleSystem(sparks)
+            let emberGlowTexture = NgahumaMaterials.makeEmberGlowSprite()
+
+            // Tree coordinates matching buildForest():
+            let placements: [(x: Float, z: Float, scale: Float)] = [
+                (-0.34, -0.15, 1.10),
+                ( 0.27, -0.20, 1.50),
+                (-0.10,  0.03, 1.32),
+                ( 0.36,  0.10, 1.02),
+                (-0.28,  0.22, 1.68)
+            ]
+
+            for (treeIdx, p) in placements.enumerated() {
+                let patchAngle = atan2(p.x, -p.z)
+
+                // 0. Soft incandescent ground ember glow disk beneath each burning tree
+                let emberPlane = SCNPlane(width: CGFloat(0.38 * p.scale), height: CGFloat(0.38 * p.scale))
+                let emberMat = SCNMaterial()
+                emberMat.lightingModel = .constant
+                emberMat.diffuse.contents = emberGlowTexture
+                emberMat.blendMode = .add
+                emberMat.writesToDepthBuffer = false
+                emberMat.isDoubleSided = true
+                emberPlane.materials = [emberMat]
+
+                let emberNode = SCNNode(geometry: emberPlane)
+                emberNode.name = "homeGroundEmberGlow_\(treeIdx)"
+                emberNode.eulerAngles.x = -.pi / 2
+                emberNode.position = SCNVector3(p.x, soilY + 0.002, p.z)
+                emberNode.opacity = 0
+                emberNode.isHidden = true
+                emberNode.renderingOrder = 22
+                emberNode.castsShadow = false
+                fireRoot.addChildNode(emberNode)
+                groundGlowNodes.append(emberNode)
+
+                // 1. Four 3D perimeter flame emitters encircling the OUTSIDE of the trunk bark
+                let baseRadius = 0.054 * p.scale
+                let perimeterOffsets: [(x: Float, z: Float)] = [
+                    ( baseRadius,  0),
+                    (-baseRadius,  0),
+                    ( 0,  baseRadius),
+                    ( 0, -baseRadius)
+                ]
+                for (pIdx, offset) in perimeterOffsets.enumerated() {
+                    let pNode = SCNNode()
+                    pNode.name = "homeFlamePerimeter_\(treeIdx)_\(pIdx)"
+                    pNode.position = SCNVector3(p.x + offset.x, soilY + 0.014, p.z + offset.z)
+                    pNode.renderingOrder = 25
+                    let flames = makeFlames()
+                    pNode.addParticleSystem(flames)
+                    fireRoot.addChildNode(pNode)
+                    flameSystems.append(flames)
+                }
+
+                // 2. Stump top fracture flame emitter (bursting up from the cut wood cross-section)
+                let cutHeight: Float = 0.075
+                let fractureNode = SCNNode()
+                fractureNode.name = "homeFlameFracture_\(treeIdx)"
+                fractureNode.position = SCNVector3(p.x, soilY + cutHeight * p.scale, p.z)
+                fractureNode.renderingOrder = 26
+                let fractureFlames = makeFlames()
+                fractureFlames.particleSize = 0.13
+                fractureFlames.emitterShape = SCNBox(width: 0.05, height: 0.008, length: 0.05, chamferRadius: 0)
+                fractureNode.addParticleSystem(fractureFlames)
+                fireRoot.addChildNode(fractureNode)
+                flameSystems.append(fractureFlames)
+
+                // 3. Surrounding ground brushfire emitters (radiating in the grass around the tree)
+                let groundOffsets: [(x: Float, z: Float)] = [
+                    ( sin(patchAngle + 0.75) * 0.13 * p.scale, -cos(patchAngle + 0.75) * 0.13 * p.scale),
+                    ( sin(patchAngle - 0.85) * 0.17 * p.scale, -cos(patchAngle - 0.85) * 0.17 * p.scale)
+                ]
+                for (gIdx, gOffset) in groundOffsets.enumerated() {
+                    let gNode = SCNNode()
+                    gNode.name = "homeFlameGround_\(treeIdx)_\(gIdx)"
+                    gNode.position = SCNVector3(p.x + gOffset.x, soilY + 0.010, p.z + gOffset.z)
+                    gNode.renderingOrder = 24
+                    let gFlames = makeFlames()
+                    gFlames.particleSize = 0.14
+                    gFlames.emitterShape = SCNBox(width: 0.08, height: 0.008, length: 0.08, chamferRadius: 0)
+                    gNode.addParticleSystem(gFlames)
+                    fireRoot.addChildNode(gNode)
+                    flameSystems.append(gFlames)
+                }
+
+                // 4. Upward swirling sparks and thermal smoke plume
+                let atmosphereNode = SCNNode()
+                atmosphereNode.position = SCNVector3(p.x, soilY + 0.035, p.z)
+                let sparks = NgahumaMaterials.makeFireSparks(sprite: particleSprite, scale: 0.62)
+                sparks.emitterShape = SCNBox(width: 0.14, height: 0.015, length: 0.14, chamferRadius: 0)
+                let smoke = makeSmoke()
+                atmosphereNode.addParticleSystem(sparks)
+                atmosphereNode.addParticleSystem(smoke)
+                fireRoot.addChildNode(atmosphereNode)
                 sparkSystems.append(sparks)
-                let smoke = SCNParticleSystem()
-                smoke.birthRate = 0
-                smoke.particleImage = particleSprite
-                smoke.blendMode = .alpha
-                smoke.particleLifeSpan = 1.8
-                smoke.particleLifeSpanVariation = 0.4
-                smoke.particleVelocity = 0.06
-                smoke.emittingDirection = SCNVector3(0, 1, 0)
-                smoke.acceleration = SCNVector3(0.018, 0.025, 0)
-                smoke.spreadingAngle = 20
-                smoke.particleColor = UIColor(red: 0.38, green: 0.35, blue: 0.30, alpha: 0.16)
-                let smokeSize = CAKeyframeAnimation()
-                smokeSize.values = [0.025, 0.10, 0.19]
-                smokeSize.keyTimes = [0, 0.5, 1]
-                let smokeFade = CAKeyframeAnimation()
-                smokeFade.values = [0, 0.16, 0.08, 0]
-                smokeFade.keyTimes = [0, 0.15, 0.6, 1]
-                smoke.propertyControllers = [.size: SCNParticlePropertyController(animation: smokeSize),
-                                             .opacity: SCNParticlePropertyController(animation: smokeFade)]
-                emitter.addParticleSystem(smoke)
                 smokeSystems.append(smoke)
-
-
             }
         }
 
@@ -1550,22 +1609,34 @@ struct SceneKitCropView: UIViewRepresentable {
             let fireT = smoothstep(0.27, 0.31, p) * (1 - smoothstep(0.38, 0.44, p))
             fireRoot.opacity = CGFloat(fireT)
             let flicker = 0.90 + 0.06 * sin(time * 4.1) + 0.04 * sin(time * 7.3)
-            fireLight.intensity = CGFloat(fireT * flicker * 12)
-            for sparks in sparkSystems { sparks.birthRate = isWindEnabled ? CGFloat(fireT * 3) : 0 }
-            for smoke in smokeSystems { smoke.birthRate = isWindEnabled ? CGFloat(fireT * 4) : 0 }
+            fireLight.intensity = CGFloat(fireT * flicker * 42)
+            for sparks in sparkSystems { sparks.birthRate = isWindEnabled ? CGFloat(fireT * 14) : 0 }
+            for smoke in smokeSystems { smoke.birthRate = isWindEnabled ? CGFloat(fireT * 7) : 0 }
             for system in flameSystems {
-                // Let existing particles expire naturally. Resetting every
-                // frame while fireT is zero causes a burst of work exactly
-                // when the flame is first revealed and produces a hitch.
-                system.birthRate = isWindEnabled ? CGFloat(fireT * 95) : 0
+                system.birthRate = isWindEnabled ? CGFloat(fireT * 40) : 0
             }
-            for ember in emberNodes {
-                ember.node.opacity  = CGFloat(fireT)
-                ember.node.isHidden = fireT < 0.01
-                if fireT >= 0.01, let mat = ember.node.geometry?.firstMaterial {
-                    mat.setValue(time, forKey: "flameTime")
-                    mat.setValue(fireT, forKey: "flameIntensity")
+
+            // Soft glowing ground ember disks beneath the burning trees
+            for glowNode in groundGlowNodes {
+                glowNode.opacity = CGFloat(fireT * flicker * 0.95)
+                glowNode.isHidden = fireT < 0.005
+            }
+
+            // Incandescent heat glow on the wood surface where fire touches it:
+            let heatIntensity = CGFloat(fireT * flicker)
+            let heatEmission = UIColor(
+                red: heatIntensity * 0.95,
+                green: heatIntensity * 0.42,
+                blue: heatIntensity * 0.06,
+                alpha: 1.0
+            )
+            rootFlareRoot.enumerateChildNodes { node, _ in
+                node.geometry?.materials.forEach { mat in
+                    mat.emission.contents = heatEmission
                 }
+            }
+            for pair in fracturePairs {
+                pair.base.geometry?.materials.forEach { $0.emission.contents = heatEmission }
             }
 
             // ── 3. Ash clods (p 0.30 → 0.50) ───────────────────────────────
@@ -2009,34 +2080,73 @@ struct SceneKitCropView: UIViewRepresentable {
         private func makeFlames() -> SCNParticleSystem {
             let system = SCNParticleSystem()
             system.birthRate = 0
-            system.particleLifeSpan = 0.68
+            system.particleLifeSpan = 0.75
             system.particleLifeSpanVariation = 0.18
-            system.particleSize = 0.055
-            system.particleSizeVariation = 0.018
-            system.particleVelocity = 0.16
-            system.particleVelocityVariation = 0.05
+            system.particleSize = 0.175
+            system.particleSizeVariation = 0.045
+            system.particleVelocity = 0.30
+            system.particleVelocityVariation = 0.08
             system.emittingDirection = SCNVector3(0, 1, 0)
-            system.spreadingAngle = 18
-            system.particleAngleVariation = 18
-            system.acceleration = SCNVector3(0.015, 0.08, 0)
-            system.emitterShape = SCNBox(width: 0.12, height: 0.008, length: 0.10, chamferRadius: 0)
+            system.spreadingAngle = 21
+            system.particleAngleVariation = 23
+            system.acceleration = SCNVector3(0.015, 0.18, 0)
+            system.emitterShape = SCNBox(width: 0.08, height: 0.010, length: 0.08, chamferRadius: 0)
             system.particleImage = flameTongueSprite
             system.blendMode = .additive
+            system.orientationMode = .billboardYAligned
             system.isLightingEnabled = false
+            system.writesToDepthBuffer = false
+
             let color = CAKeyframeAnimation()
             color.values = [
-                UIColor(red: 1.0, green: 0.96, blue: 0.68, alpha: 0.95),
-                UIColor(red: 1.0, green: 0.58, blue: 0.08, alpha: 0.85),
-                UIColor(red: 0.88, green: 0.18, blue: 0.02, alpha: 0.55),
-                UIColor(red: 0.38, green: 0.04, blue: 0, alpha: 0)
+                UIColor(red: 1.0, green: 0.96, blue: 0.72, alpha: 0.35),
+                UIColor(red: 1.0, green: 0.98, blue: 0.82, alpha: 0.95),
+                UIColor(red: 1.0, green: 0.65, blue: 0.10, alpha: 0.88),
+                UIColor(red: 0.90, green: 0.20, blue: 0.03, alpha: 0.55),
+                UIColor(red: 0.38, green: 0.04, blue: 0.0, alpha: 0.0)
             ]
-            color.keyTimes = [0, 0.30, 0.72, 1]
+            color.keyTimes = [0, 0.10, 0.32, 0.70, 1]
+
             let size = CAKeyframeAnimation()
-            size.values = [0.06, 0.14, 0.09, 0.015]
-            size.keyTimes = [0, 0.28, 0.70, 1]
+            size.values = [0.055, 0.18, 0.24, 0.14, 0.03]
+            size.keyTimes = [0, 0.12, 0.38, 0.72, 1]
+
             system.propertyControllers = [
                 .color: SCNParticlePropertyController(animation: color),
                 .size: SCNParticlePropertyController(animation: size)
+            ]
+            return system
+        }
+
+        private func makeSmoke() -> SCNParticleSystem {
+            let system = SCNParticleSystem()
+            system.birthRate = 0
+            system.particleImage = particleSprite
+            system.blendMode = .alpha
+            system.isLightingEnabled = false
+            system.writesToDepthBuffer = false
+            system.particleLifeSpan = 2.1
+            system.particleLifeSpanVariation = 0.45
+            system.particleSize = 0.17
+            system.particleSizeVariation = 0.06
+            system.particleVelocity = 0.12
+            system.particleVelocityVariation = 0.04
+            system.emittingDirection = SCNVector3(0, 1, 0)
+            system.acceleration = SCNVector3(0.020, 0.050, 0)
+            system.spreadingAngle = 22
+            system.particleColor = UIColor(red: 0.38, green: 0.35, blue: 0.30, alpha: 0.18)
+
+            let smokeSize = CAKeyframeAnimation()
+            smokeSize.values = [0.055, 0.18, 0.36]
+            smokeSize.keyTimes = [0, 0.5, 1]
+
+            let smokeFade = CAKeyframeAnimation()
+            smokeFade.values = [0, 0.18, 0.09, 0]
+            smokeFade.keyTimes = [0, 0.15, 0.6, 1]
+
+            system.propertyControllers = [
+                .size: SCNParticlePropertyController(animation: smokeSize),
+                .opacity: SCNParticlePropertyController(animation: smokeFade)
             ]
             return system
         }

@@ -93,6 +93,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var flameSystems: [SCNParticleSystem] = []
     private var sparkSystems: [SCNParticleSystem] = []
     private var smokeSystems: [SCNParticleSystem] = []
+    private var groundGlowNodes: [SCNNode] = []
     private var atmosphereMotes: [(node: SCNNode, baseX: Float, baseZ: Float, minY: Float, maxY: Float, speed: Float, phase: Float)] = []
     private var ashNodes: [SCNNode] = []
 
@@ -286,6 +287,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         flameSystems.removeAll()
         sparkSystems.removeAll()
         smokeSystems.removeAll()
+        groundGlowNodes.removeAll()
         atmosphereMotes.removeAll()
         ashNodes.removeAll()
 
@@ -1002,14 +1004,35 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         fireLight.type = .omni
         fireLight.color = UIColor(red: 1.0, green: 0.48, blue: 0.12, alpha: 1)
         fireLight.intensity = 0
-        fireLight.attenuationStartDistance = 0.4
-        fireLight.attenuationEndDistance = 7.0
+        fireLight.attenuationStartDistance = 0.2
+        fireLight.attenuationEndDistance = 4.5
         fireGlowNode.light = fireLight
-        fireGlowNode.position = SCNVector3(0, soilY + 0.35, -1.7)
+        fireGlowNode.position = SCNVector3(0, soilY + 0.25, -1.7)
         fireRoot.addChildNode(fireGlowNode)
 
         for (patchIndex, patchPos) in patchPositions.enumerated() {
             let patchAngle = atan2(patchPos.x, -patchPos.z)
+
+            // 0. Soft incandescent ground ember glow disk on the soil beneath the fire
+            let emberPlane = SCNPlane(width: 0.82, height: 0.82)
+            let emberMat = SCNMaterial()
+            emberMat.lightingModel = .constant
+            emberMat.diffuse.contents = materials.emberGlowSprite
+            emberMat.blendMode = .add
+            emberMat.writesToDepthBuffer = false
+            emberMat.isDoubleSided = true
+            emberPlane.materials = [emberMat]
+
+            let emberNode = SCNNode(geometry: emberPlane)
+            emberNode.name = "groundEmberGlow_\(patchIndex)"
+            emberNode.eulerAngles.x = -.pi / 2
+            emberNode.position = SCNVector3(patchPos.x, soilY + 0.003, patchPos.z)
+            emberNode.opacity = 0
+            emberNode.isHidden = true
+            emberNode.renderingOrder = 22
+            emberNode.castsShadow = false
+            fireRoot.addChildNode(emberNode)
+            groundGlowNodes.append(emberNode)
 
             // 1. Four 3D perimeter flame emitters encircling the OUTSIDE of the trunk bark (radius 0.18m)
             let perimeterOffsets: [(x: Float, z: Float)] = [
@@ -1265,10 +1288,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let activePatch = min(5, max(0, Int(elapsed / 0.85)))
         if patchPositions.indices.contains(activePatch) {
             let pos = patchPositions[activePatch]
-            fireGlowNode.position = SCNVector3(pos.x, soilY + 0.40, pos.z)
+            fireGlowNode.position = SCNVector3(pos.x, soilY + 0.25, pos.z)
         }
 
-        var overallFireIntensity = Float(min(1.0, elapsed / 1.5)) * flicker * 32.0
+        var overallFireIntensity = Float(min(1.0, elapsed / 1.5)) * flicker * 380.0
         if elapsed > 14.0 {
             overallFireIntensity *= Float(max(0.0, (17.5 - elapsed) / 3.5))
         }
@@ -1278,6 +1301,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let localTime = elapsed - Double(index) * 0.85
             let isBurningPatch = localTime > 0 && localTime < 8.2
             let isSmokingPatch = localTime > 0 && localTime < 11.8
+
+            // Soft glowing ember bed disk on the soil beneath the fire
+            if groundGlowNodes.indices.contains(index) {
+                let emberGlow = isBurningPatch
+                    ? CGFloat(min(1.0, Float(localTime) / 0.6) * max(0.0, (8.2 - Float(localTime)) / 2.0) * flicker)
+                    : 0
+                groundGlowNodes[index].opacity = emberGlow * 0.92
+                groundGlowNodes[index].isHidden = emberGlow < 0.005
+            }
 
             // Each patch owns 7 3D flame emitters (4 perimeter base + 1 fracture top + 2 ground brush)
             let baseEmitterIdx = index * 7
@@ -1299,26 +1331,50 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             if localTime > 0 && localTime < 3.5 {
                 let burnFraction = Float(min(1.0, localTime / 3.5))
                 if treeEntries.indices.contains(index) {
-                    let rootAnchor = treeEntries[index].rootAnchor
+                    let entry = treeEntries[index]
+                    let rootAnchor = entry.rootAnchor
                     let rTint = CGFloat(1.0 - burnFraction * 0.55)
                     let gTint = CGFloat(1.0 - burnFraction * 0.78)
                     let bTint = CGFloat(1.0 - burnFraction * 0.90)
+
+                    // Incandescent heat glow on the wood surface where fire touches it:
+                    let heatIntensity = CGFloat(sin(burnFraction * .pi) * flicker)
+                    let heatEmission = UIColor(
+                        red: heatIntensity * 0.95,
+                        green: heatIntensity * 0.42,
+                        blue: heatIntensity * 0.06,
+                        alpha: 1.0
+                    )
+
                     rootAnchor.childNodes.forEach { child in
-                        child.geometry?.materials.forEach {
-                            $0.multiply.contents = UIColor(red: rTint, green: gTint, blue: bTint, alpha: 1)
+                        child.geometry?.materials.forEach { mat in
+                            mat.multiply.contents = UIColor(red: rTint, green: gTint, blue: bTint, alpha: 1)
+                            mat.emission.contents = heatEmission
+                        }
+                    }
+                    entry.baseFracture.childNodes.forEach { child in
+                        child.geometry?.materials.forEach { mat in
+                            mat.emission.contents = heatEmission
                         }
                     }
                     rootAnchor.opacity = CGFloat(max(0.0, 1.0 - burnFraction * 0.90))
                 }
             } else if localTime >= 3.5, charredPatches.insert(index).inserted {
                 if treeEntries.indices.contains(index) {
-                    treeEntries[index].rootAnchor.opacity = 0
-                    treeEntries[index].rootAnchor.isHidden = true
-                    treeEntries[index].trunk.opacity = 0
-                    treeEntries[index].trunk.isHidden = true
-                    treeEntries[index].shadow.opacity = 0
-                    treeEntries[index].directionalShadow.opacity = 0
-                    treeEntries[index].directionalShadow.isHidden = true
+                    let entry = treeEntries[index]
+                    entry.rootAnchor.childNodes.forEach { child in
+                        child.geometry?.materials.forEach { $0.emission.contents = UIColor.clear }
+                    }
+                    entry.baseFracture.childNodes.forEach { child in
+                        child.geometry?.materials.forEach { $0.emission.contents = UIColor.clear }
+                    }
+                    entry.rootAnchor.opacity = 0
+                    entry.rootAnchor.isHidden = true
+                    entry.trunk.opacity = 0
+                    entry.trunk.isHidden = true
+                    entry.shadow.opacity = 0
+                    entry.directionalShadow.opacity = 0
+                    entry.directionalShadow.isHidden = true
                 }
             }
         }
@@ -1460,6 +1516,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         flameSystems.forEach { $0.birthRate = 0 }
         sparkSystems.forEach { $0.birthRate = 0 }
         smokeSystems.forEach { $0.birthRate = 0 }
+        groundGlowNodes.forEach {
+            $0.opacity = 0
+            $0.isHidden = true
+        }
         for entry in treeEntries {
             entry.trunk.opacity = 0
             entry.trunk.isHidden = true
@@ -1915,16 +1975,17 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         let color = CAKeyframeAnimation()
         color.values = [
-            UIColor(red: 1.0, green: 0.98, blue: 0.80, alpha: 0.98),
-            UIColor(red: 1.0, green: 0.65, blue: 0.10, alpha: 0.90),
-            UIColor(red: 0.90, green: 0.20, blue: 0.03, alpha: 0.65),
-            UIColor(red: 0.40, green: 0.04, blue: 0.0, alpha: 0.0)
+            UIColor(red: 1.0, green: 0.96, blue: 0.72, alpha: 0.35),
+            UIColor(red: 1.0, green: 0.98, blue: 0.82, alpha: 0.95),
+            UIColor(red: 1.0, green: 0.65, blue: 0.10, alpha: 0.88),
+            UIColor(red: 0.90, green: 0.20, blue: 0.03, alpha: 0.55),
+            UIColor(red: 0.38, green: 0.04, blue: 0.0, alpha: 0.0)
         ]
-        color.keyTimes = [0, 0.24, 0.68, 1]
+        color.keyTimes = [0, 0.10, 0.32, 0.70, 1]
 
         let size = CAKeyframeAnimation()
-        size.values = [0.12, 0.36, 0.24, 0.04]
-        size.keyTimes = [0, 0.25, 0.70, 1]
+        size.values = [0.08, 0.26, 0.36, 0.22, 0.04]
+        size.keyTimes = [0, 0.12, 0.38, 0.72, 1]
 
         system.propertyControllers = [
             .color: SCNParticlePropertyController(animation: color),

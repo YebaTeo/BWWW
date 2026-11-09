@@ -16,6 +16,7 @@ struct NgahumaMaterials {
     let leafNormal: UIImage
     let particleSprite: UIImage
     let flameTongueSprite: UIImage
+    let emberGlowSprite: UIImage
     let sunHaloSprite: UIImage
     let sunSkyGlowSprite: UIImage
     let woodSplinterSprite: UIImage
@@ -55,6 +56,7 @@ struct NgahumaMaterials {
         let leafNormal = Self.makeDetailNormal(frequency: 22, strength: 0.12)
         let particleSprite = Self.makeParticleSprite()
         let flameTongueSprite = Self.makeFlameTongueSprite()
+        let emberGlowSprite = Self.makeEmberGlowSprite()
         let sunHaloSprite = Self.makeSunHaloSprite()
         let sunSkyGlowSprite = Self.makeSunSkyGlowSprite()
         let woodSplinterSprite = Self.makeWoodSplinterSprite()
@@ -73,6 +75,7 @@ struct NgahumaMaterials {
             leafNormal: leafNormal,
             particleSprite: particleSprite,
             flameTongueSprite: flameTongueSprite,
+            emberGlowSprite: emberGlowSprite,
             sunHaloSprite: sunHaloSprite,
             sunSkyGlowSprite: sunSkyGlowSprite,
             woodSplinterSprite: woodSplinterSprite,
@@ -873,6 +876,30 @@ struct NgahumaMaterials {
             intent: .defaultIntent
         )!
         return UIImage(cgImage: cg)
+    }
+
+    /// Soft incandescent radial ember glow disk that illuminates the soil beneath each fire cluster.
+    static func makeEmberGlowSprite() -> UIImage {
+        let size = 128
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: format).image { context in
+            let center = CGPoint(x: size / 2, y: size / 2)
+            let colors = [
+                UIColor(red: 1.0, green: 0.82, blue: 0.35, alpha: 0.95).cgColor,
+                UIColor(red: 1.0, green: 0.45, blue: 0.08, alpha: 0.65).cgColor,
+                UIColor(red: 0.85, green: 0.16, blue: 0.02, alpha: 0.25).cgColor,
+                UIColor(red: 0.30, green: 0.02, blue: 0.0, alpha: 0.0).cgColor
+            ] as CFArray
+            let locations: [CGFloat] = [0.0, 0.28, 0.65, 1.0]
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations)!
+            context.cgContext.drawRadialGradient(
+                gradient,
+                startCenter: center, startRadius: 0,
+                endCenter: center, endRadius: CGFloat(size / 2),
+                options: []
+            )
+        }
     }
 
     /// Recreates HomeView's `celestialBody(isMoon: false)` sun as one sprite.
