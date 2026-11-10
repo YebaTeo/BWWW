@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Five-stage PoCPadi preview, with the saved learning journey kept separate.
+/// Full-screen stage preview with a minimal title, narrative, and primary action.
 struct WelcomeHomeView: View {
     let journey: JourneyViewModel
     let onOpen: (PhaseID) -> Void
@@ -13,17 +13,15 @@ struct WelcomeHomeView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     private var largeText: Bool { typeSize.isAccessibilitySize }
     @State private var preview = HomePreviewViewModel()
-    @State private var confirmsRestart = false
     @State private var initializedPreview = false
     @State private var openingChapter = false
+    @State private var displayedStage = 0
     private var progress: CGFloat { preview.progress }
-    private var isTransitioning: Bool { preview.isTransitioning }
     private var selectedStage: Int { preview.selectedStage }
 
     private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
-    private let gold = Color(red: 0.98, green: 0.84, blue: 0.44)
-    private let darkCard = Color(red: 0.12, green: 0.08, blue: 0.05)
-    private var stage: GrowthStage { GrowthStage.allStages[selectedStage] }
+    private let gold = Color(red: 1, green: 0.62, blue: 0.14)
+    private var stage: GrowthStage { GrowthStage.allStages[displayedStage] }
 
     var body: some View {
         GeometryReader { viewport in
@@ -35,28 +33,49 @@ struct WelcomeHomeView: View {
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
                 VStack(spacing: 0) {
-                    header
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(stageSwipe)
                         .accessibilityHidden(true)
-                    ScrollView {
-                        stageCard
+                    VStack(spacing: 0) {
+                        ScrollView {
+                            stageCard
+                                .frame(maxWidth: 440)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .frame(maxHeight: viewport.size.height * (largeText ? 0.42 : 0.23))
+                        actions
                             .frame(maxWidth: 440)
-                            .frame(maxWidth: .infinity)
                     }
-                    .frame(maxHeight: viewport.size.height * (largeText ? 0.35 : 0.33))
-                    actions
-                        .frame(maxWidth: 440)
+                    .opacity(preview.isTransitioning ? 0 : 1)
+                    .offset(y: preview.isTransitioning && !reduceMotion ? 48 : 0)
+                    .animation(
+                        reduceMotion ? nil : .easeInOut(duration: preview.isTransitioning ? 0.2 : 0.35),
+                        value: preview.isTransitioning
+                    )
+                    .allowsHitTesting(!preview.isTransitioning)
+                    .accessibilityHidden(preview.isTransitioning)
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
-                .padding(.bottom, 6)
+                .padding(.bottom, viewport.size.height * 0.09)
             }
         }
         .foregroundStyle(ivory)
         .tint(gold)
         .preferredColorScheme(.dark)
+        .accessibilityAction(named: "Tahap berikutnya") {
+            preview.swipe(direction: 1, reduceMotion: reduceMotion)
+        }
+        .accessibilityAction(named: "Tahap sebelumnya") {
+            preview.swipe(direction: -1, reduceMotion: reduceMotion)
+        }
+        .onChange(of: selectedStage) { _, index in
+            if !preview.isTransitioning { displayedStage = index }
+        }
+        .onChange(of: preview.isTransitioning) { _, transitioning in
+            if !transitioning { displayedStage = selectedStage }
+        }
         .sensoryFeedback(.selection, trigger: selectedStage)
         .onChange(of: reduceMotion) { _, enabled in if enabled { preview.stop() } }
         .onChange(of: scenePhase) { _, phase in if phase != .active { preview.stop() } }
@@ -82,91 +101,18 @@ struct WelcomeHomeView: View {
                 openingChapter = false
             }
         }
-        .alert("Mulai lagi dari awal?", isPresented: $confirmsRestart) {
-            Button("Batalkan", role: .cancel) {}
-            Button("Mulai Ulang", role: .destructive) {
-                journey.restart()
-                selectStage(0)
-                onOpen(journey.progress.currentPhase)
-            }
-            .accessibilityIdentifier("home.restart.confirm")
-        } message: {
-            Text("Semua progres yang sudah kamu capai akan dihapus dari perangkat ini.")
-        }
-    }
-
-    private var header: some View {
-        VStack(spacing: 2) {
-            HStack(spacing: 8) {
-                Text("TAHAPAN")
-                    .font(.caption.weight(.bold))
-                    .tracking(1.8)
-                    .foregroundStyle(gold)
-                Spacer(minLength: 0)
-                Text(stage.stepCounterString)
-                    .font(.subheadline.monospaced().bold())
-                    .foregroundStyle(ivory)
-                    .accessibilityLabel("Pratinjau \(stage.id + 1) dari \(PhaseID.allCases.count)")
-                Spacer(minLength: 0)
-                Menu {
-                    Button("Tahapan belajar", action: onJourney)
-                    if journey.progress.isUnlocked(stage.phase), stage.phase != journey.progress.currentPhase {
-                        Button("Lanjutkan perjalanan") { onOpen(journey.progress.currentPhase) }
-                    }
-                    if journey.progress.allComplete {
-                        Button("Lihat rangkuman", action: onCompletion)
-                    }
-                    if journey.completedCount > 0 {
-                        Button("Mulai lagi dari awal", role: .destructive) {
-                            confirmsRestart = true
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Pilihan perjalanan")
-                .accessibilityIdentifier("home.menu")
-            }
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                ForEach(GrowthStage.allStages) { item in
-                    Button { selectStage(item.id) } label: {
-                        Circle()
-                            .fill(item.id == stage.id ? gold : ivory.opacity(0.45))
-                            .frame(width: item.id == stage.id ? 10 : 7, height: item.id == stage.id ? 10 : 7)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Pratinjau \(item.name)")
-                    .accessibilityAddTraits(item.id == stage.id ? [.isSelected] : [])
-                    .accessibilityIdentifier("home.stage.\(item.id)")
-                }
-                Spacer(minLength: 0)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .shadow(color: .black.opacity(0.72), radius: 8, y: 2)
     }
 
     private var stageCard: some View {
         VStack(spacing: 8) {
-            Text(stage.culturalContext.uppercased())
-                .font(.caption.bold())
-                .tracking(1.8)
-                .foregroundStyle(gold)
             Text(stage.name)
                 .font(.system(size: 44, weight: .black, design: .rounded))
                 .fontWidth(.condensed)
-                .tracking(2)
+                .tracking(1)
+                .foregroundStyle(gold)
                 .shadow(color: .black.opacity(0.78), radius: 10, y: 3)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("home.stage.title")
-            Text(stage.subtitle)
-                .font(.headline.weight(.medium))
-                .foregroundStyle(gold)
-                .shadow(color: .black.opacity(0.8), radius: 8, y: 2)
             Text(stage.narrative)
                 .font(.body)
                 .lineSpacing(3)
@@ -177,15 +123,7 @@ struct WelcomeHomeView: View {
                     .font(.footnote)
                     .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
             }
-            Text("\(journey.completedCount) dari \(PhaseID.allCases.count) tahap telah dijelajahi")
-                .font(.caption)
-                .foregroundStyle(ivory.opacity(0.86))
-                .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
-                .accessibilityIdentifier("home.progress")
-                .padding(.top, 2)
-            if !journey.progress.isUnlocked(stage.phase) {
-                Text("Selesaikan tahap sebelumnya untuk membuka tahap ini.").font(.footnote)
-            }
+
         }
         .multilineTextAlignment(.center)
         .padding(.horizontal, 22)
@@ -193,51 +131,18 @@ struct WelcomeHomeView: View {
     }
 
     private var actions: some View {
-        let unlocked = journey.progress.isUnlocked(stage.phase)
-        let completed = journey.progress.record(for: stage.phase).explanationAvailable
-        return VStack(spacing: 4) {
-            Button {
-                openSelectedChapter()
-            } label: {
-                HStack(spacing: 8) {
-                    Text(unlocked ? (completed ? "Tinjau \(stage.name)" : "Jelajahi \(stage.name)") : "Lanjutkan perjalanan")
-                    Image(systemName: "arrow.right")
-                }
-                .font(.headline)
-                .foregroundStyle(darkCard)
-                .frame(maxWidth: 230, minHeight: 48)
-                .background(gold, in: Capsule())
-            }
-            .accessibilityIdentifier("resume")
-            if isTransitioning {
-                Button("Akhiri animasi", action: preview.stop)
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("home.preview.finish")
-            }
-            Text("Geser ke atas untuk menjelajahi tahap ini")
-                .font(.caption)
-                .foregroundStyle(ivory.opacity(0.8))
-            Button("Lihat tahapan", action: onJourney)
-                .font(.subheadline.weight(.semibold))
-                .frame(minHeight: 38)
-                .shadow(color: .black.opacity(0.85), radius: 7, y: 2)
-                .accessibilityIdentifier("home.journey")
-            Button {
-                selectStage(stage.id == GrowthStage.allStages.count - 1 ? 0 : stage.id + 1)
-            } label: {
-                Label(stage.id == GrowthStage.allStages.count - 1 ? "Ulangi pratinjau" : "Pratinjau berikutnya", systemImage: stage.id == GrowthStage.allStages.count - 1 ? "arrow.counterclockwise" : "chevron.up.2")
-                    .font(.caption.weight(.semibold))
-                    .frame(minHeight: 36)
-                    .shadow(color: .black.opacity(0.85), radius: 7, y: 2)
-            }
-            .accessibilityIdentifier("home.preview.next")
+        Button(action: openSelectedChapter) {
+            Text("Mulai Tahapan")
+                .font(.body)
+                .foregroundStyle(ivory)
+                .padding(.horizontal, 28)
+                .frame(minHeight: 44)
+                .background(Color(red: 0.30, green: 0.23, blue: 0.17).opacity(0.9), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(red: 0.77, green: 0.63, blue: 0.43), lineWidth: 0.75))
         }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: 440)
-        .padding(.horizontal, 22)
-        .padding(.top, 18)
+        .accessibilityIdentifier("resume")
+        .padding(.top, 24)
         .padding(.bottom, 18)
-
     }
 
     private var stageSwipe: some Gesture {
@@ -246,7 +151,7 @@ struct WelcomeHomeView: View {
                 guard abs(value.translation.height) > 45,
                       abs(value.translation.height) > abs(value.translation.width) else { return }
                 if value.translation.height < 0 {
-                    openSelectedChapter()
+                    preview.swipe(direction: 1, reduceMotion: reduceMotion)
                 } else {
                     preview.swipe(direction: -1, reduceMotion: reduceMotion)
                 }
@@ -254,14 +159,11 @@ struct WelcomeHomeView: View {
     }
 
     private func openSelectedChapter() {
-        guard isActive, !openingChapter else { return }
+        guard isActive, !openingChapter, !preview.isTransitioning else { return }
         openingChapter = true
         preview.stop()
         onOpen(journey.progress.isUnlocked(stage.phase) ? stage.phase : journey.progress.currentPhase)
     }
 
-    private func selectStage(_ index: Int) {
-        preview.selectStage(index, reduceMotion: reduceMotion)
-    }
 
 }

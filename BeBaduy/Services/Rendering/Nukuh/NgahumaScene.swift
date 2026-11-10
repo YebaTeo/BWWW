@@ -459,15 +459,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         forestRoot.name = "forest"
         worldRoot.addChildNode(forestRoot)
 
-        // Spread the 6 interactive trees around all 360° of the AR clearing,
-        // with natural variations in azimuth, distance, and balanced tree scale (~1.25m - 1.40m).
+        // Three interactive trees distributed around the clearing.
         let placements: [(angle: Float, distance: Float, yawOffset: Float, scale: Float)] = [
-            ( 0.00 * .pi, 1.84, -0.06, 2.25), // Tree 1: Front (0°) - ~1.26m tall
-            ( 0.34 * .pi, 1.98,  0.08, 2.45), // Tree 2: Front-Right (~61°) - ~1.37m tall
-            ( 0.68 * .pi, 1.86, -0.09, 2.15), // Tree 3: Back-Right (~122°) - ~1.20m tall
-            ( 1.02 * .pi, 1.95,  0.07, 2.38), // Tree 4: Back (~184°) - ~1.33m tall
-            ( 1.35 * .pi, 1.85, -0.08, 2.20), // Tree 5: Back-Left (~243°) - ~1.23m tall
-            ( 1.68 * .pi, 1.94,  0.09, 2.42)  // Tree 6: Front-Left (~302°) - ~1.36m tall
+            (0, 1.84, -0.06, 2.25),
+            (2 * .pi / 3, 1.86, -0.09, 2.15),
+            (4 * .pi / 3, 1.85, -0.08, 2.20)
         ]
 
         let sharedUpperTreeGeo = makeTreeSectionGeometry(from: materials.treeTexture, startRow: 6, endRow: 40, includeWind: true)
@@ -744,6 +740,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private func buildWildGrass(using materials: NgahumaMaterials) {
         wildRoot.name = "wildGrass"
+        // This root is reused after burning; restore it when rebuilding the field.
+        wildRoot.isHidden = false
+        wildRoot.opacity = 1
         worldRoot.addChildNode(wildRoot)
 
         // 1. Inner 360° clearing grass blades (matching HomeView's arched undergrowth at AR scale)
@@ -1282,7 +1281,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         guard stage == .burning else { return }
 
         elapsed += min(delta, 0.1)
-        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / 18, 1) } / 6
+        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / 18, 1) } / Double(max(1, patchPositions.count))
 
         let flicker = 0.90 + 0.06 * sin(windTime * 4.1) + 0.04 * sin(windTime * 7.3)
         let activePatch = ignited.filter { patchBurnTime($0) < 11.8 }.sorted().first ?? 0
@@ -1300,7 +1299,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             if audioPlayer?.isPlaying == false { audioPlayer?.play() }
         } else { audioPlayer?.pause() }
 
-        for index in 0..<6 {
+        for index in patchPositions.indices {
             let localTime = patchBurnTime(index)
             let isBurningPatch = localTime > 0 && localTime < 8.2
             let isSmokingPatch = localTime > 0 && localTime < 11.8
@@ -1438,7 +1437,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let fade = max(0, 1 - smoothstep(0.35, 0.88, Float(max(0, localTime) / 12)))
             blade.pivot.opacity = CGFloat(fade)
         }
-        if ignited.allSatisfy({ patchBurnTime($0) >= 18 }) {
+        if ignited.count == patchPositions.count && ignited.allSatisfy({ patchBurnTime($0) >= 18 }) {
             reportFireSettled()
         }
     }

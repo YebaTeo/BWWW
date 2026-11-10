@@ -33,10 +33,12 @@ import XCTest
         await vm.scene.prepareAssets()
         XCTAssertEqual(vm.stage, .clearing)
 
-        for index in 0..<6 {
+        vm.collect(3)
+        XCTAssertTrue(vm.collected.isEmpty)
+        for index in 0..<NukuhViewModel.treeCount {
             vm.collect(index)
         }
-        XCTAssertEqual(vm.collected.count, 6)
+        XCTAssertEqual(vm.collected.count, NukuhViewModel.treeCount)
         XCTAssertEqual(vm.stage, .prepared)
 
         vm.setVisible(true)
@@ -44,7 +46,7 @@ import XCTest
         XCTAssertEqual(vm.stage, .burning)
         vm.finishBurn()
         XCTAssertNil(vm.session.outcome)
-        for index in 1..<6 { vm.burn(startingAt: index) }
+        for index in 1..<NukuhViewModel.treeCount { vm.burn(startingAt: index) }
         vm.finishBurn()
         XCTAssertEqual(vm.stage, .complete)
         XCTAssertEqual(vm.session.outcome, .performed)

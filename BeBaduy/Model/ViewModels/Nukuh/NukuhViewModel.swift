@@ -1,6 +1,7 @@
 import Observation
 import Foundation
 @Observable @MainActor final class NukuhViewModel {
+    static let treeCount = 3
     enum Stage { case entering, clearing, prepared, burning, complete }
     private(set) var stage: Stage = .entering
     private(set) var ignited: Set<Int> = []
@@ -54,12 +55,12 @@ import Foundation
     }
 
     private func cutTree(_ index: Int) {
-        guard session.isActive, stage == .clearing, (0..<6).contains(index),
+        guard session.isActive, stage == .clearing, (0..<NukuhViewModel.treeCount).contains(index),
               collected.insert(index).inserted else { return }
         scene.animateCut(index)
         ActivityAudio.shared.play(.cut)
-        session.feedback = "\(collected.count) dari 6 pohon pada ilustrasi telah ditebang."
-        if collected.count == 6 { stage = .prepared }
+        session.feedback = "\(collected.count) dari \(Self.treeCount) pohon pada ilustrasi telah ditebang."
+        if collected.count == NukuhViewModel.treeCount { stage = .prepared }
     }
 
     func burn(startingAt index: Int = 0) {
@@ -69,13 +70,13 @@ import Foundation
 
     private func ignitePatch(_ index: Int) {
         guard visible, session.isActive, stage == .prepared || stage == .burning,
-              (0..<6).contains(index), ignited.insert(index).inserted else { return }
+              (0..<NukuhViewModel.treeCount).contains(index), ignited.insert(index).inserted else { return }
         stage = .burning
         scene.animateIgnition(at: index)
     }
 
     func finishBurn() {
-        guard session.isActive, stage == .burning, ignited.count == 6 else { return }
+        guard session.isActive, stage == .burning, ignited.count == NukuhViewModel.treeCount else { return }
         stage = .complete
         scene.showBurnedField()
         session.finish(usedDemo ? .observed : .performed)
@@ -127,14 +128,14 @@ import Foundation
         guard session.isActive, visible, stage != .entering, stage != .complete else { return }
         demoTask?.cancel(); usedDemo = true; isDemonstrating = true
         demoTask = Task { [weak self] in
-            for index in 0..<6 {
+            for index in 0..<NukuhViewModel.treeCount {
                 do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
                 guard let self, !Task.isCancelled else { return }
                 self.cutTree(index)
             }
             do { try await Task.sleep(for: .seconds(1)) } catch { return }
             guard let self, !Task.isCancelled else { return }
-            for index in 0..<6 {
+            for index in 0..<NukuhViewModel.treeCount {
                 guard !Task.isCancelled else { return }
                 self.ignitePatch(index)
                 do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
