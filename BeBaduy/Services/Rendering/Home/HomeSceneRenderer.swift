@@ -233,6 +233,11 @@ final class HomeSceneRenderer: NSObject {
     }
 
     private func configureLighting() {
+        if let envImage = UIImage(named: "HumaEnvironment") {
+            scene.lightingEnvironment.contents = envImage
+            scene.lightingEnvironment.intensity = 1.05
+        }
+
         moonLight.type = .directional
         moonLight.color = UIColor(red: 0.58, green: 0.70, blue: 0.98, alpha: 1)
         moonLight.intensity = 0
@@ -253,41 +258,40 @@ final class HomeSceneRenderer: NSObject {
         // Key – warm Kanekes sunset directional
         let sun           = sunKeyLight
         sun.type          = .directional
-        sun.color         = UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1)
-        sun.intensity     = 155
+        sun.color         = UIColor(red: 1.0, green: 0.93, blue: 0.78, alpha: 1)
+        sun.intensity     = 280
         sun.castsShadow   = true
         sun.shadowMode    = .forward
-        sun.shadowRadius  = 3.2
+        sun.shadowRadius  = 4.0
         sun.orthographicScale = 4.0
         sun.shadowSampleCount = 16
         sun.shadowBias = 0.0035
         sun.shadowMapSize = CGSize(width: 2048, height: 2048)
-        sun.shadowColor   = UIColor(white: 0.02, alpha: 0.65)
+        sun.shadowColor   = UIColor(red: 0.08, green: 0.05, blue: 0.03, alpha: 0.68)
         let sunNode       = sunOrbitNode
         sunNode.light     = sun
-        sunNode.position  = SCNVector3(2.6, 3.2, -2.4)
+        sunNode.position  = SCNVector3(2.5, 3.8, 1.8)
         sunNode.look(at: SCNVector3(0, 0.1, 0))
         scene.rootNode.addChildNode(sunNode)
 
         // Fill – cool sky ambient
         let ambient       = skyAmbientLight
         ambient.type      = .ambient
-        ambient.color     = UIColor(red: 0.88, green: 0.82, blue: 0.70, alpha: 1)
-        ambient.intensity = 230
+        ambient.color     = UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1)
+        ambient.intensity = 65
         let ambientNode   = SCNNode()
         ambientNode.light = ambient
         scene.rootNode.addChildNode(ambientNode)
 
         // Rim – back-light
         let rim           = sunsetRimLight
-        rim.type          = .omni
-        rim.color         = UIColor(red: 1.0, green: 0.87, blue: 0.68, alpha: 1)
-        rim.intensity     = 18
-        rim.attenuationStartDistance = 0.3
-        rim.attenuationEndDistance   = 2.2
+        rim.type          = .directional
+        rim.color         = UIColor(red: 1.0, green: 0.95, blue: 0.82, alpha: 1)
+        rim.intensity     = 75
         let rimNode       = SCNNode()
         rimNode.light     = rim
-        rimNode.position  = SCNVector3(0.65, 0.72, -0.65)
+        rimNode.position  = SCNVector3(3.2, 2.8, -0.6)
+        rimNode.look(at: SCNVector3(0, 0.25, 0))
         scene.rootNode.addChildNode(rimNode)
 
         // Broad reflected fill on the viewer-facing trunk and crown.
@@ -1200,6 +1204,8 @@ final class HomeSceneRenderer: NSObject {
             let woodTexture = UIImage(named: "HumaWoodTexture")
             let thatchTexture = UIImage(named: "HumaThatchTexture")
             let terrainTexture = UIImage(named: "HumaTerrainTexture")
+            let grassTex = UIImage(named: "HumaGrassTexture")
+            let riceRoofTexture = UIImage(named: "HumaRiceRoof")
 
             for child in sourceScene.rootNode.childNodes {
                 if child.name != "Camera" && !(child.name?.hasPrefix("Light") ?? false) && child.name != "env_light" {
@@ -1220,25 +1226,35 @@ final class HomeSceneRenderer: NSObject {
                         if matName.contains("kayu") {
                             // Weathered Baduy dark timber posts and structural framing
                             material.diffuse.contents = woodTexture ?? material.diffuse.contents
-                            material.multiply.contents = UIColor(red: 0.50, green: 0.36, blue: 0.24, alpha: 1)
+                            material.diffuse.wrapS = .repeat
+                            material.diffuse.wrapT = .repeat
+                            material.diffuse.contentsTransform = SCNMatrix4MakeScale(2, 4, 1)
+                            material.multiply.contents = UIColor(red: 0.52, green: 0.38, blue: 0.26, alpha: 1)
                             material.normal.contents = leafNormal
-                            material.normal.intensity = 0.25
-                            material.roughness.contents = 0.88
+                            material.normal.intensity = 0.28
+                            material.roughness.contents = 0.80
                             material.metalness.contents = 0.0
                         } else if matName == "anyaman" {
                             // Handcrafted woven bamboo bilik sasag walls
                             material.diffuse.contents = thatchTexture ?? material.diffuse.contents
-                            material.multiply.contents = UIColor(red: 0.84, green: 0.72, blue: 0.48, alpha: 1)
+                            material.diffuse.wrapS = .repeat
+                            material.diffuse.wrapT = .repeat
+                            material.diffuse.contentsTransform = SCNMatrix4MakeScale(3.5, 3.5, 1)
+                            material.multiply.contents = UIColor(red: 0.92, green: 0.82, blue: 0.58, alpha: 1)
                             material.normal.contents = leafNormal
                             material.normal.intensity = 0.35
-                            material.roughness.contents = 0.86
+                            material.roughness.contents = 0.82
                             material.metalness.contents = 0.0
                         } else {
-                            // Weathered golden thatch roof (atap rumbia / ijuk)
-                            material.multiply.contents = UIColor(red: 0.86, green: 0.76, blue: 0.56, alpha: 1)
+                            // Authentic thatched roof of golden rice straw (Hateup Padi)
+                            material.diffuse.contents = riceRoofTexture ?? thatchTexture ?? material.diffuse.contents
+                            material.diffuse.wrapS = .repeat
+                            material.diffuse.wrapT = .repeat
+                            material.diffuse.contentsTransform = SCNMatrix4MakeScale(3.0, 4.0, 1)
+                            material.multiply.contents = UIColor(red: 1.0, green: 0.92, blue: 0.72, alpha: 1)
                             material.normal.contents = leafNormal
-                            material.normal.intensity = 0.22
-                            material.roughness.contents = 0.88
+                            material.normal.intensity = 0.32
+                            material.roughness.contents = 0.82
                             material.metalness.contents = 0.0
                         }
                         smoothTextureSampling(material.diffuse)
@@ -1254,18 +1270,8 @@ final class HomeSceneRenderer: NSObject {
             let container = SCNNode()
             container.addChildNode(lumbungNode)
 
-            // 6 Stone Footings (Batu Umpak / Tatapan) anchoring the wooden stilt posts firmly to the soil
-            let stoneMat = SCNMaterial()
-            stoneMat.lightingModel = .physicallyBased
-            stoneMat.diffuse.contents = terrainTexture ?? UIColor(red: 0.40, green: 0.38, blue: 0.35, alpha: 1)
-            stoneMat.multiply.contents = UIColor(red: 0.58, green: 0.54, blue: 0.48, alpha: 1)
-            stoneMat.normal.contents = leafNormal
-            stoneMat.normal.intensity = 0.30
-            stoneMat.roughness.contents = 0.94
-            stoneMat.metalness.contents = 0.0
-            smoothTextureSampling(stoneMat.diffuse)
-
-            let stonePositions: [SIMD2<Float>] = [
+            // Post coordinates
+            let postPositions: [SIMD2<Float>] = [
                 SIMD2<Float>(1.04, 0.94),
                 SIMD2<Float>(-0.73, 0.94),
                 SIMD2<Float>(1.04, -1.04),
@@ -1274,30 +1280,139 @@ final class HomeSceneRenderer: NSObject {
                 SIMD2<Float>(0.0, -1.00)
             ]
 
-            let grassTex = UIImage(named: "HumaGrassTexture")
-            for p in stonePositions {
-                let stoneGeo = SCNBox(width: 0.42, height: 0.22, length: 0.42, chamferRadius: 0.08)
-                stoneGeo.materials = [stoneMat]
-                let stoneNode = SCNNode(geometry: stoneGeo)
-                stoneNode.position = SCNVector3(p.x, 0.08, p.y)
-                container.addChildNode(stoneNode)
+            // 1. Iconic Baduy Gelebeg (Piringan Kayu Penahan Tikus di Atas Setiap Tiang)
+            let gelebegMat = SCNMaterial()
+            gelebegMat.lightingModel = .physicallyBased
+            gelebegMat.diffuse.contents = woodTexture ?? UIColor(red: 0.44, green: 0.32, blue: 0.20, alpha: 1)
+            gelebegMat.multiply.contents = UIColor(red: 0.48, green: 0.35, blue: 0.22, alpha: 1)
+            gelebegMat.roughness.contents = 0.78
+            smoothTextureSampling(gelebegMat.diffuse)
+
+            for p in postPositions {
+                let disc = SCNCylinder(radius: 0.34, height: 0.055)
+                disc.radialSegmentCount = 28
+                disc.materials = [gelebegMat]
+                let discNode = SCNNode(geometry: disc)
+                discNode.position = SCNVector3(p.x, 1.25, p.y)
+                container.addChildNode(discNode)
+            }
+
+            // 2. 6 Rounded Natural River Boulders (Batu Umpak / Tatapan) anchoring the wooden stilt posts to the soil
+            let stoneMat = SCNMaterial()
+            stoneMat.lightingModel = .physicallyBased
+            stoneMat.diffuse.contents = terrainTexture ?? UIColor(red: 0.40, green: 0.38, blue: 0.35, alpha: 1)
+            stoneMat.multiply.contents = UIColor(red: 0.58, green: 0.54, blue: 0.48, alpha: 1)
+            stoneMat.normal.contents = leafNormal
+            stoneMat.normal.intensity = 0.35
+            stoneMat.roughness.contents = 0.92
+            stoneMat.metalness.contents = 0.0
+            smoothTextureSampling(stoneMat.diffuse)
+
+            let grassMat = SCNMaterial()
+            grassMat.lightingModel = .physicallyBased
+            grassMat.diffuse.contents = grassTex ?? UIColor(red: 0.50, green: 0.55, blue: 0.25, alpha: 1)
+            grassMat.multiply.contents = UIColor(red: 0.72, green: 0.68, blue: 0.40, alpha: 1)
+            grassMat.roughness.contents = 0.90
+            grassMat.isDoubleSided = true
+
+            for (i, p) in postPositions.enumerated() {
+                let boulder = SCNSphere(radius: 0.24)
+                boulder.segmentCount = 18
+                boulder.materials = [stoneMat]
+                let bNode = SCNNode(geometry: boulder)
+                let sX: Float = 1.15 + Float(i % 3) * 0.08
+                let sZ: Float = 1.05 + Float((i + 1) % 3) * 0.08
+                bNode.scale = SCNVector3(sX, 0.50, sZ)
+                bNode.position = SCNVector3(p.x, 0.065, p.y)
+                container.addChildNode(bNode)
 
                 // Organic wild grass tufts around the stone footings bridging the structure to the soil
-                if let gTex = grassTex {
-                    let tuftGeo = SCNCylinder(radius: 0.18, height: 0.08)
-                    let tuftMat = SCNMaterial()
-                    tuftMat.diffuse.contents = gTex
-                    tuftMat.multiply.contents = UIColor(red: 0.72, green: 0.68, blue: 0.42, alpha: 1)
-                    tuftMat.roughness.contents = 0.90
-                    tuftGeo.materials = [tuftMat]
-                    let tuftNode = SCNNode(geometry: tuftGeo)
-                    tuftNode.position = SCNVector3(p.x + 0.10, 0.04, p.y + 0.08)
-                    tuftNode.scale = SCNVector3(1.0, 0.6, 1.0)
-                    container.addChildNode(tuftNode)
+                let tuftGeo = SCNCylinder(radius: 0.18, height: 0.075)
+                tuftGeo.materials = [grassMat]
+                let tuftNode = SCNNode(geometry: tuftGeo)
+                tuftNode.position = SCNVector3(p.x + 0.10, 0.035, p.y + 0.07)
+                tuftNode.scale = SCNVector3(1.0, 0.6, 1.0)
+                container.addChildNode(tuftNode)
+            }
+
+            // 3. Layered Golden Rice Straw Roof Tiers & Eave Fringe (Atap Bertingkat Jerami Padi)
+            let riceMat = SCNMaterial()
+            riceMat.lightingModel = .physicallyBased
+            riceMat.diffuse.contents = riceRoofTexture ?? thatchTexture ?? UIColor(red: 0.88, green: 0.78, blue: 0.45, alpha: 1)
+            riceMat.diffuse.wrapS = .repeat
+            riceMat.diffuse.wrapT = .repeat
+            riceMat.diffuse.contentsTransform = SCNMatrix4MakeScale(4.0, 1.0, 1)
+            riceMat.multiply.contents = UIColor(red: 1.0, green: 0.92, blue: 0.72, alpha: 1)
+            riceMat.roughness.contents = 0.82
+            riceMat.isDoubleSided = true
+
+            // Layered Tiers on both roof slopes
+            for side: Float in [-1, 1] {
+                let sideRotX = side * 0.55
+
+                // Tier 1: Eave Overhang (Rumbai Jerami Padi Teritisan)
+                let eave = SCNBox(width: 4.90, height: 0.14, length: 0.24, chamferRadius: 0.03)
+                eave.materials = [riceMat]
+                let eNode = SCNNode(geometry: eave)
+                eNode.position = SCNVector3(0.15, 4.30, side * 1.90)
+                eNode.eulerAngles = SCNVector3(sideRotX, 0, 0)
+                container.addChildNode(eNode)
+
+                // Tier 2: Mid-Slope Layer (Lapisan Tengah Jerami Padi)
+                let tier2 = SCNBox(width: 4.85, height: 0.11, length: 0.20, chamferRadius: 0.02)
+                tier2.materials = [riceMat]
+                let t2Node = SCNNode(geometry: tier2)
+                t2Node.position = SCNVector3(0.15, 5.08, side * 1.30)
+                t2Node.eulerAngles = SCNVector3(sideRotX, 0, 0)
+                container.addChildNode(t2Node)
+
+                // Tier 3: Upper Slope Layer (Lapisan Atas Jerami Padi)
+                let tier3 = SCNBox(width: 4.80, height: 0.10, length: 0.18, chamferRadius: 0.02)
+                tier3.materials = [riceMat]
+                let t3Node = SCNNode(geometry: tier3)
+                t3Node.position = SCNVector3(0.15, 5.85, side * 0.70)
+                t3Node.eulerAngles = SCNVector3(sideRotX, 0, 0)
+                container.addChildNode(t3Node)
+            }
+
+            // Front & Back Gable Edges with Rice Straw Trim
+            for gableSide: Float in [-1, 1] {
+                let gX = gableSide * 2.30
+                for slope: Float in [-1, 1] {
+                    let gableTrim = SCNBox(width: 0.12, height: 0.10, length: 2.38, chamferRadius: 0.02)
+                    gableTrim.materials = [riceMat]
+                    let gNode = SCNNode(geometry: gableTrim)
+                    gNode.position = SCNVector3(gX, 5.50, slope * 0.95)
+                    gNode.eulerAngles = SCNVector3(slope * 0.52, 0, 0)
+                    container.addChildNode(gNode)
                 }
             }
 
-            let granaryScale: CGFloat = 0.092
+            // 4. Rice Straw Ridge Cap & Split Bamboo Slats (Wuwung Padi & Bilah Bambu Penjepit)
+            let ridgeCap = SCNCapsule(capRadius: 0.16, height: 4.95)
+            ridgeCap.materials = [riceMat]
+            let ridgeNode = SCNNode(geometry: ridgeCap)
+            ridgeNode.eulerAngles.z = .pi / 2
+            ridgeNode.position = SCNVector3(0.15, 6.72, 0)
+            container.addChildNode(ridgeNode)
+
+            let slatMat = SCNMaterial()
+            slatMat.lightingModel = .physicallyBased
+            slatMat.diffuse.contents = woodTexture ?? UIColor(red: 0.45, green: 0.32, blue: 0.20, alpha: 1)
+            slatMat.multiply.contents = UIColor(red: 0.45, green: 0.32, blue: 0.20, alpha: 1)
+            slatMat.roughness.contents = 0.78
+
+            for k in 0..<7 {
+                let sX = -2.10 + Float(k) * 0.70
+                let slat = SCNCylinder(radius: 0.022, height: 0.65)
+                slat.materials = [slatMat]
+                let sNode = SCNNode(geometry: slat)
+                sNode.position = SCNVector3(sX, 6.72, 0)
+                sNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+                container.addChildNode(sNode)
+            }
+
+            let granaryScale: CGFloat = 0.078
             container.scale = SCNVector3(granaryScale, granaryScale, granaryScale)
             loadedModel = container
         }
@@ -1311,7 +1426,7 @@ final class HomeSceneRenderer: NSObject {
         // Multi-tier ambient occlusion and directional shadow beneath the elevated granary floor
         let shadowMat = SCNMaterial()
         shadowMat.lightingModel = .constant
-        shadowMat.diffuse.contents = UIColor(red: 0.05, green: 0.03, blue: 0.02, alpha: 1)
+        shadowMat.diffuse.contents = UIColor(red: 0.06, green: 0.04, blue: 0.02, alpha: 1)
         shadowMat.isDoubleSided = true
         shadowMat.writesToDepthBuffer = false
         shadowMat.shaderModifiers = [.fragment: """
@@ -1319,20 +1434,21 @@ final class HomeSceneRenderer: NSObject {
         #pragma body
         float2 d = (_surface.diffuseTexcoord - float2(0.5)) * 2.0;
         float r = length(d);
-        _output.color.a *= (1.0 - smoothstep(0.35, 1.0, r)) * 0.82;
+        _output.color.a *= (1.0 - smoothstep(0.25, 1.0, r)) * 0.78;
         """]
 
-        let shadowGeo = SCNPlane(width: 0.65, height: 0.48)
+        let shadowGeo = SCNPlane(width: 0.62, height: 0.46)
         shadowGeo.materials = [shadowMat]
         let shadowNode = SCNNode(geometry: shadowGeo)
         shadowNode.name = "granaryContactShadow"
         shadowNode.eulerAngles.x = -.pi / 2
-        shadowNode.position = SCNVector3(0, 0.001, 0.04)
+        shadowNode.position = SCNVector3(-0.04, 0.002, 0.02)
         shadowNode.castsShadow = false
         granaryRoot.addChildNode(shadowNode)
 
-        granaryRoot.position = SCNVector3(0, soilY, -0.15)
-        granaryRoot.eulerAngles.y = 0.28
+        granaryRoot.position = SCNVector3(0, soilY, 0.05)
+        // Authentic 3/4 isometric angle showing both front door & side woven wall
+        granaryRoot.eulerAngles.y = 0.55
         scene.rootNode.addChildNode(granaryRoot)
         setVisibility(granaryRoot, opacity: 0)
     }
@@ -2652,11 +2768,13 @@ final class HomeSceneRenderer: NSObject {
 
         // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu di atas & membingkai leuit lumbung di tahap akhir
         let storageFraming = storage
-        cameraNode.position = SCNVector3(0, 0.52 + 0.04 * storageFraming, 1.75 + 0.15 * storageFraming)
+        let storageCamY: Float = 0.52 * (1.0 - storageFraming) + 0.46 * storageFraming
+        let storageCamZ: Float = 1.75 * (1.0 - storageFraming) + 2.30 * storageFraming
         let liftCamLook = 0.035 * liftT * (1.0 - settleOnTarp)
         let rackCamRise = smoothstep(0.902, 0.938, fullP)
-        let targetLookY: Float = 0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise - 0.04 * storageFraming
-        let targetLookX: Float = 0.02 * (1.0 - rackCamRise)
+        let targetLookY: Float = (0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise) * (1.0 - storageFraming) + 0.14 * storageFraming
+        let targetLookX: Float = 0.02 * (1.0 - rackCamRise) * (1.0 - storageFraming)
+        cameraNode.position = SCNVector3(0, storageCamY, storageCamZ)
         cameraNode.look(at: SCNVector3(targetLookX, targetLookY, 0))
     }
 
@@ -2676,11 +2794,13 @@ final class HomeSceneRenderer: NSObject {
         // so directional rays never graze horizontally, clip at frustum edges, or shine from underground.
         let clampedSunAlt = max(0.24, altitude)
         let clampedMoonAlt = max(0.24, -altitude)
-        sunOrbitNode.position = SCNVector3(
-            Float(sin(phase) * 3.5),
-            Float(clampedSunAlt * 2.8) + soilY + 0.30,
-            -2.4
-        )
+
+        let isStage5 = smoothstep(0.74, 0.88, Float(progress))
+        let sunZ: Float = -2.4 * (1.0 - isStage5) + 1.8 * isStage5
+        let sunX: Float = Float(sin(phase) * 3.5) * (1.0 - isStage5) + 2.5 * isStage5
+        let sunY: Float = (Float(clampedSunAlt * 2.8) + soilY + 0.30) * (1.0 - isStage5) + 3.8 * isStage5
+
+        sunOrbitNode.position = SCNVector3(sunX, sunY, sunZ)
         moonOrbitNode.position = SCNVector3(
             Float(-sin(phase) * 3.5),
             Float(clampedMoonAlt * 2.8) + soilY + 0.30,
@@ -2689,22 +2809,23 @@ final class HomeSceneRenderer: NSObject {
         sunOrbitNode.look(at: SCNVector3(0, soilY, 0))
         moonOrbitNode.look(at: SCNVector3(0, soilY, 0))
 
-        sunKeyLight.intensity = 155 * sunStrength
+        let baseSunIntensity: CGFloat = 280 * (1.0 - night * 0.7)
+        sunKeyLight.intensity = (isStage5 > 0.5) ? baseSunIntensity : (155 * sunStrength)
         moonLight.intensity = 52 * moonStrength
 
         // Continuous shadow opacity: smoothly dissolves shadowColor alpha before the light reaches
         // the horizon threshold so shadows dissolve seamlessly without snapping or popping.
-        let sunShadowAlpha = 0.65 * Double(smoothstep(0.06, 0.28, Float(altitude)))
+        let sunShadowAlpha = 0.68 * Double(smoothstep(0.06, 0.28, Float(altitude)))
         let moonShadowAlpha = 0.48 * Double(smoothstep(0.06, 0.28, Float(-altitude)))
-        sunKeyLight.shadowColor = UIColor(white: 0.02, alpha: sunShadowAlpha)
+        sunKeyLight.shadowColor = UIColor(red: 0.08, green: 0.05, blue: 0.03, alpha: sunShadowAlpha)
         moonLight.shadowColor = UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: moonShadowAlpha)
 
         sunKeyLight.castsShadow = sunShadowAlpha > 0.02
         moonLight.castsShadow = moonShadowAlpha > 0.02
 
         sunKeyLight.color = blendColor(
-            UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1),
-            UIColor(red: 1.0, green: 0.60, blue: 0.35, alpha: 1),
+            UIColor(red: 1.0, green: 0.93, blue: 0.78, alpha: 1),
+            UIColor(red: 1.0, green: 0.65, blue: 0.38, alpha: 1),
             amount: CGFloat(1 - max(0, min(1, altitude * 2.5)))
         )
         moonLight.color = blendColor(
@@ -2713,14 +2834,14 @@ final class HomeSceneRenderer: NSObject {
             amount: CGFloat(max(0, -altitude))
         )
 
-        // Maintain a healthy sky ambient floor so the 3D crop never plunges into silhouette
-        skyAmbientLight.intensity = 115 - 45 * night
+        // Maintain a balanced sky ambient floor so PBR materials show natural depth and SSAO
+        skyAmbientLight.intensity = 65 - 25 * night
         skyAmbientLight.color = blendColor(
-            UIColor(red: 0.88, green: 0.82, blue: 0.70, alpha: 1),
+            UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1),
             UIColor(red: 0.34, green: 0.42, blue: 0.65, alpha: 1),
             amount: night
         )
-        sunsetRimLight.intensity = 0
+        sunsetRimLight.intensity = 75 * CGFloat(isStage5)
 
         let stage5Progress = CGFloat(smoothstep(0.74, 0.85, Float(progress)))
         let bounceMultiplier: CGFloat = 0.25 * (1.0 - 0.60 * stage5Progress)
