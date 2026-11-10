@@ -53,6 +53,7 @@ final class HomeSceneRenderer: NSObject {
     private let storageRackBeamShadow = SCNNode()
     private var storageRackBundleShadows: [SCNNode] = []
     private let granaryRoot = SCNNode()
+    private var granaryMaterials: [SCNMaterial] = []
     private var hangingBundles: [SCNNode] = []
     private let rackShadowRoot = SCNNode()
     private var rackBundleShadows: [SCNNode] = []
@@ -1184,6 +1185,159 @@ final class HomeSceneRenderer: NSObject {
     // ════════════════════════════════════════════════════════════════════
 
     private func buildGranaryPreview() {
+        granaryRoot.name = "leuitGranaryRoot"
+        granaryMaterials.removeAll()
+
+        // Load authentic Baduy Leuit 3D model (lumbung.usdz)
+        let modelURL = Bundle.main.url(forResource: "lumbung", withExtension: "usdz")
+            ?? Bundle.main.url(forResource: "lumbung", withExtension: "usdz", subdirectory: "Asset/Home")
+
+        var loadedModel: SCNNode?
+        if let url = modelURL, let sourceScene = try? SCNScene(url: url, options: nil) {
+            let lumbungNode = SCNNode()
+            lumbungNode.name = "lumbungUSDZMesh"
+
+            let woodTexture = UIImage(named: "HumaWoodTexture")
+            let thatchTexture = UIImage(named: "HumaThatchTexture")
+            let terrainTexture = UIImage(named: "HumaTerrainTexture")
+
+            for child in sourceScene.rootNode.childNodes {
+                if child.name != "Camera" && !(child.name?.hasPrefix("Light") ?? false) && child.name != "env_light" {
+                    lumbungNode.addChildNode(child.clone())
+                }
+            }
+
+            lumbungNode.enumerateChildNodes { node, _ in
+                if node.light != nil || node.camera != nil {
+                    node.removeFromParentNode()
+                }
+                if let geometry = node.geometry {
+                    for material in geometry.materials {
+                        material.isDoubleSided = true
+                        material.lightingModel = .physicallyBased
+                        let matName = material.name ?? ""
+
+                        if matName.contains("kayu") {
+                            // Weathered Baduy dark timber posts and structural framing
+                            material.diffuse.contents = woodTexture ?? material.diffuse.contents
+                            material.multiply.contents = UIColor(red: 0.50, green: 0.36, blue: 0.24, alpha: 1)
+                            material.normal.contents = leafNormal
+                            material.normal.intensity = 0.25
+                            material.roughness.contents = 0.88
+                            material.metalness.contents = 0.0
+                        } else if matName == "anyaman" {
+                            // Handcrafted woven bamboo bilik sasag walls
+                            material.diffuse.contents = thatchTexture ?? material.diffuse.contents
+                            material.multiply.contents = UIColor(red: 0.84, green: 0.72, blue: 0.48, alpha: 1)
+                            material.normal.contents = leafNormal
+                            material.normal.intensity = 0.35
+                            material.roughness.contents = 0.86
+                            material.metalness.contents = 0.0
+                        } else {
+                            // Weathered golden thatch roof (atap rumbia / ijuk)
+                            material.multiply.contents = UIColor(red: 0.86, green: 0.76, blue: 0.56, alpha: 1)
+                            material.normal.contents = leafNormal
+                            material.normal.intensity = 0.22
+                            material.roughness.contents = 0.88
+                            material.metalness.contents = 0.0
+                        }
+                        smoothTextureSampling(material.diffuse)
+                        granaryMaterials.append(material)
+                    }
+                }
+            }
+
+            // Orient from Blender Z-up to SceneKit Y-up & center on origin
+            lumbungNode.eulerAngles.x = -.pi / 2
+            lumbungNode.position = SCNVector3(-1.14475, 0.15945, 0.61204)
+
+            let container = SCNNode()
+            container.addChildNode(lumbungNode)
+
+            // 6 Stone Footings (Batu Umpak / Tatapan) anchoring the wooden stilt posts firmly to the soil
+            let stoneMat = SCNMaterial()
+            stoneMat.lightingModel = .physicallyBased
+            stoneMat.diffuse.contents = terrainTexture ?? UIColor(red: 0.40, green: 0.38, blue: 0.35, alpha: 1)
+            stoneMat.multiply.contents = UIColor(red: 0.58, green: 0.54, blue: 0.48, alpha: 1)
+            stoneMat.normal.contents = leafNormal
+            stoneMat.normal.intensity = 0.30
+            stoneMat.roughness.contents = 0.94
+            stoneMat.metalness.contents = 0.0
+            smoothTextureSampling(stoneMat.diffuse)
+
+            let stonePositions: [SIMD2<Float>] = [
+                SIMD2<Float>(1.04, 0.94),
+                SIMD2<Float>(-0.73, 0.94),
+                SIMD2<Float>(1.04, -1.04),
+                SIMD2<Float>(-0.73, -1.04),
+                SIMD2<Float>(0.0, 0.98),
+                SIMD2<Float>(0.0, -1.00)
+            ]
+
+            let grassTex = UIImage(named: "HumaGrassTexture")
+            for p in stonePositions {
+                let stoneGeo = SCNBox(width: 0.42, height: 0.22, length: 0.42, chamferRadius: 0.08)
+                stoneGeo.materials = [stoneMat]
+                let stoneNode = SCNNode(geometry: stoneGeo)
+                stoneNode.position = SCNVector3(p.x, 0.08, p.y)
+                container.addChildNode(stoneNode)
+
+                // Organic wild grass tufts around the stone footings bridging the structure to the soil
+                if let gTex = grassTex {
+                    let tuftGeo = SCNCylinder(radius: 0.18, height: 0.08)
+                    let tuftMat = SCNMaterial()
+                    tuftMat.diffuse.contents = gTex
+                    tuftMat.multiply.contents = UIColor(red: 0.72, green: 0.68, blue: 0.42, alpha: 1)
+                    tuftMat.roughness.contents = 0.90
+                    tuftGeo.materials = [tuftMat]
+                    let tuftNode = SCNNode(geometry: tuftGeo)
+                    tuftNode.position = SCNVector3(p.x + 0.10, 0.04, p.y + 0.08)
+                    tuftNode.scale = SCNVector3(1.0, 0.6, 1.0)
+                    container.addChildNode(tuftNode)
+                }
+            }
+
+            let granaryScale: CGFloat = 0.092
+            container.scale = SCNVector3(granaryScale, granaryScale, granaryScale)
+            loadedModel = container
+        }
+
+        if let model = loadedModel {
+            granaryRoot.addChildNode(model)
+        } else {
+            buildFallbackGranary()
+        }
+
+        // Multi-tier ambient occlusion and directional shadow beneath the elevated granary floor
+        let shadowMat = SCNMaterial()
+        shadowMat.lightingModel = .constant
+        shadowMat.diffuse.contents = UIColor(red: 0.05, green: 0.03, blue: 0.02, alpha: 1)
+        shadowMat.isDoubleSided = true
+        shadowMat.writesToDepthBuffer = false
+        shadowMat.shaderModifiers = [.fragment: """
+        #pragma transparent
+        #pragma body
+        float2 d = (_surface.diffuseTexcoord - float2(0.5)) * 2.0;
+        float r = length(d);
+        _output.color.a *= (1.0 - smoothstep(0.35, 1.0, r)) * 0.82;
+        """]
+
+        let shadowGeo = SCNPlane(width: 0.65, height: 0.48)
+        shadowGeo.materials = [shadowMat]
+        let shadowNode = SCNNode(geometry: shadowGeo)
+        shadowNode.name = "granaryContactShadow"
+        shadowNode.eulerAngles.x = -.pi / 2
+        shadowNode.position = SCNVector3(0, 0.001, 0.04)
+        shadowNode.castsShadow = false
+        granaryRoot.addChildNode(shadowNode)
+
+        granaryRoot.position = SCNVector3(0, soilY, -0.15)
+        granaryRoot.eulerAngles.y = 0.28
+        scene.rootNode.addChildNode(granaryRoot)
+        setVisibility(granaryRoot, opacity: 0)
+    }
+
+    private func buildFallbackGranary() {
         func material(_ texture: String?, color: UIColor) -> SCNMaterial {
             let result = SCNMaterial()
             result.diffuse.contents = texture.flatMap { UIImage(named: $0) } ?? color
@@ -1229,11 +1383,6 @@ final class HomeSceneRenderer: NSObject {
                            at: SCNVector3(0.147 * direction, 0.54, 0), using: thatch)
             roof.eulerAngles.z = -0.77 * direction
         }
-        granaryRoot.scale = SCNVector3(0.72, 0.72, 0.72)
-        granaryRoot.position = SCNVector3(0, soilY, -0.42)
-        granaryRoot.eulerAngles.y = 0.18
-        scene.rootNode.addChildNode(granaryRoot)
-        setVisibility(granaryRoot, opacity: 0)
     }
 
     /// The harvested rice settles into three bound sheaves hanging on the bamboo lantayan.
@@ -2501,11 +2650,12 @@ final class HomeSceneRenderer: NSObject {
 
         setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p) * (1 - harvestCut))
 
-        // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu di atas
-        cameraNode.position = SCNVector3(0, 0.52, 1.75)
+        // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu di atas & membingkai leuit lumbung di tahap akhir
+        let storageFraming = storage
+        cameraNode.position = SCNVector3(0, 0.52 + 0.04 * storageFraming, 1.75 + 0.15 * storageFraming)
         let liftCamLook = 0.035 * liftT * (1.0 - settleOnTarp)
         let rackCamRise = smoothstep(0.902, 0.938, fullP)
-        let targetLookY: Float = 0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise
+        let targetLookY: Float = 0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise - 0.04 * storageFraming
         let targetLookX: Float = 0.02 * (1.0 - rackCamRise)
         cameraNode.look(at: SCNVector3(targetLookX, targetLookY, 0))
     }
