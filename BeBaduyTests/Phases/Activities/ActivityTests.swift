@@ -80,6 +80,30 @@ import XCTest
         XCTAssertEqual(vm.step, .awaitingLandscape)
         vm.suspend()
     }
+    func testBalanceCalibratesAndRecentersInBothLandscapeDirections() {
+        for direction in [-1, 1] {
+            let motion = FakeMotion()
+            let vm = NgalantaiViewModel(motion: motion)
+            vm.start()
+            vm.orientationChanged(direction)
+            vm.beginBalance()
+            motion.handler?(.init(time: 0, verticalAcceleration: 0, gravity: SIMD3(0, 0.3, -0.9)))
+            XCTAssertEqual(vm.balance, 0, accuracy: 0.001)
+            for _ in 0..<10 { vm.tick(0.1) }
+            XCTAssertEqual(vm.steadyTime, 1, accuracy: 0.001)
+            motion.handler?(.init(time: 1, verticalAcceleration: 0, gravity: SIMD3(0, 0.7, -0.7)))
+            XCTAssertGreaterThan(vm.balance * Double(direction), 0.18)
+            XCTAssertEqual(vm.steadyTime, 0)
+            vm.suspend()
+            XCTAssertNil(motion.handler)
+            vm.resume()
+            motion.handler?(.init(time: 2, verticalAcceleration: 0, gravity: SIMD3(0, -0.2, -0.9)))
+            XCTAssertEqual(vm.balance, 0, accuracy: 0.001)
+            XCTAssertEqual(vm.steadyTime, 0)
+            vm.suspend()
+        }
+    }
+
     func testLeuitUniqueBundlesAndInteriorGate() {
         let vm = NgaleuitkeunPareViewModel(); vm.start()
         XCTAssertFalse(vm.drop(-1, at: 0)); XCTAssertTrue(vm.drop(2, at: 0))

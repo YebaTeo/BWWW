@@ -40,16 +40,21 @@ final class HomeSceneRenderer: NSObject {
     private let fireRoot     = SCNNode()
     /// Ash clods on the charred ground
     private let ashRoot      = SCNNode()
-    /// Stage-5: bamboo drying rack and harvested rice bundles.
+    /// Stage-5: one harvested rice sheaf drying in sunlight.
     private let leuitRoot    = SCNNode()
-    private var rackPosts: [SCNNode] = []
-    private var rackBraces: [SCNNode] = []
-    private let rackBeam = SCNNode()
+    private let storageLeuitRoot    = SCNNode()
+    private var storageRackPosts: [SCNNode] = []
+    private var storageRackBraces: [SCNNode] = []
+    private let storageRackBeam = SCNNode()
+    private var storageHangingBundles: [SCNNode] = []
+    private let storageRackShadowRoot = SCNNode()
+    private var storageRackPostShadows: [SCNNode] = []
+    private var storageRackPostContactShadows: [SCNNode] = []
+    private let storageRackBeamShadow = SCNNode()
+    private var storageRackBundleShadows: [SCNNode] = []
+    private let granaryRoot = SCNNode()
     private var hangingBundles: [SCNNode] = []
     private let rackShadowRoot = SCNNode()
-    private var rackPostShadows: [SCNNode] = []
-    private var rackPostContactShadows: [SCNNode] = []
-    private let rackBeamShadow = SCNNode()
     private var rackBundleShadows: [SCNNode] = []
     private var harvestTransferNodes: [(
         node: SCNNode,
@@ -169,7 +174,9 @@ final class HomeSceneRenderer: NSObject {
         buildAsh()           // Post-burn clods
         buildPlantingStage() // Stage 2
         buildRicePlant()     // Stage 3 + 4
-        buildLeuitRack()     // Stage 5
+        buildLeuitRack()
+        storageBuildLeuitRack()
+        buildGranaryPreview()
         configureObjectShadows()
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
@@ -1174,15 +1181,67 @@ final class HomeSceneRenderer: NSObject {
     // MARK: Stage 5 – Harvested rice on a bamboo rack
     // ════════════════════════════════════════════════════════════════════
 
-    /// The field's golden rice becomes three bound sheaves. Posts rise
-    /// from the soil, the crossbar opens, then the sheaves settle below it.
-    private func buildLeuitRack() {
-        leuitRoot.name = "leuitRiceRack"
-        leuitRoot.position = SCNVector3(0, soilY, -0.10)
-        leuitRoot.scale = SCNVector3(0.88, 0.88, 0.88)
-        leuitRoot.opacity = 0
-        leuitRoot.isHidden = true
-        scene.rootNode.addChildNode(leuitRoot)
+    private func buildGranaryPreview() {
+        func material(_ texture: String?, color: UIColor) -> SCNMaterial {
+            let result = SCNMaterial()
+            result.diffuse.contents = texture.flatMap { UIImage(named: $0) } ?? color
+            result.roughness.contents = 0.9
+            return result
+        }
+        let timber = material("HumaWoodTexture", color: .brown)
+        let thatch = material("HumaThatchTexture", color: UIColor(red: 0.68, green: 0.49, blue: 0.23, alpha: 1))
+        let stone = material(nil, color: UIColor(white: 0.40, alpha: 1))
+
+        @discardableResult
+        func box(_ width: CGFloat, _ height: CGFloat, _ depth: CGFloat,
+                 at position: SCNVector3, using material: SCNMaterial) -> SCNNode {
+            let geometry = SCNBox(width: width, height: height, length: depth, chamferRadius: 0.004)
+            geometry.materials = [material]
+            let node = SCNNode(geometry: geometry)
+            node.position = position
+            granaryRoot.addChildNode(node)
+            return node
+        }
+        for x: Float in [-0.21, 0.21] {
+            for z: Float in [-0.15, 0.15] {
+                box(0.10, 0.035, 0.10, at: SCNVector3(x, 0.017, z), using: stone)
+                box(0.055, 0.19, 0.055, at: SCNVector3(x, 0.113, z), using: timber)
+            }
+        }
+        box(0.52, 0.27, 0.38, at: SCNVector3(0, 0.31, 0), using: timber)
+        let door = material(nil, color: UIColor(red: 0.28, green: 0.16, blue: 0.08, alpha: 1))
+        box(0.15, 0.19, 0.02, at: SCNVector3(0, 0.30, 0.197), using: door)
+
+        let gable = UIBezierPath()
+        gable.move(to: CGPoint(x: -0.26, y: 0))
+        gable.addLine(to: CGPoint(x: 0, y: 0.25))
+        gable.addLine(to: CGPoint(x: 0.26, y: 0))
+        gable.close()
+        let gableGeometry = SCNShape(path: gable, extrusionDepth: 0.38)
+        gableGeometry.materials = [timber]
+        let gableNode = SCNNode(geometry: gableGeometry)
+        gableNode.position.y = 0.43
+        granaryRoot.addChildNode(gableNode)
+        for direction: Float in [-1, 1] {
+            let roof = box(0.43, 0.045, 0.49,
+                           at: SCNVector3(0.147 * direction, 0.54, 0), using: thatch)
+            roof.eulerAngles.z = -0.77 * direction
+        }
+        granaryRoot.scale = SCNVector3(0.72, 0.72, 0.72)
+        granaryRoot.position = SCNVector3(0, soilY, -0.42)
+        granaryRoot.eulerAngles.y = 0.18
+        scene.rootNode.addChildNode(granaryRoot)
+        setVisibility(granaryRoot, opacity: 0)
+    }
+
+    /// The harvested rice settles into one bound sheaf on the sunlit ground.
+    private func storageBuildLeuitRack() {
+        storageLeuitRoot.name = "leuitRiceRack"
+        storageLeuitRoot.position = SCNVector3(0, soilY, -0.10)
+        storageLeuitRoot.scale = SCNVector3(0.88, 0.88, 0.88)
+        storageLeuitRoot.opacity = 0
+        storageLeuitRoot.isHidden = true
+        scene.rootNode.addChildNode(storageLeuitRoot)
 
         let bamboo = SCNMaterial()
         bamboo.lightingModel = .physicallyBased
@@ -1206,8 +1265,8 @@ final class HomeSceneRenderer: NSObject {
             let post = SCNNode(geometry: postGeometry)
             post.name = x < 0 ? "leftBambooPost" : "rightBambooPost"
             post.position = SCNVector3(x, postHeight * 0.5, 0)
-            leuitRoot.addChildNode(post)
-            rackPosts.append(post)
+            storageLeuitRoot.addChildNode(post)
+            storageRackPosts.append(post)
 
             // Raised rings make the poles read as segmented bamboo.
             for y: Float in [-0.20, -0.04, 0.12, 0.28] {
@@ -1223,11 +1282,11 @@ final class HomeSceneRenderer: NSObject {
         let beamGeometry = SCNCylinder(radius: 0.020, height: 0.55)
         beamGeometry.radialSegmentCount = 12
         beamGeometry.materials = [bamboo]
-        rackBeam.name = "bambooCrossbar"
-        rackBeam.geometry = beamGeometry
-        rackBeam.eulerAngles.z = .pi / 2
-        rackBeam.position.y = postHeight
-        leuitRoot.addChildNode(rackBeam)
+        storageRackBeam.name = "bambooCrossbar"
+        storageRackBeam.geometry = beamGeometry
+        storageRackBeam.eulerAngles.z = .pi / 2
+        storageRackBeam.position.y = postHeight
+        storageLeuitRoot.addChildNode(storageRackBeam)
         for side: Float in [-1, 1] {
             let brace = branch(
                 from: SIMD3<Float>(side * 0.245, 0.43, 0),
@@ -1236,54 +1295,27 @@ final class HomeSceneRenderer: NSObject {
                 material: bamboo
             )
             brace.name = side < 0 ? "leftBambooBrace" : "rightBambooBrace"
-            leuitRoot.addChildNode(brace)
-            rackBraces.append(brace)
+            storageLeuitRoot.addChildNode(brace)
+            storageRackBraces.append(brace)
         }
         let harvestedPanicles = paniclesRoot.childNodes.filter { $0.geometry != nil }
         for x: Float in [-0.15, 0, 0.15] {
-            let bundleIndex = hangingBundles.count
-            let bundle = makeHangingRiceBundle(from: harvestedPanicles, tie: tieMaterial)
+            let bundleIndex = storageHangingBundles.count
+            let bundle = storageMakeHangingRiceBundle(from: harvestedPanicles, tie: tieMaterial)
             bundle.name = "hangingRiceBundle_\(bundleIndex)"
             bundle.position = SCNVector3(x, postHeight, 0.025)
-            leuitRoot.addChildNode(bundle)
-            hangingBundles.append(bundle)
+            storageLeuitRoot.addChildNode(bundle)
+            storageHangingBundles.append(bundle)
         }
 
-        // Temporary harvested stalks travel from the ripe field into the
-        // exact positions of the final tied sheaves. The mature crop and
-        // these copies overlap at the start, so the handoff reads as one
-        // continuous harvest instead of a sudden replacement.
-        for (index, source) in harvestedPanicles.enumerated() {
-            guard source.geometry != nil, !hangingBundles.isEmpty else { continue }
-            let bundleIndex = index % hangingBundles.count
-            let targetIndex = harvestedPanicles.count + index
-            guard hangingBundles[bundleIndex].childNodes.indices.contains(targetIndex) else { continue }
-            let target = hangingBundles[bundleIndex].childNodes[targetIndex]
-            let movingStalk = SCNNode(geometry: source.geometry)
-            movingStalk.name = "harvestTransfer_\(index)"
-            movingStalk.simdWorldPosition = source.simdWorldPosition
-            movingStalk.simdWorldOrientation = source.simdWorldOrientation
-            movingStalk.simdScale = source.simdScale
-            movingStalk.opacity = 0
-            movingStalk.isHidden = true
-            scene.rootNode.addChildNode(movingStalk)
-            harvestTransferNodes.append((
-                node: movingStalk,
-                target: target,
-                startPosition: source.simdWorldPosition,
-                startOrientation: source.simdWorldOrientation,
-                startScale: source.simdScale,
-                delay: Float(index % 4) * 0.045
-            ))
-        }
-        buildRackDirectionalShadows()
+        storageBuildRackDirectionalShadows()
     }
 
-    private func buildRackDirectionalShadows() {
-        rackShadowRoot.name = "rackDirectionalShadows"
-        rackShadowRoot.renderingOrder = -2
-        rackShadowRoot.castsShadow = false
-        leuitRoot.addChildNode(rackShadowRoot)
+    private func storageBuildRackDirectionalShadows() {
+        storageRackShadowRoot.name = "rackDirectionalShadows"
+        storageRackShadowRoot.renderingOrder = -2
+        storageRackShadowRoot.castsShadow = false
+        storageLeuitRoot.addChildNode(storageRackShadowRoot)
 
         // 1. Post contact shadow material (deep dark occlusion at ground entrance)
         let contactShadowMat = SCNMaterial()
@@ -1357,8 +1389,8 @@ final class HomeSceneRenderer: NSObject {
             contactNode.eulerAngles.x = -.pi / 2
             contactNode.position = SCNVector3(x, 0.0004, 0)
             contactNode.castsShadow = false
-            rackShadowRoot.addChildNode(contactNode)
-            rackPostContactShadows.append(contactNode)
+            storageRackShadowRoot.addChildNode(contactNode)
+            storageRackPostContactShadows.append(contactNode)
 
             let postShadowGeo = SCNPlane(width: 0.054, height: 0.52)
             postShadowGeo.materials = [postShadowMat]
@@ -1367,19 +1399,19 @@ final class HomeSceneRenderer: NSObject {
             postShadowNode.eulerAngles.x = -.pi / 2
             postShadowNode.position = SCNVector3(x, 0.0006, 0.26)
             postShadowNode.castsShadow = false
-            rackShadowRoot.addChildNode(postShadowNode)
-            rackPostShadows.append(postShadowNode)
+            storageRackShadowRoot.addChildNode(postShadowNode)
+            storageRackPostShadows.append(postShadowNode)
         }
 
         // Build Crossbar Shadow
         let beamShadowGeo = SCNPlane(width: 0.58, height: 0.065)
         beamShadowGeo.materials = [beamShadowMat]
-        rackBeamShadow.name = "bambooBeamDirectionalShadow"
-        rackBeamShadow.geometry = beamShadowGeo
-        rackBeamShadow.eulerAngles.x = -.pi / 2
-        rackBeamShadow.position = SCNVector3(0, 0.0007, 0.50)
-        rackBeamShadow.castsShadow = false
-        rackShadowRoot.addChildNode(rackBeamShadow)
+        storageRackBeamShadow.name = "bambooBeamDirectionalShadow"
+        storageRackBeamShadow.geometry = beamShadowGeo
+        storageRackBeamShadow.eulerAngles.x = -.pi / 2
+        storageRackBeamShadow.position = SCNVector3(0, 0.0007, 0.50)
+        storageRackBeamShadow.castsShadow = false
+        storageRackShadowRoot.addChildNode(storageRackBeamShadow)
 
         // Build Rice Sheaf Shadows (Three Bundles)
         for (index, x) in [-0.15, 0.0, 0.15].enumerated() {
@@ -1390,14 +1422,14 @@ final class HomeSceneRenderer: NSObject {
             bundleShadowNode.eulerAngles.x = -.pi / 2
             bundleShadowNode.position = SCNVector3(Float(x), 0.0008, 0.32)
             bundleShadowNode.castsShadow = false
-            rackShadowRoot.addChildNode(bundleShadowNode)
-            rackBundleShadows.append(bundleShadowNode)
+            storageRackShadowRoot.addChildNode(bundleShadowNode)
+            storageRackBundleShadows.append(bundleShadowNode)
         }
     }
 
     /// Reuses the exact golden panicle geometry grown in DIBUAT, arranged
     /// into three inverted sheaves. Only the tie is new to the drying rack.
-    private func makeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
+    private func storageMakeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
         let bundle = SCNNode()
         // Three close layers make each sheaf full at the tied neck, then
         // fan outward below it like the reference drying bundles.
@@ -1429,6 +1461,325 @@ final class HomeSceneRenderer: NSObject {
         let collar = SCNNode(geometry: collarGeometry)
         collar.position.y = -0.018
         bundle.addChildNode(collar)
+        return bundle
+    }
+
+    private func buildLeuitRack() {
+        leuitRoot.name = "leuitRiceRack"
+        leuitRoot.position = SCNVector3(0, soilY, 0)
+        leuitRoot.scale = SCNVector3(0.92, 0.92, 0.92)
+        leuitRoot.opacity = 0
+        leuitRoot.isHidden = true
+        scene.rootNode.addChildNode(leuitRoot)
+
+        let tieMaterial = SCNMaterial()
+        tieMaterial.lightingModel = .physicallyBased
+        tieMaterial.diffuse.contents = UIImage(named: "HumaWood") ?? UIColor(red: 0.82, green: 0.64, blue: 0.34, alpha: 1)
+        tieMaterial.multiply.contents = UIColor(red: 0.88, green: 0.70, blue: 0.38, alpha: 1)
+        tieMaterial.roughness.contents = 0.84
+        smoothTextureSampling(tieMaterial.diffuse)
+
+        let harvestedPanicles = paniclesRoot.childNodes.filter { $0.geometry != nil }
+        let bundle = makeHangingRiceBundle(from: harvestedPanicles, tie: tieMaterial)
+        bundle.name = "hangingRiceBundle_0"
+        bundle.position = SCNVector3(0, 0, 0)
+        leuitRoot.addChildNode(bundle)
+        hangingBundles.append(bundle)
+
+        // Temporary harvested stalks travel from the ripe field into the
+        // exact positions of the final tied sheaves. The mature crop and
+        // these copies overlap at the start, so the handoff reads as one
+        // continuous harvest instead of a sudden replacement.
+        for (index, source) in harvestedPanicles.enumerated() {
+            guard source.geometry != nil, !hangingBundles.isEmpty else { continue }
+            let bundleIndex = index % hangingBundles.count
+            let targetIndex = index
+            guard hangingBundles[bundleIndex].childNodes.indices.contains(targetIndex) else { continue }
+            let target = hangingBundles[bundleIndex].childNodes[targetIndex]
+            let movingStalk = SCNNode(geometry: source.geometry)
+            movingStalk.name = "harvestTransfer_\(index)"
+            movingStalk.simdWorldPosition = source.simdWorldPosition
+            movingStalk.simdWorldOrientation = source.simdWorldOrientation
+            movingStalk.simdScale = source.simdScale
+            movingStalk.opacity = 0
+            movingStalk.isHidden = true
+            scene.rootNode.addChildNode(movingStalk)
+            harvestTransferNodes.append((
+                node: movingStalk,
+                target: target,
+                startPosition: source.simdWorldPosition,
+                startOrientation: source.simdWorldOrientation,
+                startScale: source.simdScale,
+                delay: Float(index % 4) * 0.045
+            ))
+        }
+        buildRackDirectionalShadows()
+    }
+
+    private func buildRackDirectionalShadows() {
+        leuitRoot.addChildNode(rackShadowRoot)
+        let material = SCNMaterial()
+        material.lightingModel = .constant
+        material.diffuse.contents = UIColor(red: 0.06, green: 0.04, blue: 0.02, alpha: 0.62)
+        material.isDoubleSided = true
+        material.writesToDepthBuffer = false
+        material.shaderModifiers = [.fragment: """
+        #pragma transparent
+        #pragma body
+        float2 uv = _surface.diffuseTexcoord;
+        float leftEdge = smoothstep(0.02, 0.20, uv.x);
+        float rightEdge = 1.0 - smoothstep(0.80, 0.98, uv.x);
+        float spreadWidth = 0.22 + 0.38 * uv.x;
+        float dy = abs(uv.y - 0.5) / spreadWidth;
+        float yEdge = 1.0 - smoothstep(0.35, 1.0, dy);
+        _output.color.a *= leftEdge * rightEdge * yEdge * 0.78;
+        """]
+        let geometry = SCNPlane(width: 0.48, height: 0.28)
+        geometry.materials = [material]
+        let shadow = SCNNode(geometry: geometry)
+        shadow.eulerAngles.x = -.pi / 2
+        shadow.position = SCNVector3(0.04, 0.001, 0.005)
+        shadow.castsShadow = false
+        rackShadowRoot.addChildNode(shadow)
+        rackBundleShadows.append(shadow)
+    }
+
+    /// Builds the lush sun-drying harvested rice sheaf (geugeusan pare keur ngalantai)
+    /// resting horizontally/sideways on the huma soil, with physical ground-plane
+    /// collision, realistic Baduy split-bamboo tie craft (tali awian), and voluminous foliage.
+    private func makeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
+        let bundle = SCNNode()
+
+        // 1. Panicle Grains & Rachis Material (Matching Dibuat ricePanicles with HumaYoungRice texture)
+        let grainMaterial = SCNMaterial()
+        grainMaterial.lightingModel = .physicallyBased
+        grainMaterial.normal.contents = leafNormal
+        grainMaterial.normal.intensity = 0.12
+        grainMaterial.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
+        grainMaterial.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
+        grainMaterial.roughness.contents = 0.58
+        grainMaterial.metalness.contents = 0.02
+        grainMaterial.isDoubleSided = true
+        grainMaterial.writesToDepthBuffer = true
+        smoothTextureSampling(grainMaterial.diffuse)
+
+        // 2. Golden Rice Blade / Leaf Material (Matching Dibuat leafMaterials)
+        let leafMat = SCNMaterial()
+        leafMat.lightingModel = .physicallyBased
+        leafMat.normal.contents = leafNormal
+        leafMat.normal.intensity = 0.08
+        leafMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
+        leafMat.multiply.contents = UIColor(red: 0.98, green: 0.82, blue: 0.32, alpha: 1)
+        leafMat.roughness.contents = 0.85
+        leafMat.metalness.contents = 0.0
+        leafMat.isDoubleSided = true
+        leafMat.transparencyMode = .aOne
+        leafMat.writesToDepthBuffer = true
+        smoothTextureSampling(leafMat.diffuse)
+
+        // 3. Cut Straw Butt (Puntung Jerami Hasil Panen Ani-ani)
+        let strawMat = SCNMaterial()
+        strawMat.lightingModel = .physicallyBased
+        strawMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.88, green: 0.74, blue: 0.32, alpha: 1)
+        strawMat.multiply.contents = UIColor(red: 0.92, green: 0.78, blue: 0.36, alpha: 1)
+        strawMat.normal.contents = leafNormal
+        strawMat.normal.intensity = 0.10
+        strawMat.roughness.contents = 0.85
+        strawMat.metalness.contents = 0.0
+        smoothTextureSampling(strawMat.diffuse)
+
+        let buttNode = SCNNode()
+        buttNode.name = "strawButt"
+        for i in 0..<16 {
+            let angle = Float(i) * 2.3999
+            let ringRadius: Float = (i < 5) ? 0.005 : ((i < 11) ? 0.011 : 0.016)
+            let strawGeo = SCNCylinder(radius: 0.0022, height: 0.075)
+            strawGeo.radialSegmentCount = 6
+            strawGeo.materials = [strawMat]
+            let straw = SCNNode(geometry: strawGeo)
+            straw.eulerAngles.z = .pi / 2
+            let sy = 0.021 + sin(angle) * ringRadius
+            let sz = cos(angle) * ringRadius
+            straw.position = SCNVector3(-0.098, max(0.0025, sy), sz)
+            buttNode.addChildNode(straw)
+        }
+        bundle.addChildNode(buttNode)
+
+        // 4. Traditional Baduy Split-Bamboo Sheaf Tie (Tali Awian / Sulam)
+        // Handcrafted organic tie band with double woven cords, knot clasp, and trailing tails.
+        let tieMaterial = SCNMaterial()
+        tieMaterial.lightingModel = .physicallyBased
+        tieMaterial.diffuse.contents = UIImage(named: "HumaThatchTexture")
+            ?? UIImage(named: "HumaWoodTexture")
+            ?? UIColor(red: 0.85, green: 0.70, blue: 0.40, alpha: 1)
+        tieMaterial.multiply.contents = UIColor(red: 0.88, green: 0.74, blue: 0.42, alpha: 1)
+        tieMaterial.normal.contents = leafNormal
+        tieMaterial.normal.intensity = 0.25
+        tieMaterial.roughness.contents = 0.82
+        tieMaterial.metalness.contents = 0.0
+        tieMaterial.isDoubleSided = true
+        smoothTextureSampling(tieMaterial.diffuse)
+
+        let tieRoot = SCNNode()
+        tieRoot.name = "taliAwianTie"
+        tieRoot.position = SCNVector3(-0.060, 0.021, 0.0)
+
+        // A) Double-wrapped split bamboo rings (Torus with rounded cross-section)
+        let ring1Geo = SCNTorus(ringRadius: 0.0215, pipeRadius: 0.0032)
+        ring1Geo.ringSegmentCount = 24
+        ring1Geo.pipeSegmentCount = 12
+        ring1Geo.materials = [tieMaterial]
+        let ring1 = SCNNode(geometry: ring1Geo)
+        ring1.eulerAngles.z = .pi / 2
+        ring1.position.x = -0.004
+        tieRoot.addChildNode(ring1)
+
+        let ring2Geo = SCNTorus(ringRadius: 0.0210, pipeRadius: 0.0028)
+        ring2Geo.ringSegmentCount = 24
+        ring2Geo.pipeSegmentCount = 12
+        ring2Geo.materials = [tieMaterial]
+        let ring2 = SCNNode(geometry: ring2Geo)
+        ring2.eulerAngles.z = .pi / 2
+        ring2.position.x = 0.004
+        tieRoot.addChildNode(ring2)
+
+        // B) Bamboo Knot / Clasp (Simpul kancing bambu tradisional yang terselip rapi)
+        let knotGeo = SCNBox(width: 0.007, height: 0.006, length: 0.015, chamferRadius: 0.0025)
+        knotGeo.materials = [tieMaterial]
+        let knot = SCNNode(geometry: knotGeo)
+        knot.position = SCNVector3(0, 0.021, 0.006)
+        knot.eulerAngles = SCNVector3(0.15, 0.35, 0.10)
+        tieRoot.addChildNode(knot)
+
+        // C) Split bamboo trailing tails (Ujung tali bambu yang terjuntai alami di sepanjang batang)
+        for side: Float in [-1, 1] {
+            let tailGeo = SCNBox(width: 0.022, height: 0.0015, length: 0.0040, chamferRadius: 0.0006)
+            tailGeo.materials = [tieMaterial]
+            let tail = SCNNode(geometry: tailGeo)
+            tail.position = SCNVector3(0.012, 0.019 - side * 0.003, 0.008 + side * 0.004)
+            tail.eulerAngles = SCNVector3(side * 0.18, side * 0.15, -0.22)
+            tieRoot.addChildNode(tail)
+        }
+
+        bundle.addChildNode(tieRoot)
+
+        // 5. 32 Lush Golden Blades Fanning Across the Soil Surface (Ground-Resting, Mid, Canopy)
+        // All vertices mathematically clamped to y >= 0.002 to guarantee physical ground contact.
+        let startX: Float = -0.060
+        let startY: Float = 0.021
+
+        // 5a. Ground-Resting Tier (10 blades resting flat/gently curved across the dirt surface)
+        for i in 0..<10 {
+            let yaw: Float = -0.72 + Float(i) * 0.16
+            let bladeZ = Float(i % 5 - 2) * 0.005
+            let geom = makeRestingRiceBladeGeometry(
+                startX: startX,
+                startY: startY,
+                startZ: bladeZ,
+                length: 0.30 + Float(i % 4) * 0.020,
+                yaw: yaw,
+                archHeight: 0.005 + Float(i % 3) * 0.003,
+                sideCurve: Float(i % 3 - 1) * 0.018,
+                width: 0.020,
+                material: leafMat
+            )
+            let node = SCNNode(geometry: geom)
+            bundle.addChildNode(node)
+        }
+
+        // 5b. Mid-Elevation Tier (12 blades arching across the middle volume)
+        for i in 0..<12 {
+            let yaw: Float = -0.58 + Float(i) * 0.105
+            let bladeZ = Float(i % 4 - 2) * 0.006
+            let geom = makeRestingRiceBladeGeometry(
+                startX: startX,
+                startY: startY + 0.004,
+                startZ: bladeZ,
+                length: 0.34 + Float(i % 4) * 0.020,
+                yaw: yaw,
+                archHeight: 0.065 + Float(i % 4) * 0.015,
+                sideCurve: Float(i % 3 - 1) * 0.025,
+                width: 0.022,
+                material: leafMat
+            )
+            let node = SCNNode(geometry: geom)
+            bundle.addChildNode(node)
+        }
+
+        // 5c. Top-Canopy Sunlit Tier (10 blades arching high to catch direct sunlight)
+        for i in 0..<10 {
+            let yaw: Float = -0.42 + Float(i) * 0.092
+            let bladeZ = Float(i % 3 - 1) * 0.006
+            let geom = makeRestingRiceBladeGeometry(
+                startX: startX,
+                startY: startY + 0.008,
+                startZ: bladeZ,
+                length: 0.36 + Float(i % 3) * 0.025,
+                yaw: yaw,
+                archHeight: 0.140 + Float(i % 3) * 0.022,
+                sideCurve: Float(i % 2 == 0 ? 1 : -1) * 0.015,
+                width: 0.021,
+                material: leafMat
+            )
+            let node = SCNNode(geometry: geom)
+            bundle.addChildNode(node)
+        }
+
+        // 6. 14 Golden Panicles Laden with 3D Grains Resting and Drooping Toward the Earth
+        // 6a. 4 Ground Panicles (heavy grain clusters resting gently on the ground)
+        let groundYaws: [Float] = [-0.62, -0.24, 0.24, 0.62]
+        for (idx, yaw) in groundYaws.enumerated() {
+            let geom = makeRestingRicePanicleGeometry(
+                startX: startX,
+                startY: startY,
+                startZ: Float(idx - 2) * 0.006,
+                length: 0.35 + Float(idx) * 0.015,
+                yaw: yaw,
+                droopArch: 0.022 + Float(idx % 2) * 0.008,
+                sideCurve: Float(idx % 2 == 0 ? 1 : -1) * 0.015,
+                material: grainMaterial
+            )
+            let node = SCNNode(geometry: geom)
+            bundle.addChildNode(node)
+        }
+
+        // 6b. 6 Mid Panicles (arching gracefully across the middle height)
+        let midYaws: [Float] = [-0.48, -0.28, -0.10, 0.10, 0.28, 0.48]
+        for (idx, yaw) in midYaws.enumerated() {
+            let geom = makeRestingRicePanicleGeometry(
+                startX: startX,
+                startY: startY + 0.005,
+                startZ: Float(idx % 3 - 1) * 0.007,
+                length: 0.38 + Float(idx % 3) * 0.018,
+                yaw: yaw,
+                droopArch: 0.080 + Float(idx % 3) * 0.015,
+                sideCurve: Float(idx % 2 == 0 ? 1 : -1) * 0.020,
+                material: grainMaterial
+            )
+            let node = SCNNode(geometry: geom)
+            bundle.addChildNode(node)
+        }
+
+        // 6c. 4 Top-Crown Panicles (arching high before cascading down over the sheaf)
+        let crownYaws: [Float] = [-0.30, -0.10, 0.10, 0.30]
+        for (idx, yaw) in crownYaws.enumerated() {
+            let geom = makeRestingRicePanicleGeometry(
+                startX: startX,
+                startY: startY + 0.010,
+                startZ: Float(idx - 2) * 0.005,
+                length: 0.41 + Float(idx) * 0.012,
+                yaw: yaw,
+                droopArch: 0.150 + Float(idx % 2) * 0.018,
+                sideCurve: Float(idx % 2 == 0 ? 1 : -1) * 0.018,
+                material: grainMaterial
+            )
+            let node = SCNNode(geometry: geom)
+            bundle.addChildNode(node)
+        }
+
         return bundle
     }
 
@@ -1638,7 +1989,7 @@ final class HomeSceneRenderer: NSObject {
         // the hole instead of simply fading in at full size.
         let riceGrowth = smoothstep(0.90, 0.98, p)
         leavesRoot.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
-        let transfer = smoothstep(0.75, 0.91, fullP)
+        let transfer = smoothstep(0.75, 0.86, fullP)
         setVisibility(leavesRoot, opacity: riceGrowth * (1 - transfer))
 
         // ── 8. Panicles – Tumbuh bersamaan dengan tanaman padi (p 0.90 → 0.98)
@@ -1650,7 +2001,7 @@ final class HomeSceneRenderer: NSObject {
         // small lift on the way, then hand them off to the bound bundles.
         for transferStalk in harvestTransferNodes {
             let start = 0.75 + transferStalk.delay * 0.15
-            let end = 0.90 + transferStalk.delay * 0.15
+            let end = 0.85 + transferStalk.delay * 0.15
             let t = smoothstep(start, end, fullP)
             let targetPosition = transferStalk.target.simdWorldPosition
             let position = transferStalk.startPosition
@@ -1669,8 +2020,8 @@ final class HomeSceneRenderer: NSObject {
             )
             let appear = smoothstep(0.75 + transferStalk.delay * 0.15,
                                     0.79 + transferStalk.delay * 0.15, fullP)
-            let handoff = 1 - smoothstep(0.88 + transferStalk.delay * 0.15,
-                                         0.92 + transferStalk.delay * 0.15, fullP)
+            let handoff = 1 - smoothstep(0.84 + transferStalk.delay * 0.15,
+                                         0.87 + transferStalk.delay * 0.15, fullP)
             let opacity = appear * handoff
             transferStalk.node.opacity = CGFloat(opacity)
             transferStalk.node.isHidden = opacity < 0.005
@@ -1691,23 +2042,17 @@ final class HomeSceneRenderer: NSObject {
         leafMaterials.forEach { $0.multiply.contents = tint }
         panicleMaterials.forEach { $0.multiply.contents = tint }
 
-        // ── 10. Bamboo rises; harvested sheaves hang beneath it ───────
+        // ── 10. One harvested sheaf settles onto the sunlit ground ───
         let postRise = smoothstep(0.76, 0.88, fullP)
-        let beamGrow = smoothstep(0.84, 0.92, fullP)
-        setVisibility(leuitRoot, opacity: postRise)
-        for post in rackPosts {
-            post.scale.y = postRise
-            post.position.y = 0.31 * postRise
-        }
-        rackBeam.scale.y = max(0.001, beamGrow)
-        setVisibility(rackBeam, opacity: beamGrow)
-        for brace in rackBraces {
-            setVisibility(brace, opacity: beamGrow)
-        }
+        let rackArrival = smoothstep(0.905, 0.94, fullP)
+        let storage = smoothstep(0.965, 0.995, fullP)
+        setVisibility(storageLeuitRoot, opacity: rackArrival * (1 - storage))
+        setVisibility(granaryRoot, opacity: storage)
+        setVisibility(leuitRoot, opacity: postRise * (1 - rackArrival))
         for (index, bundle) in hangingBundles.enumerated() {
             let offset = Float(index) * 0.014
-            let drop = smoothstep(0.88 + offset, 0.96 + offset, fullP)
-            bundle.position.y = 0.62
+            let drop = smoothstep(0.83 + offset, 0.865 + offset * 0.3, fullP)
+            bundle.position = SCNVector3(0, 0, 0)
             setVisibility(bundle, opacity: drop)
         }
 
@@ -1716,28 +2061,21 @@ final class HomeSceneRenderer: NSObject {
         let rackShadowYaw = Float(sin(rackSunPhase)) * -0.35
         rackShadowRoot.eulerAngles.y = rackShadowYaw
 
-        for shadow in rackPostContactShadows {
-            shadow.opacity = CGFloat(postRise)
-        }
-        for shadow in rackPostShadows {
-            shadow.scale.y = max(0.001, postRise)
-            shadow.position.z = 0.26 * postRise
-            shadow.opacity = CGFloat(postRise)
-        }
-        rackBeamShadow.scale.x = max(0.001, beamGrow)
-        rackBeamShadow.position.z = 0.50 * postRise
-        rackBeamShadow.opacity = CGFloat(beamGrow * postRise)
         for (index, bundleShadow) in rackBundleShadows.enumerated() {
             let offset = Float(index) * 0.014
-            let drop = smoothstep(0.88 + offset, 0.96 + offset, fullP)
-            bundleShadow.position.z = 0.32 * postRise
+            let drop = smoothstep(0.83 + offset, 0.865 + offset * 0.3, fullP)
+            bundleShadow.position = SCNVector3(0.04, 0.001, 0.005)
             bundleShadow.opacity = CGFloat(drop)
         }
 
         setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p) * (1 - transfer))
-        // Hold the rack in the middle of the open field above the text card.
+        // Frame the harvested sheaf resting on the sunlit ground above the text card.
         cameraNode.position = SCNVector3(0, 0.52, 1.75)
-        cameraNode.look(at: SCNVector3(0, 0.10 + 0.12 * postRise, 0))
+        let ngalantaiFraming = postRise * (1 - rackArrival)
+        let storageFraming = rackArrival
+        let targetLookY: Float = 0.10 - 0.02 * ngalantaiFraming + 0.14 * storageFraming
+        let targetLookX: Float = 0.02 * ngalantaiFraming
+        cameraNode.look(at: SCNVector3(targetLookX, targetLookY, 0))
     }
 
     /// Mirrors the background's five complete day/night cycles
@@ -1932,10 +2270,204 @@ final class HomeSceneRenderer: NSObject {
         return material
     }
 
+    private func makeRestingRiceBladeGeometry(
+        startX: Float, startY: Float, startZ: Float,
+        length: Float,
+        yaw: Float,
+        archHeight: Float,
+        sideCurve: Float,
+        width: Float,
+        material: SCNMaterial
+    ) -> SCNGeometry {
+        let segments = 22
+        var vertices: [SCNVector3] = []
+        var normals: [SCNVector3] = []
+        var uvs: [CGPoint] = []
+        var indices: [UInt32] = []
+
+        func bladeCenter(_ t: Float) -> SIMD3<Float> {
+            let s = length * (t - 0.05 * t * t)
+            let x = startX + s * cos(yaw)
+            let z = startZ + s * sin(yaw) + sideCurve * sin(t * .pi)
+            let arch = archHeight * 4.0 * t * (1.0 - t * 0.85)
+            let y = max(0.0025, startY * (1.0 - t * 0.75) + arch)
+            return SIMD3<Float>(x, y, z)
+        }
+
+        for seg in 0...segments {
+            let t = Float(seg) / Float(segments)
+            let center = bladeCenter(t)
+            let nextCenter = bladeCenter(min(1.0, t + 0.02))
+            let prevCenter = bladeCenter(max(0.0, t - 0.02))
+            let tangent = simd_normalize(nextCenter - prevCenter)
+
+            let up = SIMD3<Float>(0, 1, 0)
+            let binormal = simd_normalize(simd_cross(tangent, up))
+            let norm = simd_normalize(simd_cross(binormal, tangent))
+
+            let taper = max(0.08, sin(t * .pi * 0.95 + 0.05) * (1.0 - t * 0.35))
+            let halfW = width * 0.5 * taper
+
+            let pLeft = center - binormal * halfW
+            let pRight = center + binormal * halfW
+
+            vertices.append(SCNVector3(pLeft.x, max(0.002, pLeft.y), pLeft.z))
+            vertices.append(SCNVector3(pRight.x, max(0.002, pRight.y), pRight.z))
+
+            normals.append(SCNVector3(norm))
+            normals.append(SCNVector3(norm))
+
+            uvs.append(CGPoint(x: 0, y: CGFloat(t)))
+            uvs.append(CGPoint(x: 1, y: CGFloat(t)))
+
+            if seg < segments {
+                let b = UInt32(seg * 2)
+                indices += [b, b + 1, b + 2, b + 1, b + 3, b + 2]
+            }
+        }
+
+        let geom = SCNGeometry(
+            sources: [
+                SCNGeometrySource(vertices: vertices),
+                SCNGeometrySource(normals: normals),
+                SCNGeometrySource(textureCoordinates: uvs)
+            ],
+            elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)]
+        )
+        geom.materials = [material]
+        return geom
+    }
+
+    private func makeRestingRicePanicleGeometry(
+        startX: Float, startY: Float, startZ: Float,
+        length: Float,
+        yaw: Float,
+        droopArch: Float,
+        sideCurve: Float,
+        material: SCNMaterial
+    ) -> SCNGeometry {
+        var vertices: [SCNVector3] = []
+        var normals: [SCNVector3] = []
+        var uvs: [CGPoint] = []
+        var indices: [UInt32] = []
+
+        func rachisCenter(_ t: Float) -> SIMD3<Float> {
+            let s = length * (t - 0.04 * t * t)
+            let x = startX + s * cos(yaw)
+            let z = startZ + s * sin(yaw) + sideCurve * sin(t * .pi)
+            let arch = droopArch * 4.0 * t * (1.0 - t * 0.90)
+            let y = max(0.0035, startY * (1.0 - t * 0.82) + arch)
+            return SIMD3<Float>(x, y, z)
+        }
+
+        let stemSegments = 20
+        let stemSides = 4
+        for seg in 0...stemSegments {
+            let t = Float(seg) / Float(stemSegments)
+            let center = rachisCenter(t)
+            let nextCenter = rachisCenter(min(1.0, t + 0.02))
+            let prevCenter = rachisCenter(max(0.0, t - 0.02))
+            let tangent = simd_normalize(nextCenter - prevCenter)
+            let up = SIMD3<Float>(0, 1, 0)
+            let right = simd_normalize(simd_cross(tangent, up))
+            let fwd = simd_normalize(simd_cross(right, tangent))
+            let radius = max(0.0009, 0.0026 * (1.0 - 0.55 * t))
+
+            for side in 0...stemSides {
+                let angle = Float(side) / Float(stemSides) * 2.0 * .pi
+                let n = right * cos(angle) + fwd * sin(angle)
+                let p = center + n * radius
+                vertices.append(SCNVector3(p.x, max(0.002, p.y), p.z))
+                normals.append(SCNVector3(n))
+                uvs.append(CGPoint(x: Double(side) / Double(stemSides), y: Double(t)))
+
+                if seg < stemSegments && side < stemSides {
+                    let b = UInt32(seg * (stemSides + 1) + side)
+                    let nxt = b + UInt32(stemSides + 1)
+                    indices += [b, nxt, b + 1, b + 1, nxt, nxt + 1]
+                }
+            }
+        }
+
+        let grainCount = 22
+        let grainLength: Float = 0.0155
+        let grainWidth: Float = 0.0042
+        let grainDepth: Float = 0.0035
+        let grainRings = 5
+        let grainSides = 6
+
+        for g in 0..<grainCount {
+            let gt = 0.38 + 0.58 * (Float(g) / Float(grainCount - 1))
+            let stemPos = rachisCenter(gt)
+            let tangent = simd_normalize(rachisCenter(min(1.0, gt + 0.02)) - rachisCenter(max(0.0, gt - 0.02)))
+            let up = SIMD3<Float>(0, 1, 0)
+            let stemRight = simd_normalize(simd_cross(tangent, up))
+            let stemFwd = simd_normalize(simd_cross(stemRight, tangent))
+
+            let sideSign: Float = g.isMultiple(of: 2) ? 1.0 : -1.0
+            let splayAngle = 0.38 + 0.10 * sin(Float(g) * 1.8)
+            let droopBias = 0.42 + 0.12 * cos(Float(g) * 2.1)
+
+            let grainDir = simd_normalize(
+                tangent * droopBias +
+                stemRight * (sideSign * splayAngle) +
+                stemFwd * 0.30
+            )
+
+            let grainSideAxis = simd_normalize(simd_cross(grainDir, tangent))
+            let grainNormAxis = simd_normalize(simd_cross(grainSideAxis, grainDir))
+
+            let pedicelOffset: Float = 0.0032
+            let grainCenter = stemPos + grainDir * (pedicelOffset + grainLength * 0.5)
+
+            let baseVertIndex = UInt32(vertices.count)
+
+            for r in 0...grainRings {
+                let s = Float(r) / Float(grainRings) * 2.0 - 1.0
+                let ringProfile = sqrt(max(0.0, 1.0 - s * s))
+                let w = grainWidth * 0.5 * ringProfile
+                let d = grainDepth * 0.5 * ringProfile
+                let along = grainDir * (s * grainLength * 0.5)
+
+                for k in 0...grainSides {
+                    let theta = Float(k) / Float(grainSides) * 2.0 * .pi
+                    let sideVec = grainSideAxis * (cos(theta) * w)
+                    let normVec = grainNormAxis * (sin(theta) * d)
+                    let p = grainCenter + along + sideVec + normVec
+                    let n = simd_normalize(sideVec / max(w, 0.0001) + normVec / max(d, 0.0001) + along * 0.2)
+
+                    vertices.append(SCNVector3(p.x, max(0.002, p.y), p.z))
+                    normals.append(SCNVector3(n))
+                    uvs.append(CGPoint(x: Double(k) / Double(grainSides), y: Double(r) / Double(grainRings)))
+
+                    if r < grainRings && k < grainSides {
+                        let i0 = baseVertIndex + UInt32(r * (grainSides + 1) + k)
+                        let i1 = i0 + 1
+                        let i2 = i0 + UInt32(grainSides + 1)
+                        let i3 = i2 + 1
+                        indices += [i0, i2, i1, i1, i2, i3]
+                    }
+                }
+            }
+        }
+
+        let geom = SCNGeometry(
+            sources: [
+                SCNGeometrySource(vertices: vertices),
+                SCNGeometrySource(normals: normals),
+                SCNGeometrySource(textureCoordinates: uvs)
+            ],
+            elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)]
+        )
+        geom.materials = [material]
+        return geom
+    }
+
     private func makeRicePanicleGeometry(
         height: Float,
         droopArch: Float,
-        material: SCNMaterial
+        material: SCNMaterial,
+        bound: Bool = false
     ) -> SCNGeometry {
         var vertices: [SCNVector3] = []
         var normals: [SCNVector3] = []
@@ -1949,11 +2481,11 @@ final class HomeSceneRenderer: NSObject {
             let z: Float
             if t <= 0.45 {
                 let u = t / 0.45
-                y = height * 0.58 * u
+                y = height * (bound ? 0.20 : 0.58) * u
                 z = 0.012 * u * u
             } else {
                 let u = (t - 0.45) / 0.55
-                y = height * (0.58 + 0.28 * u - 0.22 * u * u)
+                y = height * ((bound ? 0.20 : 0.58) + (bound ? 0.58 : 0.28) * u - 0.22 * u * u)
                 z = 0.012 + droopArch * (0.35 * u + 0.65 * u * u)
             }
             let x: Float = 0.008 * sin(t * .pi * 1.5)
@@ -1989,9 +2521,9 @@ final class HomeSceneRenderer: NSObject {
         }
 
         // 2. 3D Golden Rice Grains (Bulir Padi / Gabah) clustered along the drooping panicle
-        let grainCount = 22
-        let grainLength: Float = 0.0155
-        let grainWidth: Float = 0.0042
+        let grainCount = bound ? 24 : 22
+        let grainLength: Float = bound ? 0.0160 : 0.0155
+        let grainWidth: Float = bound ? 0.0044 : 0.0042
         let grainDepth: Float = 0.0035
 
         let grainRings = 5

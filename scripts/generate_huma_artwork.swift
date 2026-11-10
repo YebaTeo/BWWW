@@ -14,7 +14,13 @@ func loadCGImage(at path: String) -> CGImage? {
 }
 
 func savePNG(image: CGImage, to path: String) {
-    let url = URL(fileURLWithPath: path)
+    let original = URL(fileURLWithPath: path)
+    let name = original.deletingPathExtension().lastPathComponent
+    let requested = CommandLine.arguments.dropFirst()
+    guard requested.isEmpty || requested.contains(name) else { return }
+    let url = ProcessInfo.processInfo.environment["HUMA_ARTWORK_OUTPUT"]
+        .map { URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent(original.lastPathComponent) }
+        ?? original
     guard let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else {
         fatalError("Failed to create CGImageDestination for \(path)")
     }
@@ -251,34 +257,45 @@ func drawRipePanicle(in ctx: CGContext, origin: CGPoint, bendDirection: CGFloat,
 /// Draws an authentic Baduy harvested rice bundle (poc padi)
 func drawRiceBundle(in ctx: CGContext, center: CGPoint, width: CGFloat, height: CGFloat) {
     ctx.saveGState()
-    let goldMain = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0.93, 0.81, 0.44, 1.0])!
-    let goldShadow = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0.62, 0.46, 0.20, 1.0])!
-    let tieColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0.42, 0.28, 0.14, 1.0])!
-    
-    let bRect = cgRect(x: center.x - width/2, y: center.y - height/2, width: width, height: height, contextHeight: fH)
-    
-    // Drop shadow on ground
-    let shadowRect = CGRect(x: bRect.origin.x - 6, y: bRect.origin.y - 4, width: width + 12, height: height * 0.3)
-    ctx.setFillColor(CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0, 0, 0, 0.35])!)
-    ctx.fillEllipse(in: shadowRect)
-    
-    // Grains head spreading naturally downwards
-    let grainHeadRect = CGRect(x: bRect.origin.x, y: bRect.origin.y, width: width, height: height * 0.72)
-    ctx.setFillColor(goldShadow)
-    ctx.fillEllipse(in: grainHeadRect)
-    ctx.setFillColor(goldMain)
-    ctx.fillEllipse(in: grainHeadRect.insetBy(dx: 3, dy: 2))
-    
-    // Upper stalk handle
-    let stalkRect = CGRect(x: bRect.midX - width * 0.18, y: bRect.origin.y + height * 0.65, width: width * 0.36, height: height * 0.35)
-    ctx.setFillColor(CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0.78, 0.68, 0.38, 1.0])!)
-    ctx.fill(stalkRect)
-    
-    // Natural bamboo tie (neck binding)
-    let tieRect = CGRect(x: bRect.midX - width * 0.24, y: bRect.origin.y + height * 0.62, width: width * 0.48, height: height * 0.08)
-    ctx.setFillColor(tieColor)
-    ctx.fill(tieRect)
-    
+    let neck = center.y - height * 0.22
+    let colors: [[CGFloat]] = [
+        [0.67, 0.46, 0.19, 1], [0.83, 0.61, 0.25, 1], [0.96, 0.76, 0.38, 1]
+    ]
+    func color(_ index: Int) -> CGColor {
+        CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: colors[index % colors.count])!
+    }
+
+    for strand in 0..<13 {
+        let spread = CGFloat(strand - 6) / 6
+        let end = center.y + height * (0.47 - abs(spread) * 0.18)
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: center.x + spread * width * 0.23, y: fH - (neck - height * 0.24)))
+        path.addQuadCurve(
+            to: CGPoint(x: center.x + spread * width * 0.42, y: fH - end),
+            control: CGPoint(x: center.x + spread * width * 0.06, y: fH - neck)
+        )
+        ctx.setStrokeColor(color(strand))
+        ctx.setLineWidth(max(1, width * 0.025))
+        ctx.addPath(path)
+        ctx.strokePath()
+        for row in 0..<8 {
+            let fraction = CGFloat(row) / 8
+            let y = neck + (end - neck) * (0.30 + 0.70 * fraction)
+            let x = center.x + spread * width * (0.15 + fraction * 0.27)
+            ctx.setFillColor(color(strand + row))
+            ctx.fillEllipse(in: cgRect(x: x - width * 0.034, y: y,
+                                       width: width * 0.068, height: height * 0.075,
+                                       contextHeight: fH))
+        }
+    }
+    for binding in 0..<3 {
+        ctx.setStrokeColor(color(binding))
+        ctx.setLineWidth(max(1, height * 0.018))
+        let y = fH - neck - CGFloat(binding) * height * 0.019
+        ctx.move(to: CGPoint(x: center.x - width * 0.13, y: y))
+        ctx.addLine(to: CGPoint(x: center.x + width * 0.13, y: y))
+        ctx.strokePath()
+    }
     ctx.restoreGState()
 }
 
@@ -336,7 +353,10 @@ do {
     
     // Frame a closer view of the field:
     // Mountains and sky occupy upper 32%, rich warm soil occupies lower 68%
-    drawImage(in: ctx, image: humaEnv, x: 0, y: -160, width: fW, height: fH, contextHeight: fH)
+    let scale = (fH + 160) / fH
+    let width = fW * scale
+    drawImage(in: ctx, image: humaEnv, x: (fW - width) / 2, y: -160,
+              width: width, height: fH + 160, contextHeight: fH)
     
     // Foreground soil richly detailed with HumaTerrainTexture
     let soilTop: CGFloat = 480.0
@@ -360,7 +380,10 @@ do {
 print("Rendering ngaseuk_after...")
 do {
     let ctx = createBitmapContext(width: W, height: H)
-    drawImage(in: ctx, image: humaEnv, x: 0, y: -160, width: fW, height: fH, contextHeight: fH)
+    let scale = (fH + 160) / fH
+    let width = fW * scale
+    drawImage(in: ctx, image: humaEnv, x: (fW - width) / 2, y: -160,
+              width: width, height: fH + 160, contextHeight: fH)
     let soilTop: CGFloat = 480.0
     tileImage(in: ctx, image: terrainTex, x: 0, y: soilTop, width: fW, height: fH - soilTop, tileSize: 620, contextHeight: fH, blendMode: .overlay, alpha: 0.52)
     
@@ -529,9 +552,9 @@ do {
     ctx.restoreGState()
     
     // Golden rice bundles hung over the bamboo crossbar
-    for i in 0..<6 {
-        let bx = rackLeft + CGFloat(i) * ((rackRight - rackLeft) / 5.0)
-        drawRiceBundle(in: ctx, center: CGPoint(x: bx, y: rackTopY + 80), width: 90, height: 145)
+    for i in 1...3 {
+        let bx = rackLeft + CGFloat(i) * ((rackRight - rackLeft) / 4)
+        drawRiceBundle(in: ctx, center: CGPoint(x: bx, y: rackTopY + 55), width: 128, height: 180)
     }
     
     guard let img = ctx.makeImage() else { fatalError() }
@@ -548,7 +571,18 @@ do {
     let leuitX: CGFloat = 210
     let leuitY: CGFloat = 430
     let leuitW: CGFloat = 604
-    let leuitH: CGFloat = 580
+    ctx.setFillColor(CGColor(red: 0.14, green: 0.09, blue: 0.05, alpha: 0.36))
+    ctx.fillEllipse(in: cgRect(x: 215, y: 978, width: 650, height: 65, contextHeight: fH))
+    let side = CGMutablePath()
+    side.move(to: CGPoint(x: 770, y: fH - 665))
+    side.addLines(between: [
+        CGPoint(x: 770, y: fH - 665), CGPoint(x: 850, y: fH - 630),
+        CGPoint(x: 850, y: fH - 910), CGPoint(x: 770, y: fH - 950)
+    ])
+    side.closeSubpath()
+    ctx.setFillColor(CGColor(red: 0.39, green: 0.28, blue: 0.15, alpha: 1))
+    ctx.addPath(side)
+    ctx.fillPath()
     
     // 1. Foundation stone discs & wooden posts (at y: 880-1040)
     let postColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0.38, 0.24, 0.12, 1.0])!
@@ -578,7 +612,7 @@ do {
     // 3. Three small granary doorway openings aligned at y ≈ 660 (y = 0.43 * 1536)
     ctx.saveGState()
     let doorColor = CGColor(colorSpace: CGColorSpaceCreateDeviceRGB(), components: [0.12, 0.07, 0.03, 1.0])!
-    for (i, dx) in [fW * 0.25, fW * 0.50, fW * 0.75].enumerated() {
+    for dx in [fW * 0.25, fW * 0.50, fW * 0.75] {
         let dR = cgRect(x: dx - 40, y: 640, width: 80, height: 95, contextHeight: fH)
         ctx.setFillColor(doorColor)
         ctx.fill(dR)

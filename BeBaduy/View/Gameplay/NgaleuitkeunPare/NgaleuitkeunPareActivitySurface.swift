@@ -23,7 +23,7 @@ struct NgaleuitkeunPareActivitySurface: View {
                                 guard !model.isDemonstrating, let item = items.first, item.hasPrefix("bundle-"), let bundle = Int(item.dropFirst(7)) else { return false }
                                 return model.drop(bundle, at: index)
                             }
-                            .position(x: geometry.size.width * CGFloat(index + 1) / 4, y: geometry.size.height * 0.43)
+                            .position(doorPosition(index, in: geometry.size))
                     }
                 }
             }.disabled(model.isDemonstrating)
@@ -32,5 +32,14 @@ struct NgaleuitkeunPareActivitySurface: View {
         }.onChange(of: model.storage.count) { _, count in
             if count == 3 { card.showInstruction() }
         }
+    }
+
+    private func doorPosition(_ index: Int, in size: CGSize) -> CGPoint {
+        // The doors are baked into a 1024 × 1536 image displayed with aspect fill.
+        let scale = max(size.width / 1024, size.height / 1536)
+        return CGPoint(
+            x: size.width / 2 + (CGFloat(index + 1) * 256 - 512) * scale,
+            y: size.height / 2 + (687.5 - 768) * scale
+        )
     }
 }

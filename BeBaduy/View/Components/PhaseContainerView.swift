@@ -56,21 +56,21 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         Spacer(minLength: 24)
                         VStack(spacing: 24) {
                             Text("Hayu, kenalan dulu dengan alatnya!").font(.title2.bold())
-                            Text(equipment ?? "").font(.title.bold())
+                            Text(equipment ?? "").font(.system(.title, design: .rounded).bold())
+                                .foregroundStyle(AppTheme.heading)
                             if content.id == .dibuat {
                                 Image("dibuat_etem").resizable().scaledToFit().frame(height: 140)
                             } else {
-                                Image(systemName: "line.diagonal").font(.system(size: 100, weight: .light))
-                                    .foregroundStyle(Color.brown).accessibilityLabel("Tongkat aseuk")
+                                AseukTool().frame(width: 24, height: 136).rotationEffect(.degrees(24))
                             }
                             Text(content.id == .ngaseuk
                                  ? "Aseuk adalah tongkat runcing untuk membuat lubang tempat benih padi."
                                  : "Etem adalah alat panen kecil untuk memotong malai padi. Bulir tetap bersama tangkainya.")
                             LessonButton(title: "Mulai aktivitas", identifier: "lesson.begin") { begin() }
                         }.multilineTextAlignment(.center).padding(24)
-                            .foregroundStyle(Color.black.opacity(0.85))
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-                            .environment(\.colorScheme, .light).padding(24)
+                            .frame(maxWidth: 400)
+                            .activityCardStyle().padding(24)
+                            .frame(maxWidth: .infinity)
                         Spacer(minLength: 24)
                         }
                     case .activity:
@@ -82,7 +82,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     case .result:
                         ScrollView {
                             VStack(alignment: .leading, spacing: 20) {
-                                Text("\(content.title) selesai!").font(.title2.bold())
+                                Text("\(content.title) selesai!").font(.system(.title2, design: .rounded).bold())
+                                    .foregroundStyle(AppTheme.heading)
                                 if session.outcome == .observed {
                                     Text("Demonstrasi selesai.")
                                 } else if content.id != .dibuat {
@@ -90,7 +91,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                 }
                                 LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
                                 Button(content.id == .dibuat ? "Ulang" : "Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
-                            }.padding(24).background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 24))
+                            }.padding(24).activityCardStyle()
                                 .padding(24)
                         }
                     case .explanation:
@@ -212,7 +213,11 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 card.dismiss()
                 setHelpVisible(false)
                 demonstrate()
-            }.frame(minHeight: 44).accessibilityIdentifier("demonstrate")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.cream)
+            .frame(minHeight: 44)
+            .accessibilityIdentifier("demonstrate")
             if card.mode == .help {
                 Button {
                     ActivityAudio.shared.enabled.toggle()

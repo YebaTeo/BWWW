@@ -20,6 +20,8 @@ struct GrowthStage: Identifiable, Equatable {
     let targetProgress: CGFloat // Normalized progress anchor [0.0 ... 1.0]
     let leafColor: Color
     
+    var isConclusion: Bool { id == 6 }
+
     /// Formatted step counter (e.g. "01 / 05")
     var stepCounterString: String {
         String(format: "%02d / %02d", id + 1, GrowthStage.allStages.count)
@@ -77,7 +79,7 @@ struct GrowthStage: Identifiable, Equatable {
             name: "NGALANTAI",
             subtitle: "Mengeringkan padi",
             culturalContext: "Menyiapkan hasil panen",
-            narrative: "Ikatan padi dijemur sebelum disimpan di leuit.",
+            narrative: "Satu ikat padi hasil panen dijemur di bawah terik matahari hingga kering sebelum disimpan di leuit.",
             targetProgress: 0.90,
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         ),
@@ -86,9 +88,20 @@ struct GrowthStage: Identifiable, Equatable {
             phase: .ngaleuitkeunPare,
             code: "LEUIT",
             name: "LEUIT",
-            subtitle: "Menyiapkan Padi untuk Leuit",
-            culturalContext: "Ikatan Padi pada Bambu",
-            narrative: "Pratinjau ini memperlihatkan ikatan padi di rak bambu. Di bab Leuit, kamu akan melihat cara padi yang sudah kering disimpan.",
+            subtitle: "Menyimpan hasil panen",
+            culturalContext: "Lumbung padi",
+            narrative: "Padi yang sudah kering disimpan bersama tangkainya di leuit sebagai cadangan pangan.",
+            targetProgress: 0.95,
+            leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
+        ),
+        GrowthStage(
+            id: 6,
+            phase: .ngaleuitkeunPare,
+            code: "MENGELOLA PARE HUMA",
+            name: "MENGELOLA PARE HUMA",
+            subtitle: "Menjaga hasil perjalanan",
+            culturalContext: "Dari huma ke leuit",
+            narrative: "Dari menyiapkan huma hingga menyimpan padi di leuit, setiap tahap mengajarkan cara merawat pangan dan kehidupan bersama.",
             targetProgress: 1.0,
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         )

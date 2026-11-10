@@ -18,12 +18,12 @@ import XCTest
         }
         _ = button.waitForExistence(timeout: 5)
         for _ in 0..<12 {
-            let scroll = app.scrollViews["activity.card.scroll"]
+            let scroll = app.scrollViews["activity.card.scroll"].exists
+                ? app.scrollViews["activity.card.scroll"] : app.scrollViews["home.content.scroll"]
             let insideCard = scroll.exists && scroll.buttons[id].exists
             let centerVisible = !insideCard || (button.frame.midY >= scroll.frame.minY + 8 && button.frame.midY <= scroll.frame.maxY - 8)
             if button.exists && button.isHittable && centerVisible { button.tap(); return }
-            if app.scrollViews["activity.card.scroll"].exists {
-                let scroll = app.scrollViews["activity.card.scroll"]
+            if scroll.exists {
                 let down = button.exists && button.frame.minY < scroll.frame.minY
                 let origin = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.35 : 0.7))
                 let end = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.7 : 0.35))
@@ -57,9 +57,9 @@ import XCTest
         if captureScene {
             tap("activity.card.start"); capture("Nukuh-fullscreen")
         }
-        for index in 0..<6 { tap("nukuh.cut.\(index)") }
+        for index in 0..<4 { tap("nukuh.cut.\(index)") }
         XCTAssertFalse(app.buttons["continue"].exists)
-        for index in 0..<6 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn")
+        for index in 0..<4 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn")
     }
     func testFullSixChapterTouchJourneyAndReplay() {
         prepare(); intro(); completeNukuh(); next()
@@ -130,6 +130,7 @@ import XCTest
         tap("dibuat.balance.continue")
         XCUIDevice.shared.orientation = .landscapeLeft
         tap("dibuat.balance.continue")
+        capture("Ngalantai-landscape-controls")
         tap("lesson.back")
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 10))
 
@@ -140,7 +141,8 @@ import XCTest
         tap("lesson.result.continue")
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
         tap("replay")
-        XCTAssertTrue(app.buttons["dibuat.balance.continue"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Putar ponsel ke posisi mendatar."].waitForExistence(timeout: 5))
+        XCUIDevice.shared.orientation = .portrait
         XCUIDevice.shared.orientation = .landscapeLeft
         tap("dibuat.balance.continue")
         if app.buttons["dibuat.balance.touch"].exists { tap("dibuat.balance.touch") }
@@ -250,23 +252,38 @@ import XCTest
     func testNukuhStartsFireByTappingClearedLand() {
         prepare(); intro(); start()
         XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
-        for index in 0..<6 { tap("nukuh.cut.\(index)") }
+        tap("activity.card.start")
+        capture("Nukuh-four-trees")
+        // Preserve the horizontal camera angle across portrait aspect ratios.
+        func tapField(_ x: CGFloat, _ y: CGFloat) {
+            let aspect = app.frame.width / app.frame.height
+            let normalizedX = 0.5 + (x - 0.5) * (402.0 / 874.0) / aspect
+            app.coordinate(withNormalizedOffset: CGVector(dx: normalizedX, dy: y)).tap()
+        }
+        for x in [0.37, 0.12, 0.63, 0.88] {
+            tapField(x, 0.46)
+        }
         tap("nukuh.fire.begin")
         XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
         // Sky taps must not start a fire; only cleared ground receives ignition.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.3)).tap()
         XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.86)).tap()
+        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].label.hasSuffix("0/4"))
         capture("Nukuh-ready-for-ground-tap")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)).tap()
+        tapField(0.36, 0.61)
         XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
         // Repeating the same ground tap must not light a second patch.
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)).tap()
+        tapField(0.36, 0.61)
         capture("Nukuh-ground-ignition")
         tap("activity.help")
-        XCTAssertEqual(app.staticTexts["nukuh.fire.progress"].label, "1 / 6 lahan dinyalakan")
+        XCTAssertEqual(app.staticTexts["nukuh.fire.progress"].label, "1 / 4 lahan dinyalakan")
         XCTAssertFalse(app.buttons["nukuh.finishBurn"].exists)
         XCTAssertFalse(app.buttons["lesson.result.continue"].exists)
-        for index in 1..<6 { tap("nukuh.ignite.\(index)") }
+        tap("activity.card.close")
+        for (x, y) in [(0.12, 0.57), (0.63, 0.57), (0.88, 0.59)] {
+            tapField(x, y)
+        }
         tap("nukuh.finishBurn")
         next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
@@ -278,8 +295,8 @@ import XCTest
         tap("demonstrate")
         XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 40))
         capture("Nukuh-observed"); tap("replay")
-        for index in 0..<6 { tap("nukuh.cut.\(index)") }
-        for index in 0..<6 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn"); next()
+        for index in 0..<4 { tap("nukuh.cut.\(index)") }
+        for index in 0..<4 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn"); next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].exists)
     }
     func testLargeTextButtonFlow() {
@@ -302,6 +319,9 @@ import XCTest
         capture("Intro-large-text-dark")
         try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped, .hitRegion])
         intro(); capture("Nukuh-large-text-dark")
-        try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped, .hitRegion])
+        try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped, .hitRegion]) { issue in
+            print("Accessibility issue: \(issue.detailedDescription), element: \(issue.element?.debugDescription ?? "unavailable")")
+            return false
+        }
     }
 }

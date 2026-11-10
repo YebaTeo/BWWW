@@ -82,6 +82,15 @@ struct WelcomeHomeView: View {
         .onAppear {
             guard !initializedPreview else { return }
             initializedPreview = true
+            #if DEBUG
+            if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--preview-stage=") }),
+               let index = Int(argument.dropFirst("--preview-stage=".count)),
+               GrowthStage.allStages.indices.contains(index) {
+                preview.selectStage(index, reduceMotion: true)
+                displayedStage = index
+                return
+            }
+            #endif
             if let stage = GrowthStage.allStages.first(where: { $0.phase == journey.progress.currentPhase }) {
                 preview.selectStage(stage.id, reduceMotion: true)
             }
@@ -132,7 +141,7 @@ struct WelcomeHomeView: View {
 
     private var actions: some View {
         Button(action: openSelectedChapter) {
-            Text("Mulai Tahapan")
+            Text(stage.isConclusion ? "Lihat Rangkuman" : "Mulai Tahapan")
                 .font(.body)
                 .foregroundStyle(ivory)
                 .padding(.horizontal, 28)
@@ -162,7 +171,11 @@ struct WelcomeHomeView: View {
         guard isActive, !openingChapter, !preview.isTransitioning else { return }
         openingChapter = true
         preview.stop()
-        onOpen(journey.progress.isUnlocked(stage.phase) ? stage.phase : journey.progress.currentPhase)
+        if stage.isConclusion {
+            onCompletion()
+        } else {
+            onOpen(journey.progress.isUnlocked(stage.phase) ? stage.phase : journey.progress.currentPhase)
+        }
     }
 
 
