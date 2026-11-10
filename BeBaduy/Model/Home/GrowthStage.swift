@@ -86,9 +86,9 @@ struct GrowthStage: Identifiable, Equatable {
             phase: .ngaleuitkeunPare,
             code: "LEUIT",
             name: "LEUIT",
-            subtitle: "Menyiapkan Padi untuk Leuit",
-            culturalContext: "Ikatan Padi pada Bambu",
-            narrative: "Pratinjau ini memperlihatkan ikatan padi di rak bambu. Di bab Leuit, kamu akan melihat cara padi yang sudah kering disimpan.",
+            subtitle: "Menyimpan hasil panen",
+            culturalContext: "Lumbung padi",
+            narrative: "Padi yang sudah kering disimpan bersama tangkainya di leuit sebagai cadangan pangan.",
             targetProgress: 1.0,
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         )

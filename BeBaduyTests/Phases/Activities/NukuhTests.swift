@@ -33,20 +33,31 @@ import XCTest
         await vm.scene.prepareAssets()
         XCTAssertEqual(vm.stage, .clearing)
 
-        for index in 0..<6 {
+        for index in 0..<3 {
+            vm.collect(index)
             vm.collect(index)
         }
-        XCTAssertEqual(vm.collected.count, 6)
+        vm.collect(4)
+        XCTAssertEqual(vm.collected.count, 3)
+        XCTAssertEqual(vm.stage, .clearing)
+        vm.collect(3)
+        XCTAssertEqual(vm.collected.count, 4)
         XCTAssertEqual(vm.stage, .prepared)
 
         vm.setVisible(true)
         vm.burn()
+        vm.burn(startingAt: 0)
+        vm.burn(startingAt: 4)
+        XCTAssertEqual(vm.ignited, [0])
         XCTAssertEqual(vm.stage, .burning)
         vm.finishBurn()
         XCTAssertNil(vm.session.outcome)
-        for index in 1..<6 { vm.burn(startingAt: index) }
+        for index in 1..<4 { vm.burn(startingAt: index) }
         vm.finishBurn()
         XCTAssertEqual(vm.stage, .complete)
         XCTAssertEqual(vm.session.outcome, .performed)
+        let event = vm.session.event
+        vm.finishBurn()
+        XCTAssertEqual(vm.session.event, event)
     }
 }

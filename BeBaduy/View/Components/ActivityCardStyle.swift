@@ -2,16 +2,19 @@ import SwiftUI
 
 private struct ActivityCardStyle: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 20)
         content
             .foregroundStyle(AppTheme.cream)
             .background {
-                if reduceTransparency {
+                if reduceTransparency || contrast == .increased || typeSize.isAccessibilitySize {
                     shape.fill(Color(red: 0.19, green: 0.13, blue: 0.09))
                 } else {
                     shape.fill(.regularMaterial)
+                        .overlay(shape.fill(Color.black.opacity(0.30)))
                 }
             }
             .overlay(shape.strokeBorder(AppTheme.cream.opacity(0.3)).allowsHitTesting(false))

@@ -24,17 +24,17 @@ struct NgalantaiActivityView: View {
             case .awaitingLandscape:
                 panel {
                     Image(systemName: "iphone.landscape").font(.title)
-                    Text("Putar ponsel ke posisi mendatar.").font(.headline)
+                    Text("Putar ponsel ke posisi mendatar.").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
                     Text("Jika layar tidak berputar, periksa kunci rotasi atau lihat demonstrasi.")
                 }
             case .balanceInstructions:
                 panel {
-                    Text("Jaga keseimbangan bambu").font(.headline)
+                    Text("Jaga keseimbangan bambu").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
                     Text("Miringkan ponsel perlahan ke kiri atau kanan. Tahan bambu tetap rata selama tiga detik.")
                     LessonButton(title: "Mulai", identifier: "dibuat.balance.continue", action: model.beginBalance)
                 }
             case .balancing:
-                VStack(spacing: 4) {
+                panel {
                     ProgressView(value: model.steadyTime, total: 3).tint(AppTheme.orange).accessibilityLabel("Waktu seimbang")
                     Text(abs(model.balance) < 0.18 ? "Seimbang · tahan sebentar" : "Arahkan bambu ke tengah")
                         .font(.caption)
@@ -47,18 +47,17 @@ struct NgalantaiActivityView: View {
                         Button("Gunakan sentuhan", action: model.useTouch).frame(minHeight: 44)
                             .accessibilityIdentifier("dibuat.balance.touch")
                     }
-                }.padding(.horizontal, 16).background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 16))
-                    .frame(maxWidth: 320)
+                }
             case .balanceDemo:
-                VStack {
+                panel {
                     Text("Demonstrasi keseimbangan")
                     ProgressView(value: model.steadyTime, total: 3).tint(AppTheme.orange)
-                }.padding(12).background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 16))
+                }
             case .awaitingPortrait:
-                panel { Text("Tegakkan ponsel untuk melihat padi dijemur.").font(.headline) }
+                panel { Text("Tegakkan ponsel untuk melihat padi dijemur.").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading) }
             case .drying:
                 panel {
-                    Text("Padi dijemur").font(.headline)
+                    Text("Padi dijemur").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
                     LessonButton(title: "Lihat hasil", identifier: "dibuat.drying.continue", action: model.finishDrying)
                 }
             case .complete:

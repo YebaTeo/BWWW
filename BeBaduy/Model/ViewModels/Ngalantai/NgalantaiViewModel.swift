@@ -104,8 +104,12 @@ import Foundation
             guard let gravity = sample?.gravity, gravity.y.isFinite else { self.useTouch(); return }
             // The landscape screen's horizontal axis is the device's portrait Y axis.
             let tilt = gravity.y * direction
-            if self.baseline == nil { self.baseline = tilt }
-            let target = (tilt - (self.baseline ?? tilt)) * 3 + 0.45
+            if self.baseline == nil {
+                self.baseline = tilt
+                self.setBalance(0)
+                return
+            }
+            let target = (tilt - (self.baseline ?? tilt)) * 3
             self.setBalance(self.balance + (target - self.balance) * 0.2)
         }
     }

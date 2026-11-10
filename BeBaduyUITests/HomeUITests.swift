@@ -42,8 +42,9 @@ import XCTest
         XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
         app.buttons["lesson.back"].tap()
         app.buttons["home.stage.5"].tap()
+        XCTAssertTrue(app.buttons["home.preview.finish"].waitForNonExistence(timeout: 8))
         let preview = XCTAttachment(screenshot: app.screenshot())
-        preview.name = "Leuit-hanging-rice"
+        preview.name = "Leuit-granary"
         preview.lifetime = .keepAlways
         add(preview)
         XCTAssertEqual(app.staticTexts["home.progress"].label, "0 dari 6 tahap telah dijelajahi")

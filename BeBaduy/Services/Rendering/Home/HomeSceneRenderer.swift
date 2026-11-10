@@ -42,6 +42,7 @@ final class HomeSceneRenderer: NSObject {
     private let ashRoot      = SCNNode()
     /// Stage-5: bamboo drying rack and harvested rice bundles.
     private let leuitRoot    = SCNNode()
+    private let granaryRoot = SCNNode()
     private var rackPosts: [SCNNode] = []
     private var rackBraces: [SCNNode] = []
     private let rackBeam = SCNNode()
@@ -169,7 +170,8 @@ final class HomeSceneRenderer: NSObject {
         buildAsh()           // Post-burn clods
         buildPlantingStage() // Stage 2
         buildRicePlant()     // Stage 3 + 4
-        buildLeuitRack()     // Stage 5
+        buildLeuitRack()
+        buildGranaryPreview()
         configureObjectShadows()
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
@@ -1174,6 +1176,59 @@ final class HomeSceneRenderer: NSObject {
     // MARK: Stage 5 – Harvested rice on a bamboo rack
     // ════════════════════════════════════════════════════════════════════
 
+    private func buildGranaryPreview() {
+        func material(_ texture: String?, color: UIColor) -> SCNMaterial {
+            let result = SCNMaterial()
+            result.diffuse.contents = texture.flatMap { UIImage(named: $0) } ?? color
+            result.roughness.contents = 0.9
+            return result
+        }
+        let timber = material("HumaWoodTexture", color: .brown)
+        let thatch = material("HumaThatchTexture", color: UIColor(red: 0.68, green: 0.49, blue: 0.23, alpha: 1))
+        let stone = material(nil, color: UIColor(white: 0.40, alpha: 1))
+
+        @discardableResult
+        func box(_ width: CGFloat, _ height: CGFloat, _ depth: CGFloat,
+                 at position: SCNVector3, using material: SCNMaterial) -> SCNNode {
+            let geometry = SCNBox(width: width, height: height, length: depth, chamferRadius: 0.004)
+            geometry.materials = [material]
+            let node = SCNNode(geometry: geometry)
+            node.position = position
+            granaryRoot.addChildNode(node)
+            return node
+        }
+        for x: Float in [-0.21, 0.21] {
+            for z: Float in [-0.15, 0.15] {
+                box(0.10, 0.035, 0.10, at: SCNVector3(x, 0.017, z), using: stone)
+                box(0.055, 0.19, 0.055, at: SCNVector3(x, 0.113, z), using: timber)
+            }
+        }
+        box(0.52, 0.27, 0.38, at: SCNVector3(0, 0.31, 0), using: timber)
+        let door = material(nil, color: UIColor(red: 0.28, green: 0.16, blue: 0.08, alpha: 1))
+        box(0.15, 0.19, 0.02, at: SCNVector3(0, 0.30, 0.197), using: door)
+
+        let gable = UIBezierPath()
+        gable.move(to: CGPoint(x: -0.26, y: 0))
+        gable.addLine(to: CGPoint(x: 0, y: 0.25))
+        gable.addLine(to: CGPoint(x: 0.26, y: 0))
+        gable.close()
+        let gableGeometry = SCNShape(path: gable, extrusionDepth: 0.38)
+        gableGeometry.materials = [timber]
+        let gableNode = SCNNode(geometry: gableGeometry)
+        gableNode.position.y = 0.43
+        granaryRoot.addChildNode(gableNode)
+        for direction: Float in [-1, 1] {
+            let roof = box(0.43, 0.045, 0.49,
+                           at: SCNVector3(0.147 * direction, 0.54, 0), using: thatch)
+            roof.eulerAngles.z = -0.77 * direction
+        }
+        granaryRoot.scale = SCNVector3(0.72, 0.72, 0.72)
+        granaryRoot.position = SCNVector3(0, soilY, -0.42)
+        granaryRoot.eulerAngles.y = 0.18
+        scene.rootNode.addChildNode(granaryRoot)
+        setVisibility(granaryRoot, opacity: 0)
+    }
+
     /// The field's golden rice becomes three bound sheaves. Posts rise
     /// from the soil, the crossbar opens, then the sheaves settle below it.
     private func buildLeuitRack() {
@@ -1693,8 +1748,10 @@ final class HomeSceneRenderer: NSObject {
 
         // ── 10. Bamboo rises; harvested sheaves hang beneath it ───────
         let postRise = smoothstep(0.76, 0.88, fullP)
-        let beamGrow = smoothstep(0.84, 0.92, fullP)
-        setVisibility(leuitRoot, opacity: postRise)
+        let beamGrow = smoothstep(0.84, 0.90, fullP)
+        let storage = smoothstep(0.93, 0.99, fullP)
+        setVisibility(granaryRoot, opacity: storage)
+        setVisibility(leuitRoot, opacity: postRise * (1 - storage))
         for post in rackPosts {
             post.scale.y = postRise
             post.position.y = 0.31 * postRise
@@ -1706,7 +1763,7 @@ final class HomeSceneRenderer: NSObject {
         }
         for (index, bundle) in hangingBundles.enumerated() {
             let offset = Float(index) * 0.014
-            let drop = smoothstep(0.88 + offset, 0.96 + offset, fullP)
+            let drop = smoothstep(0.855 + offset, 0.89 + offset * 0.3, fullP)
             bundle.position.y = 0.62
             setVisibility(bundle, opacity: drop)
         }
@@ -1729,7 +1786,7 @@ final class HomeSceneRenderer: NSObject {
         rackBeamShadow.opacity = CGFloat(beamGrow * postRise)
         for (index, bundleShadow) in rackBundleShadows.enumerated() {
             let offset = Float(index) * 0.014
-            let drop = smoothstep(0.88 + offset, 0.96 + offset, fullP)
+            let drop = smoothstep(0.855 + offset, 0.89 + offset * 0.3, fullP)
             bundleShadow.position.z = 0.32 * postRise
             bundleShadow.opacity = CGFloat(drop)
         }

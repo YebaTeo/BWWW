@@ -6,7 +6,7 @@ import UIKit
 /// SceneKit-powered spatial AR experience for Nukuh, unifying HomeView's Nukuh rendering
 /// (full root-to-crown 3D relief trees that split at the trunk leaving the rooted stump,
 /// arched grass blades, sun lighting, and 3-layer spatial Huma environment)
-/// with 360° tree placement, look-around, and interactive tree-clearing & burning.
+/// with a front-facing tree cluster, 360° look-around, and interactive tree clearing and burning.
 @MainActor
 @Observable
 final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
@@ -176,7 +176,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private func configureCamera() {
         let camera = SCNCamera()
-        camera.fieldOfView = 42
+        camera.fieldOfView = 56
         camera.zNear = 0.02
         camera.zFar = 40.0
         // Match HomeView's exact HDR exposure, whitePoint, SSAO, and bloom (SceneKitCropView lines 245-254)
@@ -459,22 +459,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         forestRoot.name = "forest"
         worldRoot.addChildNode(forestRoot)
 
-        // Spread the 6 interactive trees around all 360° of the AR clearing,
-        // with natural variations in azimuth, distance, and balanced tree scale (~1.25m - 1.40m).
-        let placements: [(angle: Float, distance: Float, yawOffset: Float, scale: Float)] = [
-            ( 0.00 * .pi, 1.84, -0.06, 2.25), // Tree 1: Front (0°) - ~1.26m tall
-            ( 0.34 * .pi, 1.98,  0.08, 2.45), // Tree 2: Front-Right (~61°) - ~1.37m tall
-            ( 0.68 * .pi, 1.86, -0.09, 2.15), // Tree 3: Back-Right (~122°) - ~1.20m tall
-            ( 1.02 * .pi, 1.95,  0.07, 2.38), // Tree 4: Back (~184°) - ~1.33m tall
-            ( 1.35 * .pi, 1.85, -0.08, 2.20), // Tree 5: Back-Left (~243°) - ~1.23m tall
-            ( 1.68 * .pi, 1.94,  0.09, 2.42)  // Tree 6: Front-Left (~302°) - ~1.36m tall
-        ]
-
         let sharedUpperTreeGeo = makeTreeSectionGeometry(from: materials.treeTexture, startRow: 6, endRow: 40, includeWind: true)
         let sharedRootBaseGeo = makeTreeSectionGeometry(from: materials.treeTexture, startRow: 0, endRow: 6, includeWind: false)
         let sharedCrownGeo = makeRadialCrownGeometry()
 
-        for (index, placement) in placements.enumerated() {
+        for (index, placement) in NukuhPlot.placements.enumerated() {
             let worldX = sin(placement.angle) * placement.distance
             let worldZ = -cos(placement.angle) * placement.distance
             let worldPos = SCNVector3(worldX, soilY, worldZ)
@@ -995,7 +984,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let patchAngle = atan2(patchPos.x, -patchPos.z)
 
             // 0. Soft incandescent ground ember glow disk on the soil beneath the fire
-            let emberPlane = SCNPlane(width: 0.82, height: 0.82)
+            let emberPlane = SCNPlane(width: 0.34, height: 0.34)
             let emberMat = SCNMaterial()
             emberMat.lightingModel = .constant
             emberMat.diffuse.contents = materials.emberGlowSprite
@@ -1015,12 +1004,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             fireRoot.addChildNode(emberNode)
             groundGlowNodes.append(emberNode)
 
-            // 1. Four 3D perimeter flame emitters encircling the OUTSIDE of the trunk bark (radius 0.18m)
+            // 1. Four 3D perimeter flame emitters encircling the OUTSIDE of the trunk bark (radius 0.09m)
             let perimeterOffsets: [(x: Float, z: Float)] = [
-                ( 0.18,  0.00), // East
-                (-0.18,  0.00), // West
-                ( 0.00,  0.18), // North
-                ( 0.00, -0.18)  // South
+                ( 0.09,  0.00), // East
+                (-0.09,  0.00), // West
+                ( 0.00,  0.09), // North
+                ( 0.00, -0.09)  // South
             ]
             for (pIdx, offset) in perimeterOffsets.enumerated() {
                 let pNode = SCNNode()
@@ -1046,8 +1035,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
             // 3. Surrounding ground brushfire emitters (radiating in the grass around the tree)
             let groundOffsets: [(x: Float, z: Float)] = [
-                ( sin(patchAngle + 0.75) * 0.36, -cos(patchAngle + 0.75) * 0.36),
-                ( sin(patchAngle - 0.85) * 0.48, -cos(patchAngle - 0.85) * 0.48)
+                ( sin(patchAngle + 0.75) * 0.12, -cos(patchAngle + 0.75) * 0.12),
+                ( sin(patchAngle - 0.85) * 0.16, -cos(patchAngle - 0.85) * 0.16)
             ]
             for (gIdx, gOffset) in groundOffsets.enumerated() {
                 let gNode = SCNNode()
@@ -1055,7 +1044,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 gNode.position = SCNVector3(patchPos.x + gOffset.x, soilY + 0.02, patchPos.z + gOffset.z)
                 gNode.renderingOrder = 24
                 let gFlames = makeFlames(sprite: materials.flameTongueSprite)
-                gFlames.emitterShape = SCNBox(width: 0.20, height: 0.01, length: 0.20, chamferRadius: 0)
+                gFlames.emitterShape = SCNBox(width: 0.07, height: 0.01, length: 0.07, chamferRadius: 0)
                 gNode.addParticleSystem(gFlames)
                 fireRoot.addChildNode(gNode)
                 flameSystems.append(gFlames)
@@ -1065,7 +1054,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let atmosphereNode = SCNNode()
             atmosphereNode.position = SCNVector3(patchPos.x, soilY + 0.08, patchPos.z)
             let sparks = NgahumaMaterials.makeFireSparks(sprite: materials.particleSprite, scale: 1.15)
-            sparks.emitterShape = SCNBox(width: 0.36, height: 0.02, length: 0.36, chamferRadius: 0)
+            sparks.emitterShape = SCNBox(width: 0.16, height: 0.02, length: 0.16, chamferRadius: 0)
             let smoke = makeSmoke(sprite: materials.particleSprite)
             atmosphereNode.addParticleSystem(sparks)
             atmosphereNode.addParticleSystem(smoke)
@@ -1076,7 +1065,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             // 5. HomeView dark ash clods left behind across burned stumps & grass
             for c in 0..<5 {
                 let cAngle = Float(patchIndex * 5 + c) * 1.047
-                let dist: Float = 0.08 + Float(c % 3) * 0.16
+                let dist: Float = 0.04 + Float(c % 3) * 0.05
                 let sphere = SCNSphere(radius: 0.026)
                 sphere.segmentCount = 8
                 let mat = SCNMaterial()
@@ -1114,13 +1103,30 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let ground = SIMD2<Float>(near.x + direction.x * t, near.z + direction.z * t)
             if let index = patchPositions.indices.min(by: {
                 simd_distance(ground, SIMD2(patchPositions[$0].x, patchPositions[$0].z)) < simd_distance(ground, SIMD2(patchPositions[$1].x, patchPositions[$1].z))
-            }), simd_distance(ground, SIMD2(patchPositions[index].x, patchPositions[index].z)) < 0.85 {
+            }), simd_distance(ground, SIMD2(patchPositions[index].x, patchPositions[index].z)) < NukuhPlot.ignitionRadius {
                 onIgnitionRequested?(index)
             }
             return
         }
         guard stage == .clearing else { return }
         let location = gesture.location(in: view)
+        // Resolve taps on visible trunks before testing the larger canopy bounds.
+        // The canopy boxes intersect when trees are close together.
+        let trunkHits = patchPositions.enumerated().compactMap { index, position -> (index: Int, distance: Float)? in
+            let base = view.projectPoint(SCNVector3(position.x, position.y, position.z))
+            let top = view.projectPoint(SCNVector3(position.x, position.y + 0.70, position.z))
+            guard base.z > 0, base.z < 1, top.z > 0, top.z < 1,
+                  Float(location.y) >= min(top.y, base.y),
+                  Float(location.y) <= max(top.y, base.y) else { return nil }
+            let distance = abs(Float(location.x) - base.x)
+            guard distance <= 22 else { return nil }
+            return (index, distance)
+        }
+        if let trunk = trunkHits.min(by: { $0.distance < $1.distance }) {
+            onTreeTapped?(trunk.index)
+            return
+        }
+
         let hits = view.hitTest(location, options: [
             SCNHitTestOption.boundingBoxOnly: true,
             SCNHitTestOption.searchMode: SCNHitTestSearchMode.all.rawValue
@@ -1282,7 +1288,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         guard stage == .burning else { return }
 
         elapsed += min(delta, 0.1)
-        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / 18, 1) } / 6
+        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / 18, 1) } / Double(NukuhPlot.count)
 
         let flicker = 0.90 + 0.06 * sin(windTime * 4.1) + 0.04 * sin(windTime * 7.3)
         let activePatch = ignited.filter { patchBurnTime($0) < 11.8 }.sorted().first ?? 0
@@ -1300,7 +1306,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             if audioPlayer?.isPlaying == false { audioPlayer?.play() }
         } else { audioPlayer?.pause() }
 
-        for index in 0..<6 {
+        for index in NukuhPlot.indices {
             let localTime = patchBurnTime(index)
             let isBurningPatch = localTime > 0 && localTime < 8.2
             let isSmokingPatch = localTime > 0 && localTime < 11.8
@@ -1916,22 +1922,22 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         system.birthRate = 0
         system.particleLifeSpan = 0.78
         system.particleLifeSpanVariation = 0.20
-        system.particleSize = 0.25
-        system.particleSizeVariation = 0.07
+        system.particleSize = 0.14
+        system.particleSizeVariation = 0.04
         system.particleVelocity = 0.38
         system.particleVelocityVariation = 0.12
         system.emittingDirection = SCNVector3(0, 1, 0)
-        system.spreadingAngle = 22
+        system.spreadingAngle = 10
         system.particleAngleVariation = 25
         system.acceleration = SCNVector3(0.018, 0.22, 0)
-        system.emitterShape = SCNBox(width: 0.14, height: 0.015, length: 0.14, chamferRadius: 0)
+        system.emitterShape = SCNBox(width: 0.06, height: 0.015, length: 0.06, chamferRadius: 0)
         system.particleImage = sprite
         system.blendMode = .additive
         system.orientationMode = .billboardYAligned
         system.isLightingEnabled = false
         system.writesToDepthBuffer = false
 
-        SceneEffects.configureFlameAnimation(system, sizes: [0.08, 0.26, 0.36, 0.22, 0.04])
+        SceneEffects.configureFlameAnimation(system, sizes: [0.05, 0.14, 0.20, 0.12, 0.03])
         return system
     }
 

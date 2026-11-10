@@ -20,9 +20,9 @@ struct WelcomeHomeView: View {
     private var isTransitioning: Bool { preview.isTransitioning }
     private var selectedStage: Int { preview.selectedStage }
 
-    private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
-    private let gold = Color(red: 0.98, green: 0.84, blue: 0.44)
-    private let darkCard = Color(red: 0.12, green: 0.08, blue: 0.05)
+    @ScaledMetric(relativeTo: .largeTitle) private var chapterTitleSize: CGFloat = 48
+    private let ivory = AppTheme.cream
+    private let gold = AppTheme.heading
     private var stage: GrowthStage { GrowthStage.allStages[selectedStage] }
 
     var body: some View {
@@ -40,14 +40,29 @@ struct WelcomeHomeView: View {
                         .contentShape(Rectangle())
                         .gesture(stageSwipe)
                         .accessibilityHidden(true)
-                    ScrollView {
-                        stageCard
+                    if largeText {
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                stageCard
+                                actions
+                            }
                             .frame(maxWidth: 440)
                             .frame(maxWidth: .infinity)
+                            .background(Color(red: 0.19, green: 0.13, blue: 0.09))
+                        }
+                        .frame(height: viewport.size.height * 0.65)
+                        .background(Color(red: 0.19, green: 0.13, blue: 0.09), in: RoundedRectangle(cornerRadius: 20))
+                        .accessibilityIdentifier("home.content.scroll")
+                    } else {
+                        ScrollView {
+                            stageCard
+                                .frame(maxWidth: 440)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .frame(maxHeight: viewport.size.height * 0.33)
+                        actions
+                            .frame(maxWidth: 440)
                     }
-                    .frame(maxHeight: viewport.size.height * (largeText ? 0.35 : 0.33))
-                    actions
-                        .frame(maxWidth: 440)
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
@@ -98,13 +113,16 @@ struct WelcomeHomeView: View {
     private var header: some View {
         VStack(spacing: 2) {
             HStack(spacing: 8) {
-                Text("TAHAPAN")
-                    .font(.caption.weight(.bold))
-                    .tracking(1.8)
-                    .foregroundStyle(gold)
+                if !largeText {
+                    Text("TAHAPAN")
+                        .font(.caption.weight(.bold))
+                        .tracking(1.8)
+                        .foregroundStyle(gold)
+                }
                 Spacer(minLength: 0)
                 Text(stage.stepCounterString)
                     .font(.subheadline.monospaced().bold())
+                    .fixedSize()
                     .foregroundStyle(ivory)
                     .accessibilityLabel("Pratinjau \(stage.id + 1) dari \(PhaseID.allCases.count)")
                 Spacer(minLength: 0)
@@ -147,7 +165,12 @@ struct WelcomeHomeView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 8)
-        .shadow(color: .black.opacity(0.72), radius: 8, y: 2)
+        .background {
+            if largeText {
+                RoundedRectangle(cornerRadius: 20).fill(Color(red: 0.19, green: 0.13, blue: 0.09))
+            }
+        }
+        .shadow(color: largeText ? .clear : .black.opacity(0.72), radius: 8, y: 2)
     }
 
     private var stageCard: some View {
@@ -157,34 +180,35 @@ struct WelcomeHomeView: View {
                 .tracking(1.8)
                 .foregroundStyle(gold)
             Text(stage.name)
-                .font(.system(size: 44, weight: .black, design: .rounded))
+                .font(.system(size: chapterTitleSize, weight: .black))
+                .foregroundStyle(AppTheme.orange)
                 .fontWidth(.condensed)
                 .tracking(2)
-                .shadow(color: .black.opacity(0.78), radius: 10, y: 3)
+                .shadow(color: largeText ? .clear : .black.opacity(0.78), radius: 10, y: 3)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("home.stage.title")
             Text(stage.subtitle)
                 .font(.headline.weight(.medium))
                 .foregroundStyle(gold)
-                .shadow(color: .black.opacity(0.8), radius: 8, y: 2)
+                .shadow(color: largeText ? .clear : .black.opacity(0.8), radius: 8, y: 2)
             Text(stage.narrative)
                 .font(.body)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
-                .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
+                .shadow(color: largeText ? .clear : .black.opacity(0.9), radius: 7, y: 2)
             if let message = journey.storageMessage {
                 Text(message)
                     .font(.footnote)
-                    .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
+                    .shadow(color: largeText ? .clear : .black.opacity(0.9), radius: 7, y: 2)
             }
             Text("\(journey.completedCount) dari \(PhaseID.allCases.count) tahap telah dijelajahi")
                 .font(.caption)
                 .foregroundStyle(ivory.opacity(0.86))
-                .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
+                .shadow(color: largeText ? .clear : .black.opacity(0.9), radius: 7, y: 2)
                 .accessibilityIdentifier("home.progress")
                 .padding(.top, 2)
             if !journey.progress.isUnlocked(stage.phase) {
-                Text("Selesaikan tahap sebelumnya untuk membuka tahap ini.").font(.footnote)
+                Text("Selesaikan tahap sebelumnya untuk membuka.").font(.footnote)
             }
         }
         .multilineTextAlignment(.center)
@@ -204,9 +228,14 @@ struct WelcomeHomeView: View {
                     Image(systemName: "arrow.right")
                 }
                 .font(.headline)
-                .foregroundStyle(darkCard)
-                .frame(maxWidth: 230, minHeight: 48)
-                .background(gold, in: Capsule())
+                .foregroundStyle(AppTheme.cream)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .frame(maxWidth: 300, minHeight: 48)
+                .background(AppTheme.action, in: Capsule())
+                .overlay(Capsule().strokeBorder(AppTheme.cream.opacity(0.45)))
             }
             .accessibilityIdentifier("resume")
             if isTransitioning {
@@ -214,13 +243,15 @@ struct WelcomeHomeView: View {
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("home.preview.finish")
             }
-            Text("Geser ke atas untuk menjelajahi tahap ini")
+            Text(unlocked ? "Geser ke atas untuk menjelajahi tahap ini" : "Geser ke atas untuk melanjutkan perjalanan")
                 .font(.caption)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(ivory.opacity(0.8))
             Button("Lihat tahapan", action: onJourney)
                 .font(.subheadline.weight(.semibold))
                 .frame(minHeight: 38)
-                .shadow(color: .black.opacity(0.85), radius: 7, y: 2)
+                .shadow(color: largeText ? .clear : .black.opacity(0.85), radius: 7, y: 2)
                 .accessibilityIdentifier("home.journey")
             Button {
                 selectStage(stage.id == GrowthStage.allStages.count - 1 ? 0 : stage.id + 1)
@@ -228,7 +259,7 @@ struct WelcomeHomeView: View {
                 Label(stage.id == GrowthStage.allStages.count - 1 ? "Ulangi pratinjau" : "Pratinjau berikutnya", systemImage: stage.id == GrowthStage.allStages.count - 1 ? "arrow.counterclockwise" : "chevron.up.2")
                     .font(.caption.weight(.semibold))
                     .frame(minHeight: 36)
-                    .shadow(color: .black.opacity(0.85), radius: 7, y: 2)
+                    .shadow(color: largeText ? .clear : .black.opacity(0.85), radius: 7, y: 2)
             }
             .accessibilityIdentifier("home.preview.next")
         }
