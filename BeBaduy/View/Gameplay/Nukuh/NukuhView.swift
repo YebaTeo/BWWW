@@ -109,23 +109,28 @@ struct NukuhView: View {
 
     @ViewBuilder private func messageOverlay(_ current: Message) -> some View {
         if current == .explanation {
-            VStack {
-                Spacer(minLength: 60)
-                ScrollView {
-                    card {
-                        Text("Kami memanfaatkan abu dari pembakaran rumput dan daun kering untuk menyuburkan tanah.")
-                        Text("Jadi, sisa tanaman yang sudah tidak digunakan masih punya manfaat, lho!")
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    ScrollView {
+                        HumaGlassCard {
+                            VStack(spacing: 24) {
+                                Text("Kami memanfaatkan abu dari pembakaran rumput dan daun kering untuk menyuburkan tanah.")
+                                Text("Jadi, sisa tanaman yang sudah tidak digunakan masih punya manfaat, lho!")
+                            }
+                        }
+                        .frame(width: min(330, max(1, geometry.size.width - 48)),
+                               height: min(330, max(1, geometry.size.width - 48)) * 480 / 330)
+                        .accessibilityIdentifier("lesson.explanation.card")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                        .frame(minHeight: max(0, geometry.size.height - 140))
                     }
-                    .padding(.vertical, 24)
+                    .accessibilityIdentifier("lesson.explanation.page")
+                    LessonButton(title: "Lanjut ke tahap berikutnya", identifier: "continue", action: advance)
+                        .padding(.horizontal, 24).padding(.vertical, 16)
                 }
-                Spacer(minLength: 24)
-                Button(action: advance) {
-                    Text("Lanjut ke tahap berikutnya")
-                        .font(.subheadline).frame(maxWidth: .infinity, minHeight: 48)
-                        .background(Color(red: 0.88, green: 0.43, blue: 0.06), in: Capsule())
-                        .overlay(Capsule().strokeBorder(orange, lineWidth: 1))
-                }.accessibilityIdentifier("continue")
-            }.padding(.horizontal, 36).padding(.bottom, 24)
+                .padding(.top, 44)
+            }
         } else {
             Button {
                 switch current {

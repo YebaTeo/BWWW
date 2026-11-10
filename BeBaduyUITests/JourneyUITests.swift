@@ -43,6 +43,8 @@ import XCTest
     func next() {
         tap("lesson.result.continue")
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["lesson.explanation.card"].exists)
+        capture("Explanation-glass-card")
         XCTAssertTrue(app.buttons["activity.card.close"].waitForNonExistence(timeout: 5))
         XCTAssertFalse(app.buttons["activity.help"].exists)
         tap("continue")
@@ -61,6 +63,42 @@ import XCTest
         XCTAssertFalse(app.buttons["continue"].exists)
         for index in 0..<4 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn")
     }
+    func testSixGlassExplanations() {
+        verifyGlassExplanations(largeText: false)
+    }
+
+    func testSixGlassExplanationsLargeText() {
+        verifyGlassExplanations(largeText: true)
+    }
+
+    private func verifyGlassExplanations(largeText: Bool) {
+        var arguments = ["--uitest-explanations"]
+        if largeText {
+            arguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        prepare(arguments)
+        for index in 0..<6 {
+            XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 15))
+            tap("resume")
+            XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.otherElements["lesson.explanation.card"].exists)
+            if index > 0 { XCTAssertTrue(app.staticTexts["Yang kita pelajari"].exists) }
+            XCTAssertTrue(app.buttons["replay"].isHittable)
+            capture("Glass-explanation-\(index)-large-\(largeText)")
+            if largeText {
+                let scroll = app.scrollViews["lesson.explanation.content.scroll"]
+                XCTAssertTrue(scroll.exists)
+                scroll.swipeUp()
+            }
+            tap("continue")
+            if index < 5 {
+                XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
+            } else {
+                XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
+            }
+        }
+    }
+
     func testFullSixChapterTouchJourneyAndReplay() {
         prepare(); intro(); completeNukuh(); next()
         start(); tap("ngaseuk.instructions.continue")

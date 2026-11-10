@@ -25,7 +25,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     private var immersive: Bool { flow.screen == .activity || flow.screen == .result }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var typeSize
     private var equipment: String? {
         switch content.id {
         case .ngaseuk: "Aseuk"
@@ -96,12 +95,15 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         }
                     case .explanation:
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 24) {
-                                Color.clear.frame(height: typeSize.isAccessibilitySize ? 0 : geometry.size.height * 0.28)
+                            HumaGlassCard {
                                 description()
-                                    .padding(24)
-                                    .background(.black.opacity(typeSize.isAccessibilitySize ? 1 : 0.72), in: RoundedRectangle(cornerRadius: 24))
-                            }.padding(24)
+                            }
+                            .frame(width: min(330, max(1, geometry.size.width - 48)),
+                                   height: min(330, max(1, geometry.size.width - 48)) * 480 / 330)
+                            .accessibilityIdentifier("lesson.explanation.card")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                            .frame(minHeight: max(0, geometry.size.height - 180))
                         }.accessibilityIdentifier("lesson.explanation.page")
                         LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : (content.id == .dibuat ? "Lanjut ke tahap berikutnya" : "Lanjut ke tahapan berikutnya"), identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
