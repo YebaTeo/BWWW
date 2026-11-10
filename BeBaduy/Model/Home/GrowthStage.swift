@@ -72,6 +72,17 @@ struct GrowthStage: Identifiable, Equatable {
         ),
         GrowthStage(
             id: 4,
+            phase: .ngalantai,
+            code: "NGALANTAI",
+            name: "NGALANTAI",
+            subtitle: "Mengeringkan padi",
+            culturalContext: "Menyiapkan hasil panen",
+            narrative: "Ikatan padi dijemur sebelum disimpan di leuit.",
+            targetProgress: 0.90,
+            leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
+        ),
+        GrowthStage(
+            id: 5,
             phase: .ngaleuitkeunPare,
             code: "LEUIT",
             name: "LEUIT",

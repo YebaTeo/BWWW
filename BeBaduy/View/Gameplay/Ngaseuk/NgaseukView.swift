@@ -9,9 +9,9 @@ struct NgaseukView: View {
         _model = State(initialValue: NgaseukViewModel(motion: motion))
     }
     var body: some View {
-        PhaseContainerView(content: NgaseukContent.value, session: model.session, journey: journey,
+        PhaseContainerView(content: PhaseContent.content(for: .ngaseuk), session: model.session, journey: journey,
             start: model.start, replay: model.start, demonstrate: model.demonstrate,
-            restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
+            restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend, activityVisibility: model.setActivityVisible,
             surface: { NgaseukActivitySurface(model: model) }, activity: { NgaseukActivityView(model: model) },
             description: { NgaseukDescriptionView() })
         .onDisappear { model.suspend() }

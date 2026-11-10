@@ -21,7 +21,7 @@ final class ProgressStoreTests: XCTestCase {
         let corrupt = ProgressStore(defaults: defaults)
         XCTAssertEqual(corrupt.load(), JourneyProgress()); XCTAssertNotNil(corrupt.recoveryMessage)
     }
-    @MainActor func testLegacyMigrationKeepsOriginalAndRequiresDrying() throws {
+    @MainActor func testLegacyMigrationKeepsOriginalAndSeparatesDrying() throws {
         let name = "migration.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
@@ -29,12 +29,38 @@ final class ProgressStoreTests: XCTestCase {
         defaults.set(old, forKey: "BeBaduy.journey.v1")
         let migrated = ProgressStore(defaults: defaults).load()
         XCTAssertTrue(migrated.isValid)
-        XCTAssertEqual(migrated.currentPhase, .dibuat)
+        XCTAssertEqual(migrated.currentPhase, .ngalantai)
         XCTAssertEqual(migrated.record(for: .nukuh).outcome, .observed)
-        XCTAssertFalse(migrated.record(for: .dibuat).explanationAvailable)
+        XCTAssertTrue(migrated.record(for: .dibuat).explanationAvailable)
+        XCTAssertFalse(migrated.record(for: .ngalantai).explanationAvailable)
         XCTAssertEqual(defaults.data(forKey: "BeBaduy.journey.v1"), old)
         XCTAssertEqual(ProgressStore(defaults: defaults).load(), migrated)
     }
+    @MainActor func testCombinedChapterMigrationPreservesLeuitAndDoesNotRepeat() throws {
+        let name = "migration.v2.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = ProgressStore(defaults: defaults)
+        var progress = JourneyProgress()
+        for phase in PhaseID.allCases { progress.complete(phase, outcome: .performed) }
+        progress.version = 2
+        progress.phases.removeValue(forKey: PhaseID.ngalantai.rawValue)
+        progress.currentPhase = .ngaleuitkeunPare
+        progress.journeyCompleted = true
+        try store.save(progress)
+        let migrated = store.load()
+        XCTAssertEqual(migrated.record(for: .ngalantai).outcome, .performed)
+        XCTAssertTrue(migrated.journeyCompleted)
+        XCTAssertEqual(migrated, store.load())
+
+        progress.version = 3
+        progress.currentPhase = .ngalantai
+        progress.phases.removeValue(forKey: PhaseID.ngaleuitkeunPare.rawValue)
+        progress.journeyCompleted = false
+        try store.save(progress)
+        XCTAssertFalse(store.load().isUnlocked(.ngaleuitkeunPare))
+    }
+
     func testRejectInconsistentRecord() {
         var progress = JourneyProgress(); progress.phases["unknown"] = PhaseProgress()
         XCTAssertFalse(progress.isValid)

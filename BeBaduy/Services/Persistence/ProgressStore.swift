@@ -11,7 +11,17 @@ import Foundation
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
     func load() -> JourneyProgress {
         if let data = defaults.data(forKey: key) {
-            if let progress = try? JSONDecoder().decode(JourneyProgress.self, from: data), progress.isValid { return progress }
+            if var progress = try? JSONDecoder().decode(JourneyProgress.self, from: data) {
+                if progress.version == 2 {
+                    progress.version = 3
+                    let harvest = progress.record(for: .dibuat)
+                    if harvest.explanationAvailable && harvest.outcome != nil {
+                        progress.phases[PhaseID.ngalantai.rawValue] = harvest
+                    }
+                    if progress.isValid { try? save(progress); return progress }
+                }
+                if progress.isValid { return progress }
+            }
             defaults.set(data, forKey: key + ".recovery")
             recoveryMessage = "Progres tidak dapat dibaca. Salinan data lama disimpan di perangkat."
             return JourneyProgress()
@@ -26,12 +36,12 @@ import Foundation
         var progress = JourneyProgress()
         progress.introductionSeen = true
         for phase in PhaseID.allCases {
-            let keys = phase == .dibuat ? [phase.rawValue, "drying_rice"] : [phase.rawValue]
+            let keys = phase == .ngalantai ? ["drying_rice"] : [phase.rawValue]
             guard keys.allSatisfy({ old.phases[$0]?.explanationAvailable == true && old.phases[$0]?.outcome != nil }) else { break }
             progress.complete(phase, outcome: .observed)
             progress.currentPhase = phase.next ?? phase
         }
-        recoveryMessage = "Perjalanan kini memiliki lima bab. Bab lama yang sesuai ditandai pernah dijelajahi. Aktivitas baru dapat dicoba kembali; data lama tetap disimpan."
+        recoveryMessage = "Perjalanan kini memiliki enam bab. Bab lama yang sesuai ditandai pernah dijelajahi. Aktivitas baru dapat dicoba kembali; data lama tetap disimpan."
         try? save(progress)
         return progress
     }

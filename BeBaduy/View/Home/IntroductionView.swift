@@ -17,7 +17,7 @@ struct IntroductionView: View {
                         } else {
                             Text("Wilujeng sumping!").font(.largeTitle.bold())
                             Text("Hayu, mengenal cara berladang masyarakat Baduy. Pengetahuan tentang alam dan pikukuh, pedoman adat, menyertai kehidupan sehari-hari.").font(.title3)
-                            Text("Jelajahi lima bab. Coba aktivitasnya atau lihat demonstrasi untuk melanjutkan.")
+                            Text("Jelajahi enam bab. Coba aktivitasnya atau lihat demonstrasi untuk melanjutkan.")
                         }
                         Spacer(minLength: 60)
                         LessonButton(title: page == 0 ? "Lanjut" : "Mulai menjelajah", identifier: "intro.continue", action: next)

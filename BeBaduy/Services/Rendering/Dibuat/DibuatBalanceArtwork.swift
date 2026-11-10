@@ -33,21 +33,17 @@ struct DibuatBalanceArtwork: View {
 struct DibuatRiceBundle: View {
     var body: some View {
         GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-            Image("drying_rice_after").resizable()
-                .frame(width: width / 0.26, height: height / 0.32)
-                .offset(x: -width * 0.19 / 0.26, y: -height * 0.36 / 0.32)
-                .frame(width: width, height: height, alignment: .topLeading)
-                .mask {
-                    Path { path in
-                        let points: [(CGFloat, CGFloat)] = [(0.18, 0), (0.45, 0.01), (0.49, 0.22), (0.66, 0.34),
-                            (0.85, 0.49), (0.96, 0.84), (0.85, 0.97), (0.61, 1), (0.39, 0.95),
-                            (0.18, 0.98), (0.02, 0.82), (0.05, 0.57), (0.13, 0.34), (0.25, 0.23)]
-                        path.addLines(points.map { CGPoint(x: $0.0 * width, y: $0.1 * height) })
-                        path.closeSubpath()
-                    }
+            ZStack(alignment: .top) {
+                ForEach(0..<5) { index in
+                    MipitPlantArtwork(showsLeaves: false)
+                        .rotationEffect(.degrees(180 + Double(index - 2) * 8))
+                        .offset(x: CGFloat(index - 2) * geometry.size.width * 0.09)
                 }
-        }
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color(red: 0.48, green: 0.32, blue: 0.14))
+                    .frame(width: geometry.size.width * 0.30, height: max(3, geometry.size.height * 0.045))
+                    .offset(y: geometry.size.height * 0.18)
+            }
+        }.accessibilityHidden(true)
     }
 }

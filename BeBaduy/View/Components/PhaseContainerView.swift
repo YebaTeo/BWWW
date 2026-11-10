@@ -12,15 +12,16 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     let advance: () -> Void
     var suspend: () -> Void = {}
     var activityVisibility: (Bool) -> Void = { _ in }
-    var usesActivitySheet = true
+    var helpVisibility: ((Bool) -> Void)? = nil
+    var showsActiveControls = false
+    var usesContextCards = true
     @ViewBuilder let surface: () -> Surface
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
     @State private var flow = LessonFlowViewModel()
     @State private var restored = false
-    @State private var activitySheet = ActivitySheetState()
-    @State private var showsActivitySheet = false
-    @State private var exitAfterSheet = false
+    @State private var card = ActivityCardState()
+    @AccessibilityFocusState private var cardHeadingFocused: Bool
     private var immersive: Bool { flow.screen == .activity || flow.screen == .result }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
@@ -39,17 +40,17 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             ZStack {
                 LessonBackdrop(asset: (isResult ? content.after : content.before).assetName)
                 if immersive {
-                    surface().environment(activitySheet)
-                        .disabled(!session.isActive).ignoresSafeArea()
+                    surface().environment(card)
+                        .disabled(!session.isActive || blocksScene)
+                        .allowsHitTesting(!blocksScene)
+                        .accessibilityHidden(blocksScene)
+                        .ignoresSafeArea()
                 }
                 VStack(spacing: 0) {
                     if flow.screen != .activity { header }
                     switch flow.screen {
                     case .introduction:
-                        ChapterIntroductionView(
-                            content: content, viewportHeight: geometry.size.height,
-                            canReview: flow.canSkip, explore: explore, review: flow.explain
-                        )
+                        Color.clear
                     case .equipment:
                         ScrollView {
                         Spacer(minLength: 24)
@@ -73,8 +74,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         Spacer(minLength: 24)
                         }
                     case .activity:
-                        if usesActivitySheet {
-                            Spacer().allowsHitTesting(false)
+                        if usesContextCards {
+                            activityOverlay
                         } else {
                             activity().disabled(!session.isActive)
                         }
@@ -82,7 +83,11 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         ScrollView {
                             VStack(alignment: .leading, spacing: 20) {
                                 Text("\(content.title) selesai!").font(.title2.bold())
-                                Text(session.outcome == .observed ? "Demonstrasi selesai." : content.result)
+                                if session.outcome == .observed {
+                                    Text("Demonstrasi selesai.")
+                                } else if content.id != .dibuat {
+                                    Text(content.result)
+                                }
                                 LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
                                 Button(content.id == .dibuat ? "Ulang" : "Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
                             }.padding(24).background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 24))
@@ -100,21 +105,23 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : (content.id == .dibuat ? "Lanjut ke tahap berikutnya" : "Lanjut ke tahapan berikutnya"), identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
                     }
-                }.allowsHitTesting(flow.screen != .activity || !usesActivitySheet)
+                }
             }
         }
         .foregroundStyle(.white).tint(.white)
         .preferredColorScheme(.dark).environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showsActivitySheet, onDismiss: {
-            if exitAfterSheet { dismiss() }
-        }) { activityPanel }
         .onAppear {
-            activitySheet.largeText = typeSize.isAccessibilitySize
             guard !restored else { return }
             restored = true
             let record = journey.progress.record(for: content.id)
-            restore(record.outcome); flow.restore(completed: record.explanationAvailable)
+            restore(record.outcome)
+            flow.restore(completed: record.explanationAvailable)
+            if record.explanationAvailable {
+                flow.explain()
+            } else {
+                explore()
+            }
         }
         .onChange(of: session.event) { _, _ in
             if let outcome = session.outcome {
@@ -122,96 +129,102 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 flow.completed()
             }
         }
-        .onChange(of: typeSize) { _, value in
-            activitySheet.largeText = value.isAccessibilitySize
-            if activitySheet.collapsed { activitySheet.collapse() } else { activitySheet.expand() }
-        }
         .onChange(of: flow.screen) { _, value in
-            let needsSheet = value == .activity && usesActivitySheet
-            if needsSheet { activitySheet.expand() }
-            showsActivitySheet = needsSheet
-            activityVisibility(value == .activity)
+            if value == .activity && usesContextCards { helpVisibility?(false); card.showInstruction() }
+            activityVisibility(value == .activity && scenePhase == .active)
             if value != .activity { suspend(); ActivityAudio.shared.stop() }
         }
         .onChange(of: scenePhase) { _, value in
-            activityVisibility(value == .active && flow.screen == .activity)
+            activityVisibility(value == .active && flow.screen == .activity && (card.mode != .help || helpVisibility != nil))
             if value != .active { suspend(); ActivityAudio.shared.stop() }
+        }
+        .onChange(of: card.mode) { old, new in
+            guard flow.screen == .activity else { return }
+            if let helpVisibility {
+                helpVisibility(new != .hidden)
+            } else if old == .help && new != .help {
+                setHelpVisible(false)
+            }
         }
         .onDisappear { activityVisibility(false); suspend(); ActivityAudio.shared.stop() }
     }
 
-    private var activityPanel: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button {
-                    exitAfterSheet = true
-                    activityVisibility(false); suspend(); ActivityAudio.shared.stop()
-                    showsActivitySheet = false
-                } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
-                        .frame(width: 48, height: 48)
-                        .background(Color.primary.opacity(0.06), in: Circle()).contentShape(Circle())
+    private func setHelpVisible(_ visible: Bool) {
+        if let helpVisibility { helpVisibility(visible) }
+        else { activityVisibility(!visible && scenePhase == .active) }
+    }
+
+    private var blocksScene: Bool {
+        usesContextCards && flow.screen == .activity && card.mode != .hidden
+    }
+
+    private var activityOverlay: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left").frame(width: 44, height: 44)
                 }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
-                Text(content.title).font(.headline).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                if flow.canSkip && flow.screen == .activity && !activitySheet.largeText {
-                    Button("Lewati") { flow.explain() }.buttonStyle(.bordered).frame(minHeight: 44)
+                Spacer()
+                if flow.canSkip {
+                    Button("Lewati") { flow.explain() }.frame(minHeight: 44)
                         .accessibilityIdentifier("lesson.skip")
                 }
-                Button {
-                    if activitySheet.collapsed { activitySheet.expand() } else { activitySheet.collapse() }
-                } label: {
-                    Image(systemName: activitySheet.collapsed ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 18, weight: .semibold)).frame(width: 48, height: 48)
-                        .background(Color.primary.opacity(0.06), in: Circle()).contentShape(Circle())
-                }.accessibilityLabel(activitySheet.collapsed ? "Buka petunjuk" : "Lihat seluruh lahan")
-                    .accessibilityIdentifier(activitySheet.collapsed ? "activity.sheet.expand" : "activity.sheet.collapse")
-            }.buttonStyle(.plain).padding(.horizontal, 12).padding(.top, 12)
-            if activitySheet.collapsed {
-                if !activitySheet.largeText {
-                    Text("Tarik ke atas untuk petunjuk dan kontrol").font(.caption).foregroundStyle(.secondary)
-                        .padding(.bottom, 12)
+                if card.mode == .hidden {
+                    Button {
+                        setHelpVisible(true)
+                        card.showHelp()
+                    } label: {
+                        Image(systemName: "questionmark.circle").frame(width: 44, height: 44)
+                    }.accessibilityLabel("Buka petunjuk").accessibilityIdentifier("activity.help")
                 }
-                Spacer(minLength: 0)
-            } else {
-                ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Color.clear.frame(height: 1).id("activity.sheet.top").accessibilityHidden(true)
-                        if flow.canSkip && activitySheet.largeText {
-                            Button("Lewati") { flow.explain() }.accessibilityIdentifier("lesson.skip")
-                        }
-                        activity().disabled(!session.isActive)
-                        if !session.feedback.isEmpty {
-                            Text(session.feedback).font(.subheadline).foregroundStyle(.secondary)
-                                .accessibilityIdentifier("feedback")
-                        }
-                        Divider()
-                        Button {
-                            ActivityAudio.shared.enabled.toggle()
-                        } label: {
-                            Label(ActivityAudio.shared.enabled ? "Suara aktif" : "Suara nonaktif", systemImage: ActivityAudio.shared.enabled ? "speaker.wave.2" : "speaker.slash")
-                                .frame(minHeight: 44)
-                        }.accessibilityIdentifier("activity.sound")
-                        Button("Lihat demonstrasi", action: demonstrate).frame(minHeight: 48)
-                            .accessibilityIdentifier("demonstrate")
-                    }.padding(24).frame(maxWidth: 640, alignment: .leading).frame(maxWidth: .infinity)
-                }.accessibilityIdentifier("activity.sheet.scroll")
-                    .onChange(of: activitySheet.contentRevision) { _, _ in
-                        proxy.scrollTo("activity.sheet.top", anchor: .top)
-                    }
-                }
-
+            }.padding(.horizontal, 16)
+            Spacer(minLength: 0)
+            if card.mode != .hidden {
+                ActivityCardPanel { cardContents }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .id(card.revision)
+            } else if showsActiveControls {
+                activity()
+                    .environment(card)
+                    .frame(maxWidth: 260)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
             }
         }
-        .environment(activitySheet)
-        .foregroundStyle(.primary).tint(.blue).buttonStyle(.bordered).controlSize(.large)
-        .preferredColorScheme(.light).environment(\.colorScheme, .light)
-        .presentationDetents(activitySheet.largeText ? [activitySheet.compactDetent, .large] : [activitySheet.compactDetent, .medium, .large], selection: $activitySheet.detent)
-        .presentationDragIndicator(.visible)
-        .presentationBackgroundInteraction(.enabled(upThrough: activitySheet.largeText ? activitySheet.compactDetent : .medium))
-        .presentationContentInteraction(.scrolls)
-        .interactiveDismissDisabled()
+    }
+
+    private var cardContents: some View {
+        VStack(spacing: 8) {
+            Text(card.mode == .help ? "Petunjuk" : content.title)
+                .font(.system(.title3, design: .rounded).bold())
+                .foregroundStyle(AppTheme.heading)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($cardHeadingFocused)
+                .onAppear { cardHeadingFocused = true }
+            activity().disabled(!session.isActive)
+            if card.mode == .help {
+                LessonButton(title: "Kembali ke aktivitas", identifier: "activity.card.close") {
+                    card.dismiss()
+                }
+            }
+            Button("Lihat demonstrasi") {
+                card.dismiss()
+                setHelpVisible(false)
+                demonstrate()
+            }.frame(minHeight: 44).accessibilityIdentifier("demonstrate")
+            if card.mode == .help {
+                Button {
+                    ActivityAudio.shared.enabled.toggle()
+                } label: {
+                    Label(ActivityAudio.shared.enabled ? "Suara aktif" : "Suara nonaktif",
+                          systemImage: ActivityAudio.shared.enabled ? "speaker.wave.2" : "speaker.slash")
+                        .frame(minHeight: 44)
+                }.accessibilityIdentifier("activity.sound")
+            }
+        }
+        .environment(card)
+        .frame(maxWidth: .infinity)
     }
 
     private var header: some View {
@@ -221,7 +234,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     .background(.ultraThinMaterial, in: Circle())
             }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
             Spacer()
-            Text("\(content.id.index + 1) / 5").font(.caption.monospacedDigit())
+            Text("\(content.id.index + 1) / \(PhaseID.allCases.count)").font(.caption.monospacedDigit())
             Spacer()
             if flow.screen == .explanation {
                 Button(content.id == .dibuat ? "Ulang" : "Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)

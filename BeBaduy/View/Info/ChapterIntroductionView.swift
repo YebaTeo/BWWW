@@ -6,6 +6,8 @@ struct ChapterIntroductionView: View {
     let canReview: Bool
     let explore: () -> Void
     let review: () -> Void
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize = 48.0
+    @ScaledMetric(relativeTo: .body) private var bodySize = 20.0
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
@@ -15,23 +17,27 @@ struct ChapterIntroductionView: View {
 
                 VStack(spacing: 10) {
                     Text(content.title.uppercased())
-                        .font(.largeTitle.weight(.heavy))
+                        .font(.system(size: titleSize, weight: .black))
+                        .foregroundStyle(AppTheme.orange)
                         .fontWidth(.condensed)
                         .accessibilityAddTraits(.isHeader)
                     Text(content.introduction)
-                        .font(.body)
+                        .font(.system(size: bodySize, design: .rounded))
+                        .foregroundStyle(AppTheme.cream)
                         .frame(maxWidth: 330)
                     LessonButton(title: "Jelajahi", identifier: "start") { explore() }
                         .frame(maxWidth: 190)
                         .padding(.top, 8)
                     if canReview {
                         Button("Lihat penjelasan") { review() }
-                            .frame(minHeight: 40)
+                            .frame(minHeight: 44)
                             .accessibilityIdentifier("lesson.explanation")
                     }
                 }
                 .multilineTextAlignment(.center)
-                .padding(typeSize.isAccessibilitySize ? 16 : 8)
+                .padding(20)
+                .background(.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 24))
+                .padding(.horizontal, 20)
 
                 Spacer(minLength: typeSize.isAccessibilitySize ? 28 : viewportHeight * 0.12)
 

@@ -1,13 +1,14 @@
 import XCTest
 @MainActor final class HomeUITests: XCTestCase {
-    func testSwipeUnfinishedChapterOpensActivityAndMenuHasFiveChapters() {
+    func testSwipeUnfinishedChapterOpensActivityAndMenuHasSixChapters() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress"]
         app.launch()
         XCTAssertTrue(app.buttons["intro.continue"].waitForExistence(timeout: 10))
         app.buttons["intro.continue"].tap(); app.buttons["intro.continue"].tap()
-        XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
-        app.swipeUp()
+        XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
+        let scene = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        scene.press(forDuration: 0.05, thenDragTo: scene.withOffset(CGVector(dx: 0, dy: -140)))
         XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
         XCTAssertFalse(app.buttons["continue"].exists)
         app.buttons["lesson.back"].tap()
@@ -23,10 +24,9 @@ import XCTest
         app.launch()
         app.buttons["intro.continue"].tap()
         app.buttons["intro.continue"].tap()
-        app.buttons["lesson.back"].tap()
 
         XCTAssertTrue(app.buttons["home.stage.0"].waitForExistence(timeout: 15))
-        for (index, title) in ["NUKUH", "NGASEUK", "NGORED", "MIPIT", "LEUIT"].enumerated() {
+        for (index, title) in ["NUKUH", "NGASEUK", "NGORED", "MIPIT", "NGALANTAI", "LEUIT"].enumerated() {
             app.buttons["home.stage.\(index)"].tap()
             waitForPreviewTitle(title, in: app)
             if index == 3 {
@@ -39,19 +39,18 @@ import XCTest
         XCTAssertTrue(app.buttons["resume"].isHittable)
         XCTAssertTrue(app.buttons["home.menu"].isHittable)
         app.buttons["resume"].tap()
-        XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["NUKUH"].exists)
+        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
         app.buttons["lesson.back"].tap()
-        app.buttons["home.stage.4"].tap()
+        app.buttons["home.stage.5"].tap()
         let preview = XCTAttachment(screenshot: app.screenshot())
         preview.name = "Leuit-hanging-rice"
         preview.lifetime = .keepAlways
         add(preview)
-        XCTAssertEqual(app.staticTexts["home.progress"].label, "0 dari 5 tahap telah dijelajahi")
+        XCTAssertEqual(app.staticTexts["home.progress"].label, "0 dari 6 tahap telah dijelajahi")
         app.buttons["home.preview.next"].tap()
         waitForPreviewTitle("NUKUH", in: app)
         app.buttons["resume"].tap()
-        XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
     }
 
     func testSelectedUnlockedChapterOpensInsteadOfSavedChapter() {
@@ -61,8 +60,7 @@ import XCTest
         app.buttons["home.stage.1"].tap()
         XCTAssertTrue(app.buttons["resume"].isHittable)
         app.buttons["resume"].tap()
-        XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["NGASEUK"].exists)
+        XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
     }
 
     private func waitForPreviewTitle(_ title: String, in app: XCUIApplication,

@@ -1,7 +1,7 @@
 import SwiftUI
 struct NgaleuitkeunPareActivitySurface: View {
     let model: NgaleuitkeunPareViewModel
-    @Environment(ActivitySheetState.self) private var sheet
+    @Environment(ActivityCardState.self) private var card
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -28,9 +28,9 @@ struct NgaleuitkeunPareActivitySurface: View {
                 }
             }.disabled(model.isDemonstrating)
         }.onChange(of: model.interiorVisible) { _, visible in
-            if visible { sheet.expand() }
+            if visible { card.showInstruction() }
         }.onChange(of: model.storage.count) { _, count in
-            if count == 3 { sheet.expand() }
+            if count == 3 { card.showInstruction() }
         }
     }
 }

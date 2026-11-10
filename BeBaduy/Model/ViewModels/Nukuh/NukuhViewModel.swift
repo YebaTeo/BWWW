@@ -10,6 +10,12 @@ import Foundation
     let scene = NgahumaScene()
     @ObservationIgnored private var demoTask: Task<Void, Never>?
     private var visible = false
+    private var helpVisible = false
+
+    func setHelpVisible(_ value: Bool) {
+        helpVisible = value
+        if value { stopLookMotion() } else { startLookMotion() }
+    }
     private var usedDemo = false
     private let motion: (any MotionProviding)?
     private var lookMotion = NukuhLookMotion()
@@ -93,7 +99,7 @@ import Foundation
         stopLookMotion(); scene.recenterLook(); startLookMotion()
     }
     private func startLookMotion() {
-        guard motionConfigured, motionEnabled, visible, session.isActive, !motionActive else { return }
+        guard motionConfigured, motionEnabled, visible, !helpVisible, session.isActive, !motionActive else { return }
         guard let motion, motion.available else {
             motionMessage = "Sensor gerakan tidak tersedia. Geser mendatar di lahan untuk melihat sekeliling."
             return

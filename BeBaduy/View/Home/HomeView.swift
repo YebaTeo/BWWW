@@ -21,14 +21,14 @@ struct HomeView: View {
                 } else {
                     IntroductionView {
                         journey.finishIntroduction()
-                        model.open(.nukuh, journey: journey)
+                        journey.open(.nukuh)
                     }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: PhaseID.self) { phase in
                 PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
-                    if let next = journey.continueFrom(phase) { model.path = [next] }
+                    if journey.continueFrom(phase) != nil { model.path = [] }
                     else if phase == .ngaleuitkeunPare && journey.progress.allComplete {
                         journey.finishJourney(); model.path = []; model.showsCompletion = true
                     }
@@ -38,7 +38,7 @@ struct HomeView: View {
             .sheet(isPresented: $showsJourney, onDismiss: {
                 if let phase = pendingPhase {
                     pendingPhase = nil
-                    model.open(phase, journey: journey)
+                    journey.open(phase)
                 }
             }) {
                 NavigationStack {

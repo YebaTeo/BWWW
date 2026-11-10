@@ -8,10 +8,10 @@ struct NukuhView: View {
         _model = State(initialValue: NukuhViewModel(motion: motion))
     }
     var body: some View {
-        PhaseContainerView(content: NukuhContent.value, session: model.session, journey: journey,
+        PhaseContainerView(content: PhaseContent.content(for: .nukuh), session: model.session, journey: journey,
             start: model.start, replay: model.start, demonstrate: { model.demonstrate() },
             restore: model.restore, advance: advance, suspend: model.suspend,
-            activityVisibility: model.setVisible,
+            activityVisibility: model.setVisible, helpVisibility: model.setHelpVisible,
             surface: { NukuhActivitySurface(model: model) }, activity: { NukuhActivityView(model: model) },
             description: { NukuhDescriptionView() })
     }

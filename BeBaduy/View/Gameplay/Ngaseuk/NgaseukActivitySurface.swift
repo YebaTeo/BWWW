@@ -2,7 +2,7 @@ import SwiftUI
 
 struct NgaseukActivitySurface: View {
     let model: NgaseukViewModel
-    @Environment(ActivitySheetState.self) private var sheet
+    @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visibleHoles: Set<Int> = []
     @State private var workingTarget: Int?
@@ -71,13 +71,13 @@ struct NgaseukActivitySurface: View {
         .onChange(of: model.step) { _, step in
             switch step {
             case .digging, .seeding:
-                if sheet.largeText { sheet.expand() } else { sheet.collapse() }
-            case .instructions: sheet.expand()
+                card.dismiss()
+            case .instructions: card.showInstruction()
             case .holesReady: break // Reveal planting instructions after the last stick withdraws.
             }
         }
         .onChange(of: model.peekTarget) { _, target in
-            if target != nil { sheet.collapse() }
+            if target != nil { card.dismiss() }
         }
         .task(id: model.holes) { await showStroke() }
     }
@@ -106,6 +106,6 @@ struct NgaseukActivitySurface: View {
         isStroking = false
         workingTarget = nil
         toolDepth = -70
-        if model.step == .holesReady { sheet.expand() }
+        if model.step == .holesReady { card.showInstruction() }
     }
 }

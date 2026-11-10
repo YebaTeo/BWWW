@@ -1,7 +1,7 @@
 import SwiftUI
 struct NgoredActivitySurface: View {
     let model: NgoredViewModel
-    @Environment(ActivitySheetState.self) private var sheet
+    @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var toolCenter: CGPoint?
@@ -57,7 +57,7 @@ struct NgoredActivitySurface: View {
                         .allowsHitTesting(false)
                 }
                 if model.step == .rain {
-                    TimelineView(.animation(minimumInterval: 0.05, paused: reduceMotion || scenePhase != .active || !model.session.isActive)) { timeline in
+                    TimelineView(.animation(minimumInterval: 0.05, paused: card.mode == .help || reduceMotion || scenePhase != .active || !model.session.isActive)) { timeline in
                         Canvas { context, size in
                             let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
                             for i in 0..<80 {
@@ -98,14 +98,17 @@ struct NgoredActivitySurface: View {
             }.contentShape(Rectangle()).coordinateSpace(name: "ngored.field").disabled(model.isDemonstrating)
 
         }
+        .onChange(of: card.mode) { _, mode in
+            if mode != .hidden { dragOrigin = nil; strokeTracker.reset() }
+        }
         .onChange(of: model.step) { _, step in
-            if step != .cleared { sheet.expand() }
+            if step == .rain { card.dismiss() }
         }
         .task(id: model.removed) {
             if model.removed.isEmpty && model.strokes.isEmpty { toolCenter = nil; dragOrigin = nil; strokeTracker.reset() }
             if model.step == .cleared {
                 do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-                sheet.expand()
+                card.showInstruction()
             }
         }
     }

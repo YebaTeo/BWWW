@@ -10,12 +10,16 @@ struct NgaseukSeedPeekView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ActivityPhoto(asset: "ngaseuk_before")
-                    .scaleEffect(1.5).blur(radius: 6)
-                Color.black.opacity(0.45)
+                Image("HumaTerrainTexture")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                    .overlay(Color.black.opacity(0.25))
                 Ellipse()
-                    .fill(RadialGradient(colors: [Color.black, Color(red: 0.12, green: 0.065, blue: 0.025), Color(red: 0.4, green: 0.25, blue: 0.13)], center: .center, startRadius: 10, endRadius: geometry.size.width * 0.45))
-                    .overlay(Ellipse().stroke(Color(red: 0.49, green: 0.32, blue: 0.18), lineWidth: 10))
+                    .fill(RadialGradient(colors: [Color.black, Color(red: 0.10, green: 0.05, blue: 0.02), Color(red: 0.36, green: 0.22, blue: 0.12)], center: .center, startRadius: 8, endRadius: geometry.size.width * 0.42))
+                    .overlay(Ellipse().stroke(Color(red: 0.48, green: 0.31, blue: 0.17), lineWidth: 8))
+                    .shadow(color: .black.opacity(0.55), radius: 12, x: 0, y: 4)
                     .frame(width: geometry.size.width * 0.78, height: geometry.size.height * 0.22)
                     .position(x: geometry.size.width / 2, y: geometry.size.height * 0.46)
                 if filled || model.isPouring {

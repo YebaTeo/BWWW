@@ -31,14 +31,19 @@ import XCTest
         XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 150), targets: targets, removed: [0]))
     }
     func testHarvestBalanceAndDryingCannotBeSkipped() {
-        let vm = DibuatViewModel(motion: FakeMotion()); vm.start()
-        vm.finishDrying(); XCTAssertNil(vm.session.outcome)
-        for i in 0..<3 { vm.harvest(i); vm.harvest(i) }
-        vm.harvest(3)
-        XCTAssertEqual(vm.harvested.count, 3)
-        XCTAssertEqual(vm.step, .harvestSuccess)
-        vm.beginBalance(); XCTAssertEqual(vm.step, .harvestSuccess)
-        vm.requestLandscape()
+        let harvest = DibuatViewModel(motion: FakeMotion())
+        harvest.start()
+        harvest.finishHarvest()
+        XCTAssertNil(harvest.session.outcome)
+        for index in 0..<3 { harvest.harvest(index); harvest.harvest(index) }
+        XCTAssertEqual(harvest.harvested.count, 3)
+        harvest.finishHarvest()
+        XCTAssertEqual(harvest.session.outcome, .performed)
+
+        let vm = NgalantaiViewModel(motion: FakeMotion())
+        vm.start()
+        vm.finishDrying()
+        XCTAssertNil(vm.session.outcome)
         XCTAssertEqual(vm.step, .awaitingLandscape)
         vm.orientationChanged(-1)
         XCTAssertEqual(vm.step, .balanceInstructions)
@@ -72,8 +77,7 @@ import XCTest
         let event = vm.session.event
         vm.finishDrying(); XCTAssertEqual(vm.session.event, event)
         vm.start()
-        XCTAssertEqual(vm.step, .harvesting)
-        XCTAssertTrue(vm.harvested.isEmpty)
+        XCTAssertEqual(vm.step, .awaitingLandscape)
         vm.suspend()
     }
     func testLeuitUniqueBundlesAndInteriorGate() {

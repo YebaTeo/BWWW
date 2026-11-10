@@ -1,4 +1,4 @@
- import SwiftUI
+import SwiftUI
 
 struct LessonButton: View {
     let title: String
@@ -7,11 +7,14 @@ struct LessonButton: View {
     var body: some View {
         Button(action: action) {
             Text(title).font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.cream)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .padding(.horizontal, 20)
-                .background(Color(red: 0.12, green: 0.31, blue: 0.62), in: Capsule())
-                .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
+                .background(AppTheme.action, in: Capsule())
+                .overlay(Capsule().stroke(AppTheme.cream.opacity(0.45), lineWidth: 1))
         }.buttonStyle(.plain).accessibilityIdentifier(identifier)
     }
 }
@@ -23,10 +26,12 @@ struct LessonBackdrop: View {
             Image(asset).resizable().scaledToFill()
                 .frame(width: bounds.size.width, height: bounds.size.height).clipped()
                 .overlay(LinearGradient(stops: [
-                    .init(color: .black.opacity(0.58), location: 0),
-                    .init(color: .black.opacity(0.58), location: 0.35),
-                    .init(color: .black.opacity(0.64), location: 0.58),
-                    .init(color: .black.opacity(0.8), location: 1)
+                    .init(color: .black.opacity(0.28), location: 0),
+                    .init(color: .black.opacity(0.12), location: 0.15),
+                    .init(color: .clear, location: 0.30),
+                    .init(color: .clear, location: 0.60),
+                    .init(color: .black.opacity(0.25), location: 0.80),
+                    .init(color: .black.opacity(0.48), location: 1)
                 ], startPoint: .top, endPoint: .bottom))
         }.ignoresSafeArea().accessibilityHidden(true)
     }

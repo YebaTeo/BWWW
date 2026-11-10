@@ -1,21 +1,26 @@
 import SwiftUI
+
 struct InstructionCard: View {
     let title: String
     let message: String
     var identifier = "activity.instruction"
     let action: () -> Void
+    @ScaledMetric(relativeTo: .title3) private var headingSize = 24.0
+    @ScaledMetric(relativeTo: .body) private var bodySize = 20.0
+
     var body: some View {
         VStack(spacing: 12) {
-            Button(action: action) {
-                VStack(spacing: 10) {
-                    Text(title).font(.title3.bold())
-                    Text(message).font(.body)
-                }.frame(maxWidth: .infinity).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityIdentifier(identifier)
+            Text(title)
+                .font(.system(size: headingSize, weight: .bold, design: .rounded))
+                .foregroundStyle(AppTheme.heading)
+                .accessibilityAddTraits(.isHeader)
+            Text(message)
+                .font(.system(size: bodySize, design: .rounded))
+                .foregroundStyle(AppTheme.cream)
             LessonButton(title: "Lanjut", identifier: identifier + ".continue", action: action)
-        }.multilineTextAlignment(.center).padding(20)
-            .foregroundStyle(.black.opacity(0.85))
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-            .environment(\.colorScheme, .light)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
     }
 }

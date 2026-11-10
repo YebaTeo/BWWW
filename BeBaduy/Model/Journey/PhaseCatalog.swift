@@ -1,4 +1,7 @@
 enum PhaseCatalog {
-    static let all: [PhaseContent] = [NukuhContent.value, NgaseukContent.value, NgoredContent.value, DibuatContent.value, NgaleuitkeunPareContent.value]
-    static func content(for id: PhaseID) -> PhaseContent { all.first { $0.id == id }! }
+    static let all = PhaseID.allCases.map { PhaseContent.content(for: $0) }
+
+    static func content(for id: PhaseID) -> PhaseContent {
+        PhaseContent.content(for: id)
+    }
 }

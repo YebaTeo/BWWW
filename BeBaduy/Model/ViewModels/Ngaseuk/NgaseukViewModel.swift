@@ -14,6 +14,23 @@ import UIKit
     private(set) var peekTarget: Int?
     private(set) var isPouring = false
     private var pourDetector = SeedPourMotionDetector()
+    private(set) var prefersDigMotion = false
+
+    func toggleDigMotionPreference() { prefersDigMotion.toggle() }
+
+    func setActivityVisible(_ visible: Bool) {
+        if visible {
+            guard !motionActive else { return }
+            if peekTarget != nil { startPourMotion() }
+            else if prefersDigMotion { startMotion() }
+        } else {
+            pauseMotion()
+            pourTask?.cancel()
+            pourTask = nil
+            isPouring = false
+        }
+    }
+
     private var motionGeneration = 0
     @ObservationIgnored private var pourTask: Task<Void, Never>?
     private var usedDemo = false
@@ -21,7 +38,7 @@ import UIKit
     private var detector = NgaseukMotionDetector()
     @ObservationIgnored private var demoTask: Task<Void, Never>?
     init(motion: any MotionProviding) { self.motion = motion }
-    func start() { suspend(); holes = []; seeds = []; selectedTarget = 0; lastDug = 0; usedDemo = false; step = .instructions; session.start() }
+    func start() { suspend(); prefersDigMotion = false; holes = []; seeds = []; selectedTarget = 0; lastDug = 0; usedDemo = false; step = .instructions; session.start() }
     func proceed() {
         guard session.isActive else { return }
         if step == .instructions { step = .digging }

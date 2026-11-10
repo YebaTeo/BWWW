@@ -15,6 +15,7 @@ struct WelcomeHomeView: View {
     @State private var preview = HomePreviewViewModel()
     @State private var confirmsRestart = false
     @State private var initializedPreview = false
+    @State private var openingChapter = false
     private var progress: CGFloat { preview.progress }
     private var isTransitioning: Bool { preview.isTransitioning }
     private var selectedStage: Int { preview.selectedStage }
@@ -66,12 +67,19 @@ struct WelcomeHomeView: View {
                 preview.selectStage(stage.id, reduceMotion: true)
             }
         }
+        .onChange(of: journey.progress.currentPhase) { _, phase in
+            if let saved = GrowthStage.allStages.first(where: { $0.phase == phase }) {
+                preview.selectStage(saved.id, reduceMotion: true)
+            }
+        }
         .onDisappear {
             preview.stop()
         }
         .onChange(of: isActive) { _, active in
             if !active {
                 preview.stop()
+            } else {
+                openingChapter = false
             }
         }
         .alert("Mulai lagi dari awal?", isPresented: $confirmsRestart) {
@@ -98,7 +106,7 @@ struct WelcomeHomeView: View {
                 Text(stage.stepCounterString)
                     .font(.subheadline.monospaced().bold())
                     .foregroundStyle(ivory)
-                    .accessibilityLabel("Pratinjau \(stage.id + 1) dari 5")
+                    .accessibilityLabel("Pratinjau \(stage.id + 1) dari \(PhaseID.allCases.count)")
                 Spacer(minLength: 0)
                 Menu {
                     Button("Tahapan belajar", action: onJourney)
@@ -169,7 +177,7 @@ struct WelcomeHomeView: View {
                     .font(.footnote)
                     .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
             }
-            Text("\(journey.completedCount) dari 5 tahap telah dijelajahi")
+            Text("\(journey.completedCount) dari \(PhaseID.allCases.count) tahap telah dijelajahi")
                 .font(.caption)
                 .foregroundStyle(ivory.opacity(0.86))
                 .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
@@ -189,7 +197,7 @@ struct WelcomeHomeView: View {
         let completed = journey.progress.record(for: stage.phase).explanationAvailable
         return VStack(spacing: 4) {
             Button {
-                onOpen(unlocked ? stage.phase : journey.progress.currentPhase)
+                openSelectedChapter()
             } label: {
                 HStack(spacing: 8) {
                     Text(unlocked ? (completed ? "Tinjau \(stage.name)" : "Jelajahi \(stage.name)") : "Lanjutkan perjalanan")
@@ -206,15 +214,18 @@ struct WelcomeHomeView: View {
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("home.preview.finish")
             }
+            Text("Geser ke atas untuk menjelajahi tahap ini")
+                .font(.caption)
+                .foregroundStyle(ivory.opacity(0.8))
             Button("Lihat tahapan", action: onJourney)
                 .font(.subheadline.weight(.semibold))
                 .frame(minHeight: 38)
                 .shadow(color: .black.opacity(0.85), radius: 7, y: 2)
                 .accessibilityIdentifier("home.journey")
             Button {
-                selectStage(stage.id == 4 ? 0 : stage.id + 1)
+                selectStage(stage.id == GrowthStage.allStages.count - 1 ? 0 : stage.id + 1)
             } label: {
-                Label(stage.id == 4 ? "Ulangi pratinjau" : "Pratinjau berikutnya", systemImage: stage.id == 4 ? "arrow.counterclockwise" : "chevron.up.2")
+                Label(stage.id == GrowthStage.allStages.count - 1 ? "Ulangi pratinjau" : "Pratinjau berikutnya", systemImage: stage.id == GrowthStage.allStages.count - 1 ? "arrow.counterclockwise" : "chevron.up.2")
                     .font(.caption.weight(.semibold))
                     .frame(minHeight: 36)
                     .shadow(color: .black.opacity(0.85), radius: 7, y: 2)
@@ -234,9 +245,19 @@ struct WelcomeHomeView: View {
             .onEnded { value in
                 guard abs(value.translation.height) > 45,
                       abs(value.translation.height) > abs(value.translation.width) else { return }
-                let direction = value.translation.height < 0 ? 1 : -1
-                preview.swipe(direction: direction, reduceMotion: reduceMotion)
+                if value.translation.height < 0 {
+                    openSelectedChapter()
+                } else {
+                    preview.swipe(direction: -1, reduceMotion: reduceMotion)
+                }
             }
+    }
+
+    private func openSelectedChapter() {
+        guard isActive, !openingChapter else { return }
+        openingChapter = true
+        preview.stop()
+        onOpen(journey.progress.isUnlocked(stage.phase) ? stage.phase : journey.progress.currentPhase)
     }
 
     private func selectStage(_ index: Int) {

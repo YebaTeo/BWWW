@@ -10,6 +10,7 @@ struct PhaseDestinationView: View {
             case .nukuh: NukuhView(journey: journey, motion: motion, advance: advance)
             case .ngaseuk: NgaseukView(journey: journey, motion: motion, advance: advance)
             case .ngored: NgoredView(journey: journey, advance: advance)
+            case .ngalantai: NgalantaiView(journey: journey, motion: motion, advance: advance)
             case .dibuat: DibuatView(journey: journey, motion: motion, advance: advance)
             case .ngaleuitkeunPare: NgaleuitkeunPareView(journey: journey, advance: advance)
             }

@@ -1,65 +1,66 @@
 {
-  "mode": "built-in image_gen",
+  "mode": "HumaEnvironment-derived realistic artwork",
+  "reference": "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaEnvironment.imageset/huma-environment.png",
   "assets": [
     {
+      "name": "ngahuru_before",
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of the Baduy huma before clearing, matching Home Stage 1. Untouched tropical forest edge, wild trees with natural foliage and root flares on warm upland soil with distant Kendeng mountain silhouettes under soft overcast daylight. Quiet upper third for text.",
+      "file": "BeBaduy/Asset/Nukuh/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png"
+    },
+    {
       "name": "ngahuru_after",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: A modest untidy gathered pile of cut thin branches and dry leaves on uneven upland soil, surrounding soil now clearer. Real bark and leaf texture; forest edge behind. No fire or ash.",
-      "file": "BeBaduy/Features/Phases/Nukuh/Resources/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of the cleared Baduy huma field after cutting and burning, matching the 3D Nukuh activity result. Trees cleared, warm upland soil with organic charred ash patches cooling into fertile earth under soft daylight; distant mountain silhouettes. No sticks or modern objects.",
+      "file": "BeBaduy/Asset/Nukuh/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png"
     },
     {
       "name": "ngaseuk_before",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Prepared dry upland soil with a slender plain wooden pointed planting stick resting diagonally in the foreground. Soil surface without holes yet; no seedlings.",
-      "file": "BeBaduy/Features/Phases/Ngaseuk/Resources/Ngaseuk.xcassets/ngaseuk_before.imageset/ngaseuk_before.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of a closer view of the prepared huma field for planting. Warm Baduy upland soil occupying lower two-thirds, distant mountains and sky in upper third. Prepared soil surface without holes yet. No planting stick in background image (interactive aseuk is layered separately).",
+      "file": "BeBaduy/Asset/Ngaseuk/Ngaseuk.xcassets/ngaseuk_before.imageset/ngaseuk_before.png"
     },
     {
       "name": "ngaseuk_after",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Close view of prepared dry upland soil with several small shallow planting holes, a few unhulled rice seeds visible inside foreground hole, wooden planting stick resting nearby. No germination or seedlings yet.",
-      "file": "BeBaduy/Features/Phases/Ngaseuk/Resources/Ngaseuk.xcassets/ngaseuk_after.imageset/ngaseuk_after.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of the closer view of the huma field with three small shallow dibble holes, with unhulled golden rice seeds resting inside, surrounded by loose earth clods. Matching warm upland soil and distant mountain silhouette.",
+      "file": "BeBaduy/Asset/Ngaseuk/Ngaseuk.xcassets/ngaseuk_after.imageset/ngaseuk_after.png"
     },
     {
       "name": "ngored_before",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Young upland rice tufts growing in dry soil with distinct broadleaf weeds between them, natural irregular spacing, tropical forest edge behind.",
-      "file": "BeBaduy/Features/Phases/Ngored/Resources/Ngored.xcassets/ngored_before.imageset/ngored_before.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of young upland rice tufts growing in the shared huma field in dry warm soil, natural irregular spacing, tropical forest edge and mountains behind.",
+      "file": "BeBaduy/Asset/Ngored/Ngored.xcassets/ngored_before.imageset/ngored_before.png"
     },
     {
       "name": "ngored_after",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Young upland rice tufts growing in dry soil, spaces between them weeded, removed broadleaf weeds lying to one side. Rice remains intact, no flooded water.",
-      "file": "BeBaduy/Features/Phases/Ngored/Resources/Ngored.xcassets/ngored_after.imageset/ngored_after.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of the weeded huma field with clean standing green young rice tufts on warm soil under soft post-rain clearing light. No background weeds (weeds are interactive and cleared during gameplay).",
+      "file": "BeBaduy/Asset/Ngored/Ngored.xcassets/ngored_after.imageset/ngored_after.png"
     },
     {
       "name": "dibuat_before",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Ripe upland rice, heavy golden panicles with individual grains still attached bending naturally on standing stalks, dry field, tropical trees in distant background.",
-      "file": "BeBaduy/Features/Phases/Dibuat/Resources/Dibuat.xcassets/dibuat_before.imageset/dibuat_before.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of ripe upland rice in the shared huma field. Heavy golden panicles bending naturally on standing stalks in warm afternoon light; distant mountains. Golden grain clusters aligned to harvest targets.",
+      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/dibuat_before.imageset/dibuat_before.png"
     },
     {
       "name": "dibuat_after",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Freshly hand-harvested small rice bundles laid on a woven bamboo mat near standing ripe upland rice, grain-bearing panicles attached to their stalks; no loose white rice or sacks.",
-      "file": "BeBaduy/Features/Phases/Dibuat/Resources/Dibuat.xcassets/dibuat_after.imageset/dibuat_after.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of freshly hand-harvested small rice bundles (poc padi) resting on warm huma soil near cut stalks in the shared setting; grains attached to stalks.",
+      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/dibuat_after.imageset/dibuat_after.png"
     },
     {
       "name": "drying_rice_before",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Freshly harvested bundles of golden rice heads with stalks attached, resting near a simple empty horizontal bamboo drying rack in an open rural clearing.",
-      "file": "BeBaduy/Features/Phases/Dibuat/Resources/Dibuat.xcassets/drying_rice_before.imageset/drying_rice_before.png"
+      "prompt": "Use case: scientific-educational. Portrait/landscape naturalistic educational illustration of the wide huma clearing with distant mountain silhouettes and warm soil, serving as stationary background for the landscape bamboo balance hold.",
+      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/drying_rice_before.imageset/drying_rice_before.png"
     },
     {
       "name": "drying_rice_after",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Golden rice panicles with stalks attached arranged over horizontal poles of a modest bamboo drying rack in an open rural clearing. Air and daylight reach the bundles, no loose grains.",
-      "file": "BeBaduy/Features/Phases/Dibuat/Resources/Dibuat.xcassets/drying_rice_after.imageset/drying_rice_after.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of golden rice panicles arranged over horizontal poles of a traditional bamboo drying rack (lantayan) in the huma clearing under mountain sun and air.",
+      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/drying_rice_after.imageset/drying_rice_after.png"
     },
     {
       "name": "ngaleuitkeun_pare_before",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Small traditional raised bamboo and timber rice granary (leuit), on short wooden supports, woven bamboo walls and deep thatched gabled roof, modest forest-edge setting. Dry rice bundles waiting outside for storage, no modern silos or concrete.",
-      "file": "BeBaduy/Features/Phases/NgaleuitkeunPare/Resources/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_before.imageset/ngaleuitkeun_pare_before.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of a traditional raised bamboo and timber Baduy rice granary (leuit) with thatched gabled roof on round stone discs, situated beside the shared huma field with distant mountains.",
+      "file": "BeBaduy/Asset/NgaleuitkeunPare/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_before.imageset/ngaleuitkeun_pare_before.png"
     },
     {
       "name": "ngaleuitkeun_pare_after",
-      "prompt": "Use case: scientific-educational. Create a single portrait 2:3 full-bleed naturalistic educational illustration for an iPhone lesson about rain-fed upland rice farming in Baduy. Near-photographic observational material detail, soft overcast daylight, restrained earth tones, natural irregularity, realistic scale. Main subject lower two thirds, quiet upper third for separately overlaid text. Original illustration, not a claimed documentary photograph. No text, labels, people, fantasy lighting, cartoon shapes, game UI, target rings, flooded paddies, terraces or modern machinery. Scene: Close observational view through an open small doorway into a bamboo-and-timber rice granary, dry grain-bearing rice bundles neatly stacked inside, grains still attached to stalks. Woven bamboo wall texture, wooden floor elevated above ground, natural daylight, no loose white rice or sacks.",
-      "file": "BeBaduy/Features/Phases/NgaleuitkeunPare/Resources/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_after.imageset/ngaleuitkeun_pare_after.png"
-    },
-    {
-      "name": "ngahuru_before",
-      "prompt": "Use case: scientific-educational. Portrait 2:3 naturalistic Nukuh field before gathering cut vegetation. Scattered irregular thin branches, dry leaves and cut vegetation on uneven upland soil at tropical forest edge. Soft overcast light, subdued earth tones, realistic bark, leaf veins and soil. Quiet upper third for separately overlaid text. No people, buildings, fire, flooded paddy, tools, text, targets, fantasy or game styling. Original illustration, not documentary photograph.",
-      "file": "BeBaduy/Features/Phases/Nukuh/Resources/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration looking through the open wooden doorway of the leuit granary: raised timber floorboards, woven bamboo walls, and neat stacks of dry golden rice bundles stored securely inside in warm natural light.",
+      "file": "BeBaduy/Asset/NgaleuitkeunPare/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_after.imageset/ngaleuitkeun_pare_after.png"
     }
   ]
 }

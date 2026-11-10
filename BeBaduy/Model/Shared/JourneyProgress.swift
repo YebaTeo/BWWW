@@ -7,7 +7,7 @@ struct PhaseProgress: Codable, Equatable {
     var outcome: ActivityOutcome? { performed ? .performed : observed ? .observed : nil }
 }
 struct JourneyProgress: Codable, Equatable {
-    var version = 2
+    var version = 3
     var introductionSeen = false
     var currentPhase: PhaseID = .nukuh
     var phases: [String: PhaseProgress] = [:]
@@ -24,7 +24,7 @@ struct JourneyProgress: Codable, Equatable {
     }
     var allComplete: Bool { PhaseID.allCases.allSatisfy { record(for: $0).explanationAvailable } }
     var isValid: Bool {
-        version == 2 && isUnlocked(currentPhase) && (!journeyCompleted || allComplete) &&
+        version == 3 && isUnlocked(currentPhase) && (!journeyCompleted || allComplete) &&
         phases.allSatisfy { key, value in
             guard let phase = PhaseID(rawValue: key) else { return false }
             return value.explanationAvailable == (value.observed || value.performed) && (!value.explanationAvailable || isUnlocked(phase))

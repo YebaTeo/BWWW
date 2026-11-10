@@ -46,7 +46,7 @@ final class HomePreviewViewModel {
             // read clearly while the rice grows through the preview.
             let isHarvestTimeLapse = (previousStage == 2 && index == 3) || (previousStage == 3 && index == 2)
             let isForestClearing = (previousStage == 0 && index == 1) || (previousStage == 1 && index == 0)
-            let isLeuitTransition = (previousStage == 3 && index == 4) || (previousStage == 4 && index == 3)
+            let isLeuitTransition = (previousStage == 4 && index == 5) || (previousStage == 5 && index == 4)
             let start = progress
             let destination = GrowthStage.allStages[index].targetProgress
             let duration: Double = isHarvestTimeLapse ? 27 : (isLeuitTransition ? 1.2 : (isForestClearing ? 7.2 : 0.23))

@@ -2,7 +2,7 @@ import Foundation
 enum PhaseID: String, CaseIterable, Codable, Identifiable, Sendable {
     // Keep resource keys stable; progress is migrated separately.
     case nukuh = "ngahuru"
-    case ngaseuk, ngored, dibuat
+    case ngaseuk, ngored, dibuat, ngalantai
     case ngaleuitkeunPare = "ngaleuitkeun_pare"
     var id: String { rawValue }
     var index: Int { Self.allCases.firstIndex(of: self)! }
