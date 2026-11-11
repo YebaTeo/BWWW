@@ -15,20 +15,23 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     var helpVisibility: ((Bool) -> Void)? = nil
     var showsActiveControls = false
     var usesContextCards = true
+    var showsInitialActivityCard = true
     @ViewBuilder let surface: () -> Surface
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
     @State private var flow = LessonFlowViewModel()
     @State private var restored = false
+    @State private var isToolRevealed = false
     @State private var card = ActivityCardState()
     @AccessibilityFocusState private var cardHeadingFocused: Bool
     private var immersive: Bool { flow.screen == .activity || flow.screen == .result }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
-    private var equipment: String? {
+    private var equipment: (title: String, description: String)? {
         switch content.id {
-        case .ngaseuk: "Aseuk"
-        case .dibuat: "Etem / ani-ani"
+        case .ngaseuk: ("Aseuk", "Gunakan aseuk untuk membuat lubang tempat menanam benih padi.")
+        case .ngored: ("Kored", "Gunakan kored untuk membersihkan gulma dan menggemburkan tanah.")
+        case .mipit: ("Etem / ani-ani", "Gunakan etem untuk memotong malai padi bersama tangkainya.")
         default: nil
         }
     }
@@ -51,26 +54,25 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     case .introduction:
                         Color.clear
                     case .equipment:
-                        ScrollView {
-                        Spacer(minLength: 24)
-                        VStack(spacing: 24) {
-                            Text("Hayu, kenalan dulu dengan alatnya!").font(.title2.bold())
-                            Text(equipment ?? "").font(.system(.title, design: .rounded).bold())
-                                .foregroundStyle(AppTheme.heading)
-                            if content.id == .dibuat {
-                                Image("dibuat_etem").resizable().scaledToFit().frame(height: 140)
-                            } else {
-                                AseukTool().frame(width: 24, height: 136).rotationEffect(.degrees(24))
+                        if let equipment {
+                            ScrollView {
+                                VStack(spacing: 22) {
+                                    Text(isToolRevealed ? "Ketuk kartu untuk menutupnya." : "Buka kartu untuk mendapat alat baru!")
+                                        .multilineTextAlignment(.center)
+                                        .foregroundStyle(AppTheme.cream)
+                                    ToolRevealCard(title: equipment.title, description: equipment.description,
+                                                   isRevealed: $isToolRevealed) {
+                                        equipmentArtwork
+                                    }
+                                    if isToolRevealed {
+                                        LessonButton(title: "Mulai aktivitas", identifier: "lesson.begin", action: begin)
+                                            .frame(maxWidth: 330)
+                                    }
+                                }
+                                .padding(.horizontal, 32)
+                                .padding(.vertical, 24)
+                                .frame(maxWidth: .infinity)
                             }
-                            Text(content.id == .ngaseuk
-                                 ? "Aseuk adalah tongkat runcing untuk membuat lubang tempat benih padi."
-                                 : "Etem adalah alat panen kecil untuk memotong malai padi. Bulir tetap bersama tangkainya.")
-                            LessonButton(title: "Mulai aktivitas", identifier: "lesson.begin") { begin() }
-                        }.multilineTextAlignment(.center).padding(24)
-                            .frame(maxWidth: 400)
-                            .activityCardStyle().padding(24)
-                            .frame(maxWidth: .infinity)
-                        Spacer(minLength: 24)
                         }
                     case .activity:
                         if usesContextCards {
@@ -85,11 +87,11 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                     .foregroundStyle(AppTheme.heading)
                                 if session.outcome == .observed {
                                     Text("Demonstrasi selesai.")
-                                } else if content.id != .dibuat {
+                                } else if content.id != .mipit {
                                     Text(content.result)
                                 }
                                 LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
-                                Button(content.id == .dibuat ? "Ulang" : "Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
+                                Button(content.id == .mipit ? "Ulang" : "Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
                             }.padding(24).activityCardStyle()
                                 .padding(24)
                         }
@@ -105,7 +107,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                             .padding(.vertical, 24)
                             .frame(minHeight: max(0, geometry.size.height - 180))
                         }.accessibilityIdentifier("lesson.explanation.page")
-                        LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : (content.id == .dibuat ? "Lanjut ke tahap berikutnya" : "Lanjut ke tahapan berikutnya"), identifier: "continue", action: advance)
+                        LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : (content.id == .mipit ? "Lanjut ke tahap berikutnya" : "Lanjut ke tahapan berikutnya"), identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
                     }
                 }
@@ -133,7 +135,11 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             }
         }
         .onChange(of: flow.screen) { _, value in
-            if value == .activity && usesContextCards { helpVisibility?(false); card.showInstruction() }
+            if value == .activity && usesContextCards {
+                helpVisibility?(false)
+                if showsInitialActivityCard { card.showInstruction() }
+                else { card.dismiss() }
+            }
             activityVisibility(value == .activity && scenePhase == .active)
             if value != .activity { suspend(); ActivityAudio.shared.stop() }
         }
@@ -244,7 +250,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             Text("\(content.id.index + 1) / \(PhaseID.allCases.count)").font(.caption.monospacedDigit())
             Spacer()
             if flow.screen == .explanation {
-                Button(content.id == .dibuat ? "Ulang" : "Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
+                Button(content.id == .mipit ? "Ulang" : "Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
                     .background(.ultraThinMaterial, in: Capsule()).accessibilityIdentifier("replay")
             } else if flow.canSkip && (flow.screen == .activity || flow.screen == .equipment) {
                 Button("Lewati") { flow.explain() }.frame(minWidth: 60, minHeight: 44)
@@ -252,6 +258,19 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             } else { Color.clear.frame(width: 60, height: 44) }
         }.padding(.horizontal, 20).padding(.vertical, 8)
     }
+    @ViewBuilder private var equipmentArtwork: some View {
+        switch content.id {
+        case .ngaseuk:
+            AseukTool().frame(width: 34)
+        case .ngored:
+            KoredTool().frame(width: 150, height: 120)
+        case .mipit:
+            Image("mipit_etem").resizable().scaledToFit().frame(maxWidth: 160, maxHeight: 140)
+        default:
+            EmptyView()
+        }
+    }
+
     private func explore() {
         guard flow.screen == .introduction else { return }
         flow.explore(hasEquipment: equipment != nil)

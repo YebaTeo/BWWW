@@ -9,10 +9,10 @@ import XCTest
     }
     func tap(_ id: String, file: StaticString = #filePath, line: UInt = #line) {
         let button = app.buttons[id].firstMatch
-        if id.hasPrefix("nukuh.cut.") || id.hasPrefix("nukuh.ignite.") ||
-            id.hasPrefix("dig_") || id.hasPrefix("seed_") || id.hasPrefix("weed_") ||
+        if id.hasPrefix("narawas.cut.") || id.hasPrefix("narawas.ignite.") ||
+            id.hasPrefix("seed_") || id.hasPrefix("weed_") ||
             id.hasPrefix("bundle_") || id.hasPrefix("space_") {
-            for entry in ["activity.card.start", "nukuh.fire.begin", "ngored.field.begin", "activity.help"] {
+            for entry in ["activity.card.start", "narawas.fire.begin", "ngored.field.begin", "activity.help"] {
                 if !button.exists && app.buttons[entry].exists { tap(entry) }
             }
         }
@@ -37,7 +37,10 @@ import XCTest
     func intro() { tap("intro.continue"); tap("intro.continue") }
     func start() {
         if app.buttons["resume"].exists { tap("resume") }
-        if app.buttons["lesson.begin"].waitForExistence(timeout: 1) { tap("lesson.begin") }
+        if app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 2) {
+            tap("lesson.equipment.reveal")
+            tap("lesson.begin")
+        }
         if app.buttons["mipit.card.start"].exists { tap("mipit.card.start") }
     }
     func next() {
@@ -53,15 +56,15 @@ import XCTest
         let item = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         item.name = name; item.lifetime = .keepAlways; add(item)
     }
-    func completeNukuh(captureScene: Bool = false) {
+    func completeNarawas(captureScene: Bool = false) {
         start()
-        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         if captureScene {
-            tap("activity.card.start"); capture("Nukuh-fullscreen")
+            tap("activity.card.start"); capture("Narawas-fullscreen")
         }
-        for index in 0..<4 { tap("nukuh.cut.\(index)") }
+        for index in 0..<4 { tap("narawas.cut.\(index)") }
         XCTAssertFalse(app.buttons["continue"].exists)
-        for index in 0..<4 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn")
+        for index in 0..<4 { tap("narawas.ignite.\(index)") }; tap("narawas.finishBurn")
     }
     func testSixGlassExplanations() {
         verifyGlassExplanations(largeText: false)
@@ -100,9 +103,8 @@ import XCTest
     }
 
     func testFullSixChapterTouchJourneyAndReplay() {
-        prepare(); intro(); completeNukuh(); next()
-        start(); tap("ngaseuk.instructions.continue")
-        for index in 0..<3 { tap("dig_\(index)") }
+        prepare(["--uitest-ngaseuk-motion"]); intro(); completeNarawas(); next()
+        start(); waitForNgaseukHoles()
         XCTAssertFalse(app.buttons["lesson.result.continue"].exists)
         tap("ngaseuk.seeds.continue")
         for index in 0..<3 { tap("seed_\(index)") }
@@ -124,11 +126,9 @@ import XCTest
         XCTAssertEqual(app.staticTexts["home.progress"].label, "6 dari 6 tahap telah dijelajahi")
     }
     func testFullScreenFieldInteractionWithoutCard() {
-        prepare(); intro(); completeNukuh(captureScene: true); next(); start()
-        tap("ngaseuk.instructions.continue")
+        prepare(["--uitest-ngaseuk-motion"]); intro(); completeNarawas(captureScene: true); next(); start()
+        waitForNgaseukHoles()
         capture("Ngaseuk-fullscreen")
-        for index in 0..<3 { tap("field.hole.\(index)") }
-        XCTAssertTrue(app.buttons["ngaseuk.seeds.continue"].waitForExistence(timeout: 5))
         tap("ngaseuk.seeds.continue")
         let source = app.descendants(matching: .any)["field.seed"].firstMatch
         let target = app.buttons["field.hole.0"]
@@ -162,12 +162,12 @@ import XCTest
             plant.pinch(withScale: 0.5, velocity: -1)
             XCTAssertEqual(plant.value as? String, "Sudah dipanen")
         }
-        tap("dibuat.rotate"); next(); start()
-        XCTAssertFalse(app.buttons["dibuat.balance.continue"].exists)
+        tap("mipit.rotate"); next(); start()
+        XCTAssertFalse(app.buttons["ngalantai.balance.continue"].exists)
         XCUIDevice.shared.orientation = .landscapeRight
-        tap("dibuat.balance.continue")
+        tap("ngalantai.balance.continue")
         XCUIDevice.shared.orientation = .landscapeLeft
-        tap("dibuat.balance.continue")
+        tap("ngalantai.balance.continue")
         capture("Ngalantai-landscape-controls")
         tap("lesson.back")
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 10))
@@ -175,17 +175,17 @@ import XCTest
         XCUIDevice.shared.orientation = .portrait
         tap("resume"); start()
         tap("demonstrate")
-        tap("dibuat.drying.continue")
+        tap("ngalantai.drying.continue")
         tap("lesson.result.continue")
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
         tap("replay")
         XCTAssertTrue(app.staticTexts["Putar ponsel ke posisi mendatar."].waitForExistence(timeout: 5))
         XCUIDevice.shared.orientation = .portrait
         XCUIDevice.shared.orientation = .landscapeLeft
-        tap("dibuat.balance.continue")
-        if app.buttons["dibuat.balance.touch"].exists { tap("dibuat.balance.touch") }
-        tap("dibuat.balance.center")
-        tap("dibuat.drying.continue")
+        tap("ngalantai.balance.continue")
+        if app.buttons["ngalantai.balance.touch"].exists { tap("ngalantai.balance.touch") }
+        tap("ngalantai.balance.center")
+        tap("ngalantai.drying.continue")
         next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
@@ -200,13 +200,13 @@ import XCTest
             plant.pinch(withScale: 0.5, velocity: -1)
             XCTAssertEqual(plant.value as? String, "Sudah dipanen")
         }
-        tap("dibuat.rotate"); next(); start()
+        tap("mipit.rotate"); next(); start()
         XCUIDevice.shared.orientation = .landscapeLeft
-        tap("dibuat.balance.continue")
-        if app.buttons["dibuat.balance.touch"].exists { tap("dibuat.balance.touch") }
-        tap("dibuat.balance.center")
+        tap("ngalantai.balance.continue")
+        if app.buttons["ngalantai.balance.touch"].exists { tap("ngalantai.balance.touch") }
+        tap("ngalantai.balance.center")
         // Let the uninterrupted hold finish and the app request portrait itself.
-        tap("dibuat.drying.continue")
+        tap("ngalantai.drying.continue")
     }
     func pourIntoHole(_ index: Int) {
         tap("field.hole.\(index)")
@@ -221,20 +221,17 @@ import XCTest
         }
     }
 
-    func testNgaseukAseukPressAndPlant() {
-        prepare(); intro(); completeNukuh(); next(); start()
-        tap("ngaseuk.instructions.continue")
-        XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
-        capture("Ngaseuk-aseuk-ready")
-        for index in 0..<3 {
-            let hole = app.buttons["field.hole.\(index)"]
-            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: hole)
-            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
-            hole.tap()
-            let dug = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Sudah dibuat"), object: hole)
-            XCTAssertEqual(XCTWaiter.wait(for: [dug], timeout: 5), .completed)
-        }
-        XCTAssertTrue(app.buttons["ngaseuk.seeds.continue"].waitForExistence(timeout: 5))
+    private func waitForNgaseukHoles() {
+        let tutorial = app.staticTexts["ngaseuk.motion.tutorial"]
+        XCTAssertTrue(tutorial.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["field.hole.0"].exists)
+        XCTAssertTrue(tutorial.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["ngaseuk.seeds.continue"].waitForExistence(timeout: 6))
+    }
+
+    func testNgaseukMotionTutorialAndPlant() {
+        prepare(["--uitest-ngaseuk", "--uitest-ngaseuk-motion"]); start()
+        waitForNgaseukHoles()
         capture("Ngaseuk-three-soil-holes")
         tap("ngaseuk.seeds.continue")
         XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
@@ -243,7 +240,6 @@ import XCTest
         pourIntoHole(1); pourIntoHole(2)
         next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
-        checkKoredActivity()
     }
 
     func testKoredDraggingAndThreeStrokes() {
@@ -287,11 +283,11 @@ import XCTest
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
 
-    func testNukuhStartsFireByTappingClearedLand() {
+    func testNarawasStartsFireByTappingClearedLand() {
         prepare(); intro(); start()
-        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         tap("activity.card.start")
-        capture("Nukuh-four-trees")
+        capture("Narawas-four-trees")
         // Preserve the horizontal camera angle across portrait aspect ratios.
         func tapField(_ x: CGFloat, _ y: CGFloat) {
             let aspect = app.frame.width / app.frame.height
@@ -301,51 +297,51 @@ import XCTest
         for x in [0.37, 0.12, 0.63, 0.88] {
             tapField(x, 0.46)
         }
-        tap("nukuh.fire.begin")
-        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
+        tap("narawas.fire.begin")
+        XCTAssertTrue(app.staticTexts["narawas.fire.hint"].exists)
         // Sky taps must not start a fire; only cleared ground receives ignition.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.3)).tap()
-        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
+        XCTAssertTrue(app.staticTexts["narawas.fire.hint"].exists)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.86)).tap()
-        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].label.hasSuffix("0/4"))
-        capture("Nukuh-ready-for-ground-tap")
+        XCTAssertTrue(app.staticTexts["narawas.fire.hint"].label.hasSuffix("0/4"))
+        capture("Narawas-ready-for-ground-tap")
         tapField(0.36, 0.61)
-        XCTAssertTrue(app.staticTexts["nukuh.fire.hint"].exists)
+        XCTAssertTrue(app.staticTexts["narawas.fire.hint"].exists)
         // Repeating the same ground tap must not light a second patch.
         tapField(0.36, 0.61)
-        capture("Nukuh-ground-ignition")
+        capture("Narawas-ground-ignition")
         tap("activity.help")
-        XCTAssertEqual(app.staticTexts["nukuh.fire.progress"].label, "1 / 4 lahan dinyalakan")
-        XCTAssertFalse(app.buttons["nukuh.finishBurn"].exists)
+        XCTAssertEqual(app.staticTexts["narawas.fire.progress"].label, "1 / 4 lahan dinyalakan")
+        XCTAssertFalse(app.buttons["narawas.finishBurn"].exists)
         XCTAssertFalse(app.buttons["lesson.result.continue"].exists)
         tap("activity.card.close")
         for (x, y) in [(0.12, 0.57), (0.63, 0.57), (0.88, 0.59)] {
             tapField(x, y)
         }
-        tap("nukuh.finishBurn")
+        tap("narawas.finishBurn")
         next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
 
-    func testNukuhDemoAndReplay() {
+    func testNarawasDemoAndReplay() {
         prepare(); intro(); start()
-        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         tap("demonstrate")
         XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 40))
-        capture("Nukuh-observed"); tap("replay")
-        for index in 0..<4 { tap("nukuh.cut.\(index)") }
-        for index in 0..<4 { tap("nukuh.ignite.\(index)") }; tap("nukuh.finishBurn"); next()
+        capture("Narawas-observed"); tap("replay")
+        for index in 0..<4 { tap("narawas.cut.\(index)") }
+        for index in 0..<4 { tap("narawas.ignite.\(index)") }; tap("narawas.finishBurn"); next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].exists)
     }
     func testLargeTextButtonFlow() {
         prepare(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
-        intro(); capture("Nukuh-large-text"); completeNukuh(); next()
+        intro(); capture("Narawas-large-text"); completeNarawas(); next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
     func testActivityCardLargeTextAccessibility() throws {
         prepare(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         intro(); start()
-        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         capture("Activity-card-large-text")
         try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped, .hitRegion])
         tap("activity.card.start"); capture("Activity-field-large-text")
@@ -356,7 +352,7 @@ import XCTest
         prepare(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "--dark-appearance"])
         capture("Intro-large-text-dark")
         try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped, .hitRegion])
-        intro(); capture("Nukuh-large-text-dark")
+        intro(); capture("Narawas-large-text-dark")
         try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped, .hitRegion]) { issue in
             print("Accessibility issue: \(issue.detailedDescription), element: \(issue.element?.debugDescription ?? "unavailable")")
             return false

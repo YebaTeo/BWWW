@@ -14,21 +14,37 @@ import UIKit
     private(set) var peekTarget: Int?
     private(set) var isPouring = false
     private var pourDetector = SeedPourMotionDetector()
-    private(set) var prefersDigMotion = false
-
-    func toggleDigMotionPreference() { prefersDigMotion.toggle() }
+    @ObservationIgnored private var tutorialTask: Task<Void, Never>?
 
     func setActivityVisible(_ visible: Bool) {
         if visible {
-            guard !motionActive else { return }
-            if peekTarget != nil { startPourMotion() }
-            else if prefersDigMotion { startMotion() }
+            guard session.isActive, !motionActive, !isDemonstrating else { return }
+            if step == .instructions { startTutorial() }
+            else if peekTarget != nil { startPourMotion() }
+            else if step == .digging { startMotion() }
         } else {
+            cancelTutorial()
             pauseMotion()
             pourTask?.cancel()
             pourTask = nil
             isPouring = false
         }
+    }
+
+    private func startTutorial() {
+        guard tutorialTask == nil else { return }
+        tutorialTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            guard let self, !Task.isCancelled else { return }
+            self.tutorialTask = nil
+            self.proceed()
+            self.startMotion()
+        }
+    }
+
+    private func cancelTutorial() {
+        tutorialTask?.cancel()
+        tutorialTask = nil
     }
 
     private var motionGeneration = 0
@@ -38,7 +54,7 @@ import UIKit
     private var detector = NgaseukMotionDetector()
     @ObservationIgnored private var demoTask: Task<Void, Never>?
     init(motion: any MotionProviding) { self.motion = motion }
-    func start() { suspend(); prefersDigMotion = false; holes = []; seeds = []; selectedTarget = 0; lastDug = 0; usedDemo = false; step = .instructions; session.start() }
+    func start() { suspend(); holes = []; seeds = []; selectedTarget = 0; lastDug = 0; usedDemo = false; step = .instructions; session.start() }
     func proceed() {
         guard session.isActive else { return }
         if step == .instructions { step = .digging }
@@ -48,7 +64,7 @@ import UIKit
         guard session.isActive, step == .digging, (0..<3).contains(target), holes.insert(target).inserted else { return }
         lastDug = target
         ActivityAudio.shared.play(.dig)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if !isDemonstrating { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
         selectedTarget = (0..<3).first { !holes.contains($0) } ?? target
         session.feedback = "Lubang \(target + 1) siap."
         if holes.count == 3 { pauseMotion(); step = .holesReady }
@@ -103,18 +119,19 @@ import UIKit
         }
     }
     func startMotion() {
-        guard session.isActive, step == .digging, !isDemonstrating else { return }
-        guard motion.available else { session.feedback = "Sensor tidak tersedia. Ketuk tanah untuk membuat lubang."; return }
+        guard session.isActive, step == .digging, !isDemonstrating, !motionActive else { return }
+        guard motion.available else { session.feedback = "Sensor gerak tidak tersedia. Buka Petunjuk untuk melihat demonstrasi."; return }
+        session.feedback = ""
         detector.reset(); motionActive = true
         let generation = motionGeneration
         motion.start { [weak self] sample in
             guard let self, self.motionActive, self.motionGeneration == generation else { return }
-            guard let sample else { self.pauseMotion(); self.session.feedback = "Gerakan dijeda. Kamu dapat melanjutkan dengan sentuhan."; return }
+            guard let sample else { self.pauseMotion(); self.session.feedback = "Sensor gerak terputus. Buka lalu tutup Petunjuk untuk mencoba lagi."; return }
             if self.detector.consume(sample) { self.dig(self.selectedTarget) }
         }
     }
     func pauseMotion() { motionGeneration += 1; motionActive = false; motion.stop(); detector.reset(); pourDetector.reset() }
-    func suspend() { demoTask?.cancel(); demoTask = nil; isDemonstrating = false; closePeek() }
+    func suspend() { cancelTutorial(); demoTask?.cancel(); demoTask = nil; isDemonstrating = false; closePeek() }
     func demonstrate() {
         guard session.isActive else { return }
         suspend(); usedDemo = true; isDemonstrating = true

@@ -14,13 +14,13 @@ struct PhaseContent: Identifiable, Sendable {
     var after: LandscapeState { LandscapeState(phase: id, isResult: true) }
     static func content(for id: PhaseID) -> PhaseContent {
         switch id {
-        case .nukuh:
+        case .narawas:
             PhaseContent(
-                id: .nukuh,
-                title: "Nukuh",
+                id: .narawas,
+                title: "Narawas",
                 subtitle: "Menyiapkan lahan",
                 introduction: "Kenali persiapan lahan huma, dari menebas tumbuhan hingga perubahan lahan setelah pembakaran.",
-                instruction: "Ketuk \(NukuhPlot.count) pohon contoh, lalu ketuk setiap petak untuk menyalakan api virtual.",
+                instruction: "Ketuk \(NarawasPlot.count) pohon contoh, lalu ketuk setiap petak untuk menyalakan api virtual.",
                 explanation: "Bab persiapan ini merangkum penebasan dan pembakaran. Pembakaran hasil tebasan dikenal sebagai ngahuru; kegiatan ini mengikuti pengetahuan dan aturan adat. Enam pohon pada layar adalah alat bantu belajar, bukan jumlah atau petunjuk praktik di lapangan.",
                 result: "Api telah mereda dan lahan berubah.",
                 timeCue: nil,
@@ -32,7 +32,7 @@ struct PhaseContent: Identifiable, Sendable {
                 title: "Ngaseuk",
                 subtitle: "Membuka tempat untuk benih",
                 introduction: "Kenali aseuk, tongkat untuk membuat lubang tanam.",
-                instruction: "Buat tiga lubang dengan sentuhan atau gerakan lembut, lalu masukkan benih.",
+                instruction: "Gerakkan ponsel perlahan dari atas ke bawah untuk membuat tiga lubang, lalu masukkan benih.",
                 explanation: "Aseuk membuat lubang tanpa membajak tanah. Penempatan benih dilakukan setelah lubang tersedia. Kegiatan menanam melibatkan kerja bersama; pertumbuhan tetap membutuhkan waktu, hujan, dan perawatan.",
                 result: "Tiga lubang berisi benih.",
                 timeCue: nil,
@@ -50,9 +50,9 @@ struct PhaseContent: Identifiable, Sendable {
                 timeCue: nil,
                 sourceIDs: ["S1", "S2"]
             )
-        case .dibuat:
+        case .mipit:
             PhaseContent(
-                id: .dibuat,
+                id: .mipit,
                 title: "Mipit",
                 subtitle: "Memanen padi",
                 introduction: "Padi menguning setelah melewati masa pertumbuhan.",

@@ -31,7 +31,7 @@ struct NgalantaiActivityView: View {
                 panel {
                     Text("Jaga keseimbangan bambu").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
                     Text("Miringkan ponsel perlahan ke kiri atau kanan. Tahan bambu tetap rata selama tiga detik.")
-                    LessonButton(title: "Mulai", identifier: "dibuat.balance.continue", action: model.beginBalance)
+                    LessonButton(title: "Mulai", identifier: "ngalantai.balance.continue", action: model.beginBalance)
                 }
             case .balancing:
                 panel {
@@ -40,12 +40,12 @@ struct NgalantaiActivityView: View {
                         .font(.caption)
                     if model.usesTouch {
                         Slider(value: Binding(get: { model.balance }, set: { model.setBalance($0) }), in: -1...1)
-                            .accessibilityLabel("Keseimbangan bambu").accessibilityIdentifier("dibuat.balance.slider")
+                            .accessibilityLabel("Keseimbangan bambu").accessibilityIdentifier("ngalantai.balance.slider")
                         Button("Ratakkan bambu") { model.setBalance(0) }
-                            .frame(minHeight: 44).accessibilityIdentifier("dibuat.balance.center")
+                            .frame(minHeight: 44).accessibilityIdentifier("ngalantai.balance.center")
                     } else {
                         Button("Gunakan sentuhan", action: model.useTouch).frame(minHeight: 44)
-                            .accessibilityIdentifier("dibuat.balance.touch")
+                            .accessibilityIdentifier("ngalantai.balance.touch")
                     }
                 }
             case .balanceDemo:
@@ -58,7 +58,7 @@ struct NgalantaiActivityView: View {
             case .drying:
                 panel {
                     Text("Padi dijemur").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
-                    LessonButton(title: "Lihat hasil", identifier: "dibuat.drying.continue", action: model.finishDrying)
+                    LessonButton(title: "Lihat hasil", identifier: "ngalantai.drying.continue", action: model.finishDrying)
                 }
             case .complete:
                 EmptyView()

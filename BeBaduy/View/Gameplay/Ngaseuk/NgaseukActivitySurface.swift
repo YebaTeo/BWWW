@@ -23,20 +23,24 @@ struct NgaseukActivitySurface: View {
                 ActivityPhoto(asset: "ngaseuk_before")
                 if model.step != .instructions {
                     ForEach(0..<3) { index in
-                        Button {
-                            guard !isStroking else { return }
-                            if model.step == .digging { model.dig(index) }
-                            else if model.step == .seeding { model.peek(index) }
-                        } label: {
-                            NgaseukSoilMark(dug: visibleHoles.contains(index), seeded: model.seeds.contains(index), focused: model.step == .digging && toolTarget == index)
-                        }.buttonStyle(.plain).disabled(isStroking)
-                            .accessibilityLabel("Lubang \(index + 1)")
-                            .accessibilityValue(model.seeds.contains(index) ? "Berisi benih" : (model.holes.contains(index) ? "Sudah dibuat" : "Belum dibuat"))
-                            .accessibilityIdentifier("field.hole.\(index)")
-                            .dropDestination(for: String.self) { items, _ in
-                                guard !model.isDemonstrating, items.contains("rice-seed") else { return false }
-                                return model.seed(index)
+                        Group {
+                            if model.step == .seeding {
+                                Button { model.peek(index) } label: {
+                                    soilMark(index, toolTarget: toolTarget)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Lubang \(index + 1)")
+                                .accessibilityValue(model.seeds.contains(index) ? "Berisi benih" : "Sudah dibuat")
+                                .accessibilityIdentifier("field.hole.\(index)")
+                                .dropDestination(for: String.self) { items, _ in
+                                    guard !model.isDemonstrating, items.contains("rice-seed") else { return false }
+                                    return model.seed(index)
+                                }
+                            } else {
+                                soilMark(index, toolTarget: toolTarget)
+                                    .accessibilityHidden(true)
                             }
+                        }
                             .position(target(index, in: geometry.size))
                     }
                 }
@@ -47,9 +51,13 @@ struct NgaseukActivitySurface: View {
                         .mask(alignment: .top) { Rectangle().frame(height: point.y + 2) }
                         .allowsHitTesting(false)
                 }
+                if model.step == .instructions {
+                    tutorial
+                }
                 if model.step == .digging {
                     VStack(spacing: 6) {
-                        Text("Ketuk tanah untuk menancapkan aseuk").font(.headline)
+                        Text(model.motionActive ? "Gerakkan ponsel ke bawah" : model.session.feedback)
+                            .font(.headline)
                         Text("\(visibleHoles.count) / 3 lubang").font(.subheadline.monospacedDigit())
                     }.multilineTextAlignment(.center).padding(16)
                         .foregroundStyle(.white).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
@@ -72,7 +80,7 @@ struct NgaseukActivitySurface: View {
             switch step {
             case .digging, .seeding:
                 card.dismiss()
-            case .instructions: card.showInstruction()
+            case .instructions: card.dismiss()
             case .holesReady: break // Reveal planting instructions after the last stick withdraws.
             }
         }
@@ -80,6 +88,37 @@ struct NgaseukActivitySurface: View {
             if target != nil { card.dismiss() }
         }
         .task(id: model.holes) { await showStroke() }
+    }
+
+    private func soilMark(_ index: Int, toolTarget: Int) -> some View {
+        NgaseukSoilMark(dug: visibleHoles.contains(index), seeded: model.seeds.contains(index),
+                       focused: model.step == .digging && toolTarget == index)
+    }
+
+    private var tutorial: some View {
+        VStack(spacing: 36) {
+            ZStack {
+                Image(systemName: "iphone")
+                    .rotationEffect(.degrees(12))
+                    .offset(x: 14, y: -16)
+                    .opacity(0.28)
+                Image(systemName: "iphone")
+            }
+            .font(.system(size: 58, weight: .semibold))
+            .foregroundStyle(.white)
+            .accessibilityHidden(true)
+
+            Text("Gerakkan ponselmu dari atas ke bawah untuk menggunakan aseuk.")
+                .font(.title3)
+                .foregroundStyle(AppTheme.cream)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("ngaseuk.motion.tutorial")
+        }
+        .frame(maxWidth: 420)
+        .padding(.horizontal, 32)
+        .padding(.bottom, 135)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(.black.opacity(0.24))
     }
 
     @MainActor private func showStroke() async {

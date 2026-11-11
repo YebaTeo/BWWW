@@ -42,7 +42,7 @@ final class HomePreviewViewModel {
             isTransitioning = false
         } else {
             isTransitioning = true
-            // Give the Ngored → Dibuat day/night cycles enough time to
+            // Give the Ngored → Mipit day/night cycles enough time to
             // read clearly while the rice grows through the preview.
             let isHarvestTimeLapse = (previousStage == 2 && index == 3) || (previousStage == 3 && index == 2)
             let isForestClearing = (previousStage == 0 && index == 1) || (previousStage == 1 && index == 0)

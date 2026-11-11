@@ -18,15 +18,16 @@ import Foundation
            ProcessInfo.processInfo.arguments.contains("--uitest-explanations") {
             journey.finishIntroduction()
             for phase in PhaseID.allCases { journey.record(phase, outcome: .observed) }
-            journey.open(.nukuh)
+            journey.open(.narawas)
         }
         if ProcessInfo.processInfo.arguments.contains("--uitesting"),
-           let phase = ProcessInfo.processInfo.arguments.contains("--uitest-mipit") ? PhaseID.dibuat :
-                       ProcessInfo.processInfo.arguments.contains("--uitest-ngored") ? PhaseID.ngored : nil {
+           let phase = ProcessInfo.processInfo.arguments.contains("--uitest-mipit") ? PhaseID.mipit :
+                       ProcessInfo.processInfo.arguments.contains("--uitest-ngored") ? PhaseID.ngored :
+                       ProcessInfo.processInfo.arguments.contains("--uitest-ngaseuk") ? PhaseID.ngaseuk : nil {
             journey.finishIntroduction()
-            journey.record(.nukuh, outcome: .observed)
-            journey.record(.ngaseuk, outcome: .observed)
-            if phase == .dibuat { journey.record(.ngored, outcome: .observed) }
+            journey.record(.narawas, outcome: .observed)
+            if phase != .ngaseuk { journey.record(.ngaseuk, outcome: .observed) }
+            if phase == .mipit { journey.record(.ngored, outcome: .observed) }
             journey.open(phase)
         }
         #endif

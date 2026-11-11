@@ -30,9 +30,9 @@ struct GrowthStage: Identifiable, Equatable {
     static let allStages: [GrowthStage] = [
         GrowthStage(
             id: 0,
-            phase: .nukuh,
-            code: "NUKUH",
-            name: "NUKUH",
+            phase: .narawas,
+            code: "NARAWAS",
+            name: "NARAWAS",
             subtitle: "Pemilihan & Penyiapan Lahan",
             culturalContext: "Tradisi Awal Ngahuma",
             narrative: "Lahan huma di lereng Kanekes masih dipenuhi semak dan rumput liar. Tetua adat menentukan hari baik untuk membersihkan lahan sebelum benih ditanam.",
@@ -63,7 +63,7 @@ struct GrowthStage: Identifiable, Equatable {
         ),
         GrowthStage(
             id: 3,
-            phase: .dibuat,
+            phase: .mipit,
             code: "MIPIT",
             name: "MIPIT",
             subtitle: "Panen Padi Keemasan",

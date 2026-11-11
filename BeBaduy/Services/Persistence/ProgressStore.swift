@@ -14,7 +14,7 @@ import Foundation
             if var progress = try? JSONDecoder().decode(JourneyProgress.self, from: data) {
                 if progress.version == 2 {
                     progress.version = 3
-                    let harvest = progress.record(for: .dibuat)
+                    let harvest = progress.record(for: .mipit)
                     if harvest.explanationAvailable && harvest.outcome != nil {
                         progress.phases[PhaseID.ngalantai.rawValue] = harvest
                     }

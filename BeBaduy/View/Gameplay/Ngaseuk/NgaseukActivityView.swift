@@ -4,17 +4,8 @@ struct NgaseukActivityView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             switch model.step {
-            case .instructions:
-                InstructionCard(title: "Buat tempat untuk benih", message: "Ketuk satu tanda di tanah. Aseuk akan menancap, membuat lubang, lalu terangkat kembali. Ulangi pada tiga tempat. Kamu juga bisa mengaktifkan gerakan ponsel yang lembut.", identifier: "ngaseuk.instructions", action: model.proceed)
-            case .digging:
-                Text("\(model.holes.count) / 3 lubang").font(.headline)
-                Text("Ketuk satu tanda di tanah dan amati ujung aseuk masuk lalu terangkat. ")
-                ForEach(0..<3) { index in
-                    ActivityChoice(title: "Buat lubang \(index + 1)", done: model.holes.contains(index), identifier: "dig_\(index)") { model.dig(index) }
-                }
-                Button(model.prefersDigMotion ? "Gunakan sentuhan" : "Gunakan gerakan lembut") {
-                    model.toggleDigMotionPreference()
-                }.frame(minHeight: 44)
+            case .instructions, .digging:
+                Text("Gerakkan ponselmu dari atas ke bawah untuk menggunakan aseuk. Ulangi sampai tiga lubang terbentuk.")
             case .holesReady:
                 InstructionCard(title: "Tanah berhasil dilubangi", message: "Ketuk lubang untuk melihat ke dalam. Gerakkan ponsel perlahan bolak-balik untuk menuang benih, atau ketuk Tuang benih.", identifier: "ngaseuk.seeds", action: model.proceed)
             case .seeding:

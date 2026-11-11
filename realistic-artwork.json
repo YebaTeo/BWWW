@@ -5,12 +5,12 @@
     {
       "name": "ngahuru_before",
       "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of the Baduy huma before clearing, matching Home Stage 1. Untouched tropical forest edge, wild trees with natural foliage and root flares on warm upland soil with distant Kendeng mountain silhouettes under soft overcast daylight. Quiet upper third for text.",
-      "file": "BeBaduy/Asset/Nukuh/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png"
+      "file": "BeBaduy/Asset/Narawas/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png"
     },
     {
       "name": "ngahuru_after",
-      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of the cleared Baduy huma field after cutting and burning, matching the 3D Nukuh activity result. Trees cleared, warm upland soil with organic charred ash patches cooling into fertile earth under soft daylight; distant mountain silhouettes. No sticks or modern objects.",
-      "file": "BeBaduy/Asset/Nukuh/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png"
+      "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of the cleared Baduy huma field after cutting and burning, matching the 3D Narawas activity result. Trees cleared, warm upland soil with organic charred ash patches cooling into fertile earth under soft daylight; distant mountain silhouettes. No sticks or modern objects.",
+      "file": "BeBaduy/Asset/Narawas/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png"
     },
     {
       "name": "ngaseuk_before",
@@ -33,24 +33,24 @@
       "file": "BeBaduy/Asset/Ngored/Ngored.xcassets/ngored_after.imageset/ngored_after.png"
     },
     {
-      "name": "dibuat_before",
+      "name": "mipit_before",
       "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of ripe upland rice in the shared huma field. Heavy golden panicles bending naturally on standing stalks in warm afternoon light; distant mountains. Golden grain clusters aligned to harvest targets.",
-      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/dibuat_before.imageset/dibuat_before.png"
+      "file": "BeBaduy/Asset/Mipit/Mipit.xcassets/mipit_before.imageset/mipit_before.png"
     },
     {
-      "name": "dibuat_after",
+      "name": "mipit_after",
       "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of freshly hand-harvested small rice bundles (poc padi) resting on warm huma soil near cut stalks in the shared setting; grains attached to stalks.",
-      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/dibuat_after.imageset/dibuat_after.png"
+      "file": "BeBaduy/Asset/Mipit/Mipit.xcassets/mipit_after.imageset/mipit_after.png"
     },
     {
       "name": "drying_rice_before",
       "prompt": "Use case: scientific-educational. Portrait/landscape naturalistic educational illustration of the wide huma clearing with distant mountain silhouettes and warm soil, serving as stationary background for the landscape bamboo balance hold.",
-      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/drying_rice_before.imageset/drying_rice_before.png"
+      "file": "BeBaduy/Asset/Mipit/Mipit.xcassets/drying_rice_before.imageset/drying_rice_before.png"
     },
     {
       "name": "drying_rice_after",
       "prompt": "Use case: scientific-educational. Portrait 2:3 full-bleed naturalistic educational illustration of golden rice panicles arranged over horizontal poles of a traditional bamboo drying rack (lantayan) in the huma clearing under mountain sun and air.",
-      "file": "BeBaduy/Asset/Dibuat/Dibuat.xcassets/drying_rice_after.imageset/drying_rice_after.png"
+      "file": "BeBaduy/Asset/Mipit/Mipit.xcassets/drying_rice_after.imageset/drying_rice_after.png"
     },
     {
       "name": "ngaleuitkeun_pare_before",
