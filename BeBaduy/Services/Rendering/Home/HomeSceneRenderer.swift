@@ -70,6 +70,9 @@ final class HomeSceneRenderer: NSObject {
 
     /// The camera stays centered as the final bamboo rack rises.
     private let cameraNode   = SCNNode()
+    private let speedLinesRootNode = SCNNode()
+    private var speedLineNodes: [SCNNode] = []
+    private var motionSmearPlanes: [SCNNode] = []
 
     // ── Per-tree state ───────────────────────────────────────────────────
     /// (trunk node, canopy node, directional shadow, natural fall-start offset in [0,1])
@@ -133,7 +136,8 @@ final class HomeSceneRenderer: NSObject {
         lastFrameTime = link.timestamp
         // Frame-rate independent settling; retarget from the current state
         // when dragging reverses, instead of queuing more animations.
-        let blend = isWindEnabled ? 1 - exp(-dt / 0.16) : 1
+        let isConclusionPan = targetProgress >= 0.95 && displayedProgress >= 0.949
+        let blend = isWindEnabled && !isConclusionPan ? 1 - exp(-dt / 0.16) : 1
         displayedProgress += (targetProgress - displayedProgress) * blend
         if abs(targetProgress - displayedProgress) < 0.0001 {
             displayedProgress = targetProgress
@@ -229,6 +233,8 @@ final class HomeSceneRenderer: NSObject {
         cameraNode.camera    = camera
         cameraNode.position  = SCNVector3(0, 0.52, 1.75)
         cameraNode.look(at: SCNVector3(0, 0.10, 0))
+        cameraNode.addChildNode(speedLinesRootNode)
+        buildSpeedLines()
         scene.rootNode.addChildNode(cameraNode)
     }
 
@@ -1370,7 +1376,7 @@ final class HomeSceneRenderer: NSObject {
             ridgeNode.position = SCNVector3(0.15, 6.72, 0)
             container.addChildNode(ridgeNode)
 
-            let granaryScale: CGFloat = 0.078
+            let granaryScale: CGFloat = 0.096
             container.scale = SCNVector3(granaryScale, granaryScale, granaryScale)
             loadedModel = container
         }
@@ -1380,6 +1386,12 @@ final class HomeSceneRenderer: NSObject {
         } else {
             buildFallbackGranary()
         }
+
+        // Normalize imported and fallback models to the same readable screen height.
+        let bounds = granaryRoot.boundingBox
+        let modelHeight = max(0.001, bounds.max.y - bounds.min.y)
+        let previewScale: Float = 0.45 / modelHeight
+        granaryRoot.scale = SCNVector3(previewScale, previewScale, previewScale)
 
         // Multi-tier ambient occlusion and directional shadow beneath the elevated granary floor
         let shadowMat = SCNMaterial()
@@ -1395,7 +1407,7 @@ final class HomeSceneRenderer: NSObject {
         _output.color.a *= (1.0 - smoothstep(0.25, 1.0, r)) * 0.78;
         """]
 
-        let shadowGeo = SCNPlane(width: 0.62, height: 0.46)
+        let shadowGeo = SCNPlane(width: 0.76, height: 0.56)
         shadowGeo.materials = [shadowMat]
         let shadowNode = SCNNode(geometry: shadowGeo)
         shadowNode.name = "granaryContactShadow"
@@ -1404,11 +1416,92 @@ final class HomeSceneRenderer: NSObject {
         shadowNode.castsShadow = false
         granaryRoot.addChildNode(shadowNode)
 
-        granaryRoot.position = SCNVector3(0, soilY, 0.05)
+        granaryRoot.position = SCNVector3(0, soilY, 0.02)
         // Authentic 3/4 isometric angle showing both front door & side woven wall
         granaryRoot.eulerAngles.y = 0.55
         scene.rootNode.addChildNode(granaryRoot)
         setVisibility(granaryRoot, opacity: 0)
+    }
+
+    /// Builds the camera-attached high-speed horizontal motion blur streak canopy (Garis-Garis Kecepatan).
+    private func buildSpeedLines() {
+        speedLinesRootNode.name = "speedLinesHUD"
+        speedLinesRootNode.position = SCNVector3(0, 0, -0.42) // 42cm in front of camera lens
+        speedLinesRootNode.opacity = 0
+        speedLinesRootNode.isHidden = true
+        speedLineNodes.removeAll()
+        motionSmearPlanes.removeAll()
+
+        // 1. Broad translucent motion-blur smear sheets (whoosh effect across screen)
+        let smearMat = SCNMaterial()
+        smearMat.lightingModel = .constant
+        smearMat.diffuse.contents = UIColor(red: 1.0, green: 0.96, blue: 0.88, alpha: 0.18)
+        smearMat.blendMode = .add
+        smearMat.isDoubleSided = true
+        smearMat.writesToDepthBuffer = false
+        smearMat.shaderModifiers = [.fragment: """
+        #pragma transparent
+        #pragma body
+        float u = _surface.diffuseTexcoord.x;
+        float v = _surface.diffuseTexcoord.y;
+        float hTaper = sin(u * 3.14159265);
+        float vTaper = sin(v * 3.14159265);
+        _output.color.a *= hTaper * hTaper * vTaper;
+        """]
+
+        for i in 0..<4 {
+            let smearGeo = SCNPlane(width: 0.85, height: 0.08 + CGFloat(i) * 0.03)
+            smearGeo.materials = [smearMat]
+            let smearNode = SCNNode(geometry: smearGeo)
+            smearNode.position = SCNVector3(
+                Float(i % 2 == 0 ? 0.05 : -0.05),
+                Float(i - 1) * 0.09,
+                -0.005
+            )
+            speedLinesRootNode.addChildNode(smearNode)
+            motionSmearPlanes.append(smearNode)
+        }
+
+        // 2. 54 High-speed horizontal streak lines (Garis-Garis Kecepatan)
+        let lineMat = SCNMaterial()
+        lineMat.lightingModel = .constant
+        lineMat.blendMode = .add
+        lineMat.isDoubleSided = true
+        lineMat.writesToDepthBuffer = false
+        lineMat.shaderModifiers = [.fragment: """
+        #pragma transparent
+        #pragma body
+        float u = _surface.diffuseTexcoord.x;
+        float v = _surface.diffuseTexcoord.y;
+        float taper = sin(u * 3.14159265);
+        float core = pow(taper, 1.8);
+        _output.color.a *= core;
+        """]
+
+        for i in 0..<54 {
+            let seed = Float(i) * 1.6180339
+            let width = 0.16 + CGFloat(fmod(seed * 3.7, 0.32))
+            let height = 0.0014 + CGFloat(fmod(seed * 2.1, 0.0026))
+            let lineGeo = SCNPlane(width: width, height: height)
+
+            let alpha: CGFloat = 0.40 + CGFloat(i % 5) * 0.14
+            let warmTint = UIColor(
+                red: 1.0,
+                green: CGFloat(0.92 + 0.06 * sin(seed)),
+                blue: CGFloat(0.72 + 0.18 * cos(seed)),
+                alpha: alpha
+            )
+            let m = lineMat.copy() as! SCNMaterial
+            m.diffuse.contents = warmTint
+            lineGeo.materials = [m]
+
+            let lineNode = SCNNode(geometry: lineGeo)
+            let posX = Float(fmod(seed * 5.3, 0.60) - 0.30)
+            let posY = Float(fmod(seed * 7.9, 0.52) - 0.26)
+            lineNode.position = SCNVector3(posX, posY, 0)
+            speedLinesRootNode.addChildNode(lineNode)
+            speedLineNodes.append(lineNode)
+        }
     }
 
     private func buildFallbackGranary() {
@@ -2592,11 +2685,16 @@ final class HomeSceneRenderer: NSObject {
         // ── 10. Ngalantai: Diangkat tegak → Ditidurkan → Diikat → Terpal membentang → Ditaruh di atas terpal → Dijemur & Terbagi 3 di Rak Bambu ───
         let harvestActive = smoothstep(0.75, 0.77, fullP)
         let rackArrival = smoothstep(0.902, 0.922, fullP)
-        let storage = smoothstep(0.965, 0.995, fullP)
         let handoffToRack = smoothstep(0.924, 0.932, fullP)
 
-        setVisibility(storageLeuitRoot, opacity: rackArrival * (1.0 - storage))
-        setVisibility(granaryRoot, opacity: storage)
+        // Move the camera between two fixed scenes; neither building slides or fades.
+        let panEase = Float(HomeConclusionPan.amount(progress: progress))
+        storageLeuitRoot.position.x = 0
+        setVisibility(storageLeuitRoot, opacity: rackArrival)
+        granaryRoot.position = SCNVector3(HomeConclusionPan.distance, soilY, 0.02)
+        setVisibility(granaryRoot, opacity: fullP >= 0.95 ? 1 : 0)
+        // Landscape parallax supplies the speed cue without drawn streaks.
+        speedLinesRootNode.isHidden = true
 
         let leuitOpacity = harvestActive * (1.0 - handoffToRack)
         setVisibility(leuitRoot, opacity: leuitOpacity)
@@ -2724,16 +2822,19 @@ final class HomeSceneRenderer: NSObject {
 
         setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p) * (1 - harvestCut))
 
-        // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu di atas & membingkai leuit lumbung di tahap akhir
-        let storageFraming = storage
-        let storageCamY: Float = 0.52 * (1.0 - storageFraming) + 0.46 * storageFraming
-        let storageCamZ: Float = 1.75 * (1.0 - storageFraming) + 2.30 * storageFraming
+        // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu, lalu PAN GESER CEPAT KE SAMPING ke lumbung
+        let storageFraming = panEase
+        let storageCamY: Float = 0.52 * (1.0 - storageFraming) + 0.52 * storageFraming
+        let storageCamZ: Float = 1.75 * (1.0 - storageFraming) + 1.75 * storageFraming
+
         let liftCamLook = 0.035 * liftT * (1.0 - settleOnTarp)
         let rackCamRise = smoothstep(0.902, 0.938, fullP)
-        let targetLookY: Float = (0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise) * (1.0 - storageFraming) + 0.14 * storageFraming
-        let targetLookX: Float = 0.02 * (1.0 - rackCamRise) * (1.0 - storageFraming)
-        cameraNode.position = SCNVector3(0, storageCamY, storageCamZ)
-        cameraNode.look(at: SCNVector3(targetLookX, targetLookY, 0))
+        let targetLookY: Float = (0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise) * (1.0 - storageFraming) + 0.12 * storageFraming
+        let targetLookX: Float = (0.02 * (1.0 - rackCamRise) * (1.0 - storageFraming))
+
+        let cameraX = HomeConclusionPan.distance * panEase
+        cameraNode.position = SCNVector3(cameraX, storageCamY, storageCamZ)
+        cameraNode.look(at: SCNVector3(cameraX + targetLookX, targetLookY, 0))
     }
 
     /// Mirrors the background's five complete day/night cycles
@@ -2754,18 +2855,20 @@ final class HomeSceneRenderer: NSObject {
         let clampedMoonAlt = max(0.24, -altitude)
 
         let isStage5 = smoothstep(0.74, 0.88, Float(progress))
-        let sunZ: Float = -2.4 * (1.0 - isStage5) + 1.8 * isStage5
-        let sunX: Float = Float(sin(phase) * 3.5) * (1.0 - isStage5) + 2.5 * isStage5
-        let sunY: Float = (Float(clampedSunAlt * 2.8) + soilY + 0.30) * (1.0 - isStage5) + 3.8 * isStage5
-
-        sunOrbitNode.position = SCNVector3(sunX, sunY, sunZ)
+        // The visible sun stays in the sky behind the scene, including during
+        // the lateral camera sweep. Translate the light and its aim together
+        // so moving to the granary does not rotate the shadow direction.
+        let cameraX = HomeConclusionPan.distance * Float(HomeConclusionPan.amount(progress: progress))
+        let sunX = cameraX + Float(sin(phase) * 3.5)
+        let sunY = Float(clampedSunAlt * 2.8) + soilY + 0.30
+        sunOrbitNode.position = SCNVector3(sunX, sunY, -2.4)
         moonOrbitNode.position = SCNVector3(
-            Float(-sin(phase) * 3.5),
+            cameraX + Float(-sin(phase) * 3.5),
             Float(clampedMoonAlt * 2.8) + soilY + 0.30,
             -2.4
         )
-        sunOrbitNode.look(at: SCNVector3(0, soilY, 0))
-        moonOrbitNode.look(at: SCNVector3(0, soilY, 0))
+        sunOrbitNode.look(at: SCNVector3(cameraX, soilY, 0))
+        moonOrbitNode.look(at: SCNVector3(cameraX, soilY, 0))
 
         let baseSunIntensity: CGFloat = 280 * (1.0 - night * 0.7)
         sunKeyLight.intensity = (isStage5 > 0.5) ? baseSunIntensity : (155 * sunStrength)

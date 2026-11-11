@@ -102,14 +102,17 @@ struct CinematicAtmosphereView: View {
                     .position(moon)
                     .opacity(moonVisibility)
 
+                let panEase = HomeConclusionPan.amount(progress: progress)
+                let panOffset = panEase * -110.0
+
                 if imageAvailable {
                     // Back-to-front opaque cutouts occlude celestial objects.
                     landscapeLayer(size: size, contour: Self.ridge, night: night)
-                        .offset(x: depth * 5)
+                        .offset(x: depth * 5 + panOffset * 0.35)
                     landscapeLayer(size: size, contour: Self.grass, night: night)
-                        .offset(x: depth * 10)
+                        .offset(x: depth * 10 + panOffset * 0.65)
                     landscapeLayer(size: size, contour: Self.soil, night: night)
-                        .offset(x: depth * 16)
+                        .offset(x: depth * 16 + panOffset * 1.0)
                 }
 
                 TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || !isActive || scenePhase != .active)) { timeline in

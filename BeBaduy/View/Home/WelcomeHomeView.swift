@@ -178,5 +178,62 @@ struct WelcomeHomeView: View {
         }
     }
 
+}
 
+/// High-motion-blur speed lines effect rendering dynamic horizontal streaks during the whip-pan to Leuit.
+private struct CinematicSpeedLinesOverlay: View {
+    let progress: CGFloat
+
+    var body: some View {
+        let panT = min(1.0, max(0.0, (progress - 0.932) / (0.985 - 0.932)))
+        let velocity = sin(panT * .pi)
+
+        if velocity > 0.01 {
+            Canvas { context, size in
+                let w = size.width
+                let h = size.height
+
+                // 1. Broad horizontal motion blur smears (soft whoosh bands rushing across)
+                for j in 0..<5 {
+                    let seedJ = Double(j) * 2.17
+                    let smearY = h * CGFloat(0.18 + fmod(seedJ * 0.28, 0.64))
+                    let smearH = CGFloat(24 + j * 14)
+                    let smearX = (CGFloat(panT * 2.2) - 1.1) * w * 0.5
+                    let smearRect = CGRect(x: smearX, y: smearY - smearH * 0.5, width: w * 1.3, height: smearH)
+                    let smearColor = Color(red: 1.0, green: 0.94, blue: 0.82, opacity: 0.12 * velocity)
+                    context.fill(Path(smearRect), with: .color(smearColor))
+                }
+
+                // 2. 48 Sharp, high-speed streaming horizontal streaks (garis-garis kecepatan melesat cepat)
+                for i in 0..<48 {
+                    let seed = Double(i) * 1.6180339
+                    let y = h * CGFloat(fmod(seed * 7.31, 0.90) + 0.05)
+                    let lineW = w * CGFloat(0.24 + fmod(seed * 3.14, 0.52)) * (0.90 + 0.40 * velocity)
+                    // Streaks fly rapidly from right to left across screen
+                    let rawX = fmod(seed * 5.73 - Double(panT) * 4.5 * (1.0 + fmod(seed, 0.5)), 1.0)
+                    let normX = (rawX < 0 ? rawX + 1.0 : rawX)
+                    let x = CGFloat(normX) * w - lineW * 0.5
+                    let alpha = Double(0.28 + fmod(seed * 2.91, 0.45)) * velocity
+                    let lineThickness: CGFloat = (i % 4 == 0) ? 2.6 : ((i % 2 == 0) ? 1.6 : 0.9)
+
+                    let rect = CGRect(
+                        x: x,
+                        y: y - lineThickness * 0.5,
+                        width: lineW,
+                        height: lineThickness
+                    )
+                    let color = Color(
+                        red: 1.0,
+                        green: 0.93 + 0.07 * sin(seed),
+                        blue: 0.76 + 0.20 * cos(seed),
+                        opacity: alpha
+                    )
+                    context.fill(Path(roundedRect: rect, cornerRadius: lineThickness * 0.5), with: .color(color))
+                }
+            }
+            .allowsHitTesting(false)
+            .opacity(velocity)
+            .blendMode(.screen)
+        }
+    }
 }

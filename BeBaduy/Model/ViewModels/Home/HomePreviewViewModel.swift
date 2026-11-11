@@ -46,10 +46,11 @@ final class HomePreviewViewModel {
             // read clearly while the rice grows through the preview.
             let isHarvestTimeLapse = (previousStage == 2 && index == 3) || (previousStage == 3 && index == 2)
             let isForestClearing = (previousStage == 0 && index == 1) || (previousStage == 1 && index == 0)
-            let isLeuitTransition = (previousStage == 4 && index == 5) || (previousStage == 5 && index == 4)
+            let isLeuitTransition = (previousStage <= 4 && index >= 5) || (previousStage >= 5 && index <= 4) || (previousStage == 5 && index == 6) || (previousStage == 6 && index == 5)
+            let isConclusionPan = (previousStage == 5 && index == 6) || (previousStage == 6 && index == 5)
             let start = progress
             let destination = GrowthStage.allStages[index].targetProgress
-            let duration: Double = isHarvestTimeLapse ? 27 : (isLeuitTransition ? 1.2 : (isForestClearing ? 7.2 : 0.23))
+            let duration: Double = isConclusionPan ? 0.18 : (isHarvestTimeLapse ? 27 : (isLeuitTransition ? 1.35 : (isForestClearing ? 7.2 : 0.23)))
             // Custom scene inputs need actual intermediate state values;
             // withAnimation alone only interpolates animatable view properties.
             transitionTask = Task { @MainActor in
@@ -68,7 +69,7 @@ final class HomePreviewViewModel {
                         isTransitioning = false
                         break
                     }
-                    do { try await Task.sleep(for: .milliseconds(33)) }
+                    do { try await Task.sleep(for: .milliseconds(isConclusionPan ? 8 : 33)) }
                     catch { return }
                 }
             }

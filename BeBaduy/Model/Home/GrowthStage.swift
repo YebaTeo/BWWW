@@ -120,3 +120,23 @@ struct GrowthStage: Identifiable, Equatable {
     }
 }
 
+
+/// Shared camera and landscape timing for the Leuit → conclusion sweep.
+enum HomeConclusionPan {
+    static let distance: Float = 2.4
+
+    static func amount(progress: CGFloat) -> CGFloat {
+        let x = min(1, max(0, (progress - 0.95) / 0.05))
+        // Strong ease-in-out: cubic-bezier(0.77, 0, 0.175, 1).
+        var lower: CGFloat = 0
+        var upper: CGFloat = 1
+        for _ in 0..<16 {
+            let t = (lower + upper) / 2
+            let inverse = 1 - t
+            let curveX = 3 * inverse * inverse * t * 0.77 + 3 * inverse * t * t * 0.175 + t * t * t
+            if curveX < x { lower = t } else { upper = t }
+        }
+        let t = (lower + upper) / 2
+        return x == 0 ? 0 : (x == 1 ? 1 : t * t * (3 - 2 * t))
+    }
+}
