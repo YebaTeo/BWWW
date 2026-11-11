@@ -31,7 +31,7 @@ import XCTest
         XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 150), targets: targets, removed: [0]))
     }
     func testHarvestBalanceAndDryingCannotBeSkipped() {
-        let harvest = DibuatViewModel(motion: FakeMotion())
+        let harvest = MipitViewModel(motion: FakeMotion())
         harvest.start()
         harvest.finishHarvest()
         XCTAssertNil(harvest.session.outcome)

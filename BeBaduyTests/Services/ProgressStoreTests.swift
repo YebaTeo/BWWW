@@ -8,7 +8,7 @@ final class ProgressStoreTests: XCTestCase {
         let store = ProgressStore(defaults: defaults)
         XCTAssertEqual(store.load(), JourneyProgress())
         var progress = JourneyProgress()
-        progress.complete(.nukuh, outcome: .performed); progress.currentPhase = .ngaseuk
+        progress.complete(.narawas, outcome: .performed); progress.currentPhase = .ngaseuk
         try store.save(progress)
         XCTAssertEqual(ProgressStore(defaults: defaults).load(), progress)
         progress.version = 200
@@ -30,8 +30,8 @@ final class ProgressStoreTests: XCTestCase {
         let migrated = ProgressStore(defaults: defaults).load()
         XCTAssertTrue(migrated.isValid)
         XCTAssertEqual(migrated.currentPhase, .ngalantai)
-        XCTAssertEqual(migrated.record(for: .nukuh).outcome, .observed)
-        XCTAssertTrue(migrated.record(for: .dibuat).explanationAvailable)
+        XCTAssertEqual(migrated.record(for: .narawas).outcome, .observed)
+        XCTAssertTrue(migrated.record(for: .mipit).explanationAvailable)
         XCTAssertFalse(migrated.record(for: .ngalantai).explanationAvailable)
         XCTAssertEqual(defaults.data(forKey: "BeBaduy.journey.v1"), old)
         XCTAssertEqual(ProgressStore(defaults: defaults).load(), migrated)

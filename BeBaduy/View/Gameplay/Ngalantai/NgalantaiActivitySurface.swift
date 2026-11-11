@@ -7,7 +7,7 @@ struct NgalantaiActivitySurface: View {
             ZStack {
                 ActivityPhoto(asset: model.step == .drying || model.step == .complete ? "drying_rice_after" : "drying_rice_before")
                 if [.balancing, .balanceInstructions, .balanceDemo].contains(model.step) {
-                    DibuatBalanceArtwork(balance: model.balance, reduceMotion: reduceMotion)
+                    MipitBalanceArtwork(balance: model.balance, reduceMotion: reduceMotion)
                         .frame(width: geometry.size.width * 0.73,
                                height: min(geometry.size.height * 0.38, geometry.size.width * 0.38))
                         .position(x: geometry.size.width / 2, y: geometry.size.height * 0.34)

@@ -21,7 +21,7 @@ struct HomeView: View {
                 } else {
                     IntroductionView {
                         journey.finishIntroduction()
-                        journey.open(.nukuh)
+                        journey.open(.narawas)
                     }
                 }
             }

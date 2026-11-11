@@ -1787,13 +1787,13 @@ final class HomeSceneRenderer: NSObject {
     }
 
     /// Builds a voluminous, authentic Baduy hanging rice sheaf (ikatan padi jemuran)
-    /// for the bamboo drying rack (lantayan), matching the organic PBR styling of Dibuat.
+    /// for the bamboo drying rack (lantayan), matching the organic PBR styling of Mipit.
     /// Features upward cut straw butts, split-bamboo tali awian torus tie collar with knot and tails,
     /// 18 cascading golden leaf blades, and 12 drooping panicles loaded with 3D grains.
     private func storageMakeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
         let bundle = SCNNode()
 
-        // 1. Panicle Grains & Rachis Material (Matching Dibuat ricePanicles with HumaYoungRice texture)
+        // 1. Panicle Grains & Rachis Material (Matching Mipit ricePanicles with HumaYoungRice texture)
         let grainMaterial = SCNMaterial()
         grainMaterial.lightingModel = .physicallyBased
         grainMaterial.normal.contents = leafNormal
@@ -1807,7 +1807,7 @@ final class HomeSceneRenderer: NSObject {
         grainMaterial.writesToDepthBuffer = true
         smoothTextureSampling(grainMaterial.diffuse)
 
-        // 2. Golden Rice Blade / Leaf Material (Matching Dibuat leafMaterials)
+        // 2. Golden Rice Blade / Leaf Material (Matching Mipit leafMaterials)
         let leafMat = SCNMaterial()
         leafMat.lightingModel = .physicallyBased
         leafMat.normal.contents = leafNormal
@@ -2168,7 +2168,7 @@ final class HomeSceneRenderer: NSObject {
     private func makeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
         let bundle = SCNNode()
 
-        // 1. Panicle Grains & Rachis Material (Matching Dibuat ricePanicles with HumaYoungRice texture)
+        // 1. Panicle Grains & Rachis Material (Matching Mipit ricePanicles with HumaYoungRice texture)
         let grainMaterial = SCNMaterial()
         grainMaterial.lightingModel = .physicallyBased
         grainMaterial.normal.contents = leafNormal
@@ -2182,7 +2182,7 @@ final class HomeSceneRenderer: NSObject {
         grainMaterial.writesToDepthBuffer = true
         smoothTextureSampling(grainMaterial.diffuse)
 
-        // 2. Golden Rice Blade / Leaf Material (Matching Dibuat leafMaterials)
+        // 2. Golden Rice Blade / Leaf Material (Matching Mipit leafMaterials)
         let leafMat = SCNMaterial()
         leafMat.lightingModel = .physicallyBased
         leafMat.normal.contents = leafNormal
@@ -2423,7 +2423,7 @@ final class HomeSceneRenderer: NSObject {
     private func applyProgress(_ progress: CGFloat) {
         let fullP = Float(min(1, max(0, progress)))
         updateHarvestLighting(progress: CGFloat(fullP))
-        // Keep the original farming choreography intact through DIBUAT
+        // Keep the original farming choreography intact through MIPIT
         // at 75% of the timeline. The final quarter forms the drying rack
         // and transfers the harvested rice into hanging bundles.
         let p = min(1, fullP / 0.75)
@@ -2441,7 +2441,7 @@ final class HomeSceneRenderer: NSObject {
         setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p))
         shadowRoot.opacity = CGFloat(forestOpacity)
         setVisibility(wildRoot, opacity: 1 - smoothstep(0.28, 0.37, p))
-        // Cut stumps must not be present in the untouched Nukuh state.
+        // Cut stumps must not be present in the untouched Narawas state.
         // Reveal them only as the tree finishes its fall, then let the
         // burn transition hide them again with the rest of the field.
         let cutReveal = smoothstep(0.12, 0.19, p)
@@ -2620,7 +2620,7 @@ final class HomeSceneRenderer: NSObject {
         let green    = SIMD3<Float>(0.82, 0.94, 0.70)
         let gold     = SIMD3<Float>(1.00, 0.84, 0.34)
         // Begin tinting as Ngored starts so the stalks visibly mature
-        // from green to yellow across the whole Ngored → Dibuat change.
+        // from green to yellow across the whole Ngored → Mipit change.
         let ripeness = smoothstep(0.88, 1.0, p)
         let mixed    = simd_mix(green, gold, SIMD3<Float>(repeating: ripeness))
         let tint     = UIColor(
@@ -2779,7 +2779,7 @@ final class HomeSceneRenderer: NSObject {
     }
 
     /// Mirrors the background's five complete day/night cycles
-    /// while the preview moves from Ngored to Dibuat.
+    /// while the preview moves from Ngored to Mipit.
     private func updateHarvestLighting(progress: CGFloat) {
         let phase = HomeCelestialCycle.phase(progress: progress)
         let altitude = cos(phase)

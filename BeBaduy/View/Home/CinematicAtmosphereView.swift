@@ -19,9 +19,9 @@ struct CinematicAtmosphereView: View {
     }
 
     private var daylight: CGFloat {
-        // Ngored (.666) begins in morning. During the Ngored → Dibuat
+        // Ngored (.666) begins in morning. During the Ngored → Mipit
         // transition the light completes five day/night cycles, beginning and
-        // ending in daylight on Dibuat.
+        // ending in daylight on Mipit.
         return CGFloat((1 - cos(orbitPhase)) / 2)
     }
 

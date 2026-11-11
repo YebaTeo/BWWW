@@ -114,7 +114,7 @@ guard let humaEnv = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaEnv
       let naturalTreeTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaTreeNatural.imageset/tree-natural.png"),
       let woodTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaWoodTexture.imageset/texture.png"),
       let thatchTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaThatchTexture.imageset/texture.png"),
-      let ashTex = loadCGImage(at: "BeBaduy/Asset/Nukuh/ngahuma-ash.png") else {
+      let ashTex = loadCGImage(at: "BeBaduy/Asset/Narawas/ngahuma-ash.png") else {
     fatalError("Failed to load required source textures!")
 }
 
@@ -299,7 +299,7 @@ func drawRiceBundle(in ctx: CGContext, center: CGPoint, width: CGFloat, height: 
     ctx.restoreGState()
 }
 
-// MARK: - 1. Nukuh Before (ngahuru_before)
+// MARK: - 1. Narawas Before (ngahuru_before)
 print("Rendering ngahuru_before...")
 do {
     let ctx = createBitmapContext(width: W, height: H)
@@ -320,10 +320,10 @@ do {
     drawImage(in: ctx, image: naturalTreeTex, x: 680, y: 420, width: 380, height: 530, contextHeight: fH)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Nukuh/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png")
+    savePNG(image: img, to: "BeBaduy/Asset/Narawas/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png")
 }
 
-// MARK: - 2. Nukuh After (ngahuru_after)
+// MARK: - 2. Narawas After (ngahuru_after)
 print("Rendering ngahuru_after...")
 do {
     let ctx = createBitmapContext(width: W, height: H)
@@ -343,7 +343,7 @@ do {
     )
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Nukuh/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png")
+    savePNG(image: img, to: "BeBaduy/Asset/Narawas/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png")
 }
 
 // MARK: - 3. Ngaseuk Before (ngaseuk_before) - Reference Chapter!
@@ -439,8 +439,8 @@ do {
     savePNG(image: img, to: "BeBaduy/Asset/Ngored/Ngored.xcassets/ngored_after.imageset/ngored_after.png")
 }
 
-// MARK: - 7. Dibuat Before (dibuat_before) - Aligned with Harvest Targets!
-print("Rendering dibuat_before (ripe golden rice with panicles aligned to harvest targets)...")
+// MARK: - 7. Mipit Before (mipit_before) - Aligned with Harvest Targets!
+print("Rendering mipit_before (ripe golden rice with panicles aligned to harvest targets)...")
 do {
     let ctx = createBitmapContext(width: W, height: H)
     drawHumaBase(in: ctx, soilBlend: 0.28)
@@ -468,11 +468,11 @@ do {
     drawRipePanicle(in: ctx, origin: CGPoint(x: 747 - 30, y: 814 - 55), bendDirection: 1, scale: 1.20)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Dibuat/Dibuat.xcassets/dibuat_before.imageset/dibuat_before.png")
+    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/mipit_before.imageset/mipit_before.png")
 }
 
-// MARK: - 8. Dibuat After (dibuat_after)
-print("Rendering dibuat_after...")
+// MARK: - 8. Mipit After (mipit_after)
+print("Rendering mipit_after...")
 do {
     let ctx = createBitmapContext(width: W, height: H)
     drawHumaBase(in: ctx, soilBlend: 0.32)
@@ -483,7 +483,7 @@ do {
     drawRiceBundle(in: ctx, center: CGPoint(x: 650, y: 910), width: 105, height: 155)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Dibuat/Dibuat.xcassets/dibuat_after.imageset/dibuat_after.png")
+    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/mipit_after.imageset/mipit_after.png")
 }
 
 // MARK: - 9. Drying Rice Before (drying_rice_before) - Dedicated Landscape Balancing View!
@@ -506,7 +506,7 @@ do {
     )
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Dibuat/Dibuat.xcassets/drying_rice_before.imageset/drying_rice_before.png")
+    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/drying_rice_before.imageset/drying_rice_before.png")
 }
 
 // MARK: - 10. Drying Rice After (drying_rice_after) - Bamboo Drying Rack (Lantayan)
@@ -558,7 +558,7 @@ do {
     }
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Dibuat/Dibuat.xcassets/drying_rice_after.imageset/drying_rice_after.png")
+    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/drying_rice_after.imageset/drying_rice_after.png")
 }
 
 // MARK: - 11. Leuit Before (ngaleuitkeun_pare_before) - Granary Beside Shared Huma

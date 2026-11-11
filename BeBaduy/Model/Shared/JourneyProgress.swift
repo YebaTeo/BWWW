@@ -9,7 +9,7 @@ struct PhaseProgress: Codable, Equatable {
 struct JourneyProgress: Codable, Equatable {
     var version = 3
     var introductionSeen = false
-    var currentPhase: PhaseID = .nukuh
+    var currentPhase: PhaseID = .narawas
     var phases: [String: PhaseProgress] = [:]
     var journeyCompleted = false
     func record(for phase: PhaseID) -> PhaseProgress { phases[phase.rawValue] ?? PhaseProgress() }

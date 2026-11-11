@@ -9,7 +9,7 @@ import XCTest
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
         let scene = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
         scene.press(forDuration: 0.05, thenDragTo: scene.withOffset(CGVector(dx: 0, dy: -140)))
-        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         XCTAssertFalse(app.buttons["continue"].exists)
         app.buttons["lesson.back"].tap()
         app.buttons["home.journey"].tap()
@@ -26,7 +26,7 @@ import XCTest
         app.buttons["intro.continue"].tap()
 
         XCTAssertTrue(app.buttons["home.stage.0"].waitForExistence(timeout: 15))
-        for (index, title) in ["NUKUH", "NGASEUK", "NGORED", "MIPIT", "NGALANTAI", "LEUIT"].enumerated() {
+        for (index, title) in ["NARAWAS", "NGASEUK", "NGORED", "MIPIT", "NGALANTAI", "LEUIT"].enumerated() {
             app.buttons["home.stage.\(index)"].tap()
             waitForPreviewTitle(title, in: app)
             if index == 3 {
@@ -39,7 +39,7 @@ import XCTest
         XCTAssertTrue(app.buttons["resume"].isHittable)
         XCTAssertTrue(app.buttons["home.menu"].isHittable)
         app.buttons["resume"].tap()
-        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         app.buttons["lesson.back"].tap()
         app.buttons["home.stage.5"].tap()
         XCTAssertTrue(app.buttons["home.preview.finish"].waitForNonExistence(timeout: 8))
@@ -49,9 +49,9 @@ import XCTest
         add(preview)
         XCTAssertEqual(app.staticTexts["home.progress"].label, "0 dari 6 tahap telah dijelajahi")
         app.buttons["home.preview.next"].tap()
-        waitForPreviewTitle("NUKUH", in: app)
+        waitForPreviewTitle("NARAWAS", in: app)
         app.buttons["resume"].tap()
-        XCTAssertTrue(app.staticTexts["nukuh.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
     }
 
     func testSelectedUnlockedChapterOpensInsteadOfSavedChapter() {

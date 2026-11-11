@@ -1,7 +1,7 @@
 import SceneKit
 import UIKit
 
-/// Spatial 3-layer environment and HomeView-matched 3D assets for the Nukuh AR experience.
+/// Spatial 3-layer environment and HomeView-matched 3D assets for the Narawas AR experience.
 @MainActor
 struct NgahumaMaterials {
     let skyTexture: UIImage

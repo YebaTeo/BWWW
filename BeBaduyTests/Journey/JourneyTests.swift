@@ -12,13 +12,13 @@ final class JourneyTests: XCTestCase {
     func testCatalogAndResources() {
         XCTAssertEqual(PhaseCatalog.all.map(\.id), PhaseID.allCases)
         XCTAssertEqual(PhaseID.allCases.count, 6)
-        XCTAssertEqual(PhaseCatalog.all.map(\.title), ["Nukuh", "Ngaseuk", "Ngored", "Mipit", "Ngalantai", "Leuit"])
+        XCTAssertEqual(PhaseCatalog.all.map(\.title), ["Narawas", "Ngaseuk", "Ngored", "Mipit", "Ngalantai", "Leuit"])
     }
     @MainActor func testGatingReplayAndRestart() {
         let store = MemoryStore(); let journey = JourneyViewModel(store: store)
         journey.open(.ngaseuk); journey.record(.ngaseuk, outcome: .performed)
         XCTAssertEqual(journey.completedCount, 0)
-        XCTAssertEqual(journey.progress.currentPhase, .nukuh)
+        XCTAssertEqual(journey.progress.currentPhase, .narawas)
         for phase in PhaseID.allCases {
             XCTAssertNil(journey.continueFrom(phase))
             journey.record(phase, outcome: .observed)
