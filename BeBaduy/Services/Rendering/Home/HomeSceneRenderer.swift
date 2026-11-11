@@ -1089,6 +1089,19 @@ final class HomeSceneRenderer: NSObject {
     // MARK: Stage 3 – Planting (holes + seeds)
     // ════════════════════════════════════════════════════════════════════
 
+    /// Shared by the home preview and the seed close-up: one consistent dibble rim.
+    static func makePlantingHoleNode() -> SCNNode {
+        let hole = SCNTorus(ringRadius: 0.017, pipeRadius: 0.006)
+        hole.ringSegmentCount = 24
+        let holeMat = SCNMaterial()
+        holeMat.lightingModel = .physicallyBased
+        holeMat.diffuse.contents  = UIColor(red: 0.10, green: 0.06, blue: 0.035, alpha: 1)
+        holeMat.roughness.contents = 1.0
+        holeMat.metalness.contents = 0.0
+        hole.materials = [holeMat]
+        return SCNNode(geometry: hole)
+    }
+
     private func buildPlantingStage() {
         plantingRoot.name = "plantingStage"
         scene.rootNode.addChildNode(plantingRoot)
@@ -1104,15 +1117,7 @@ final class HomeSceneRenderer: NSObject {
 
         for (index, position) in positions.enumerated() {
             // ── Dibble hole ────────────────────────────────────────────
-            let hole = SCNTorus(ringRadius: 0.017, pipeRadius: 0.006)
-            hole.ringSegmentCount = 24
-            let holeMat = SCNMaterial()
-            holeMat.lightingModel = .physicallyBased
-            holeMat.diffuse.contents  = UIColor(red: 0.10, green: 0.06, blue: 0.035, alpha: 1)
-            holeMat.roughness.contents = 1.0
-            holeMat.metalness.contents = 0.0
-            hole.materials = [holeMat]
-            let holeNode = SCNNode(geometry: hole)
+            let holeNode = Self.makePlantingHoleNode()
             holeNode.name     = "hole_\(index)"
             holeNode.position = position
             plantingRoot.addChildNode(holeNode)

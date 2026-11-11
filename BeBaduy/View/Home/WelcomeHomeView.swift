@@ -32,6 +32,10 @@ struct WelcomeHomeView: View {
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
+                CinematicSpeedLinesOverlay(progress: progress)
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
                 VStack(spacing: 0) {
                     Color.clear
                         .contentShape(Rectangle())

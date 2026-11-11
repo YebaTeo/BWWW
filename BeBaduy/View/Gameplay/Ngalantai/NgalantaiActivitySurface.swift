@@ -5,7 +5,6 @@ struct NgalantaiActivitySurface: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ActivityPhoto(asset: model.step == .drying || model.step == .complete ? "drying_rice_after" : "drying_rice_before")
                 if [.balancing, .balanceInstructions, .balanceDemo].contains(model.step) {
                     MipitBalanceArtwork(balance: model.balance, reduceMotion: reduceMotion)
                         .frame(width: geometry.size.width * 0.73,

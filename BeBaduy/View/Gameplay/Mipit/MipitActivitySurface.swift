@@ -10,7 +10,6 @@ struct MipitActivitySurface: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ActivityPhoto(asset: "HumaEnvironment")
                 if [.harvesting, .harvestSuccess].contains(model.step) {
                     harvestTargets(in: geometry.size)
                 }

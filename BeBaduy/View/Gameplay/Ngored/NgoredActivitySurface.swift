@@ -14,21 +14,17 @@ struct NgoredActivitySurface: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ActivityPhoto(asset: "ngored_after")
                 ForEach(0..<8) { index in
                     let cut = model.removed.contains(index)
                     let hits = model.strokes[index] ?? 0
                     VStack(spacing: 0) {
-                        NgoredWeedArtwork()
-                            .rotationEffect(.degrees(cut ? 75 : Double(hits * 12)), anchor: .bottom)
-                            .offset(x: cut ? 13 : CGFloat(hits * 3), y: cut ? 16 : CGFloat(hits * 3))
-                            .opacity(cut ? 0.3 : 1)
+                        NgoredWeedArtwork(cut: cut, hits: hits)
                         if !cut {
                             Text("\(hits)/3").font(.caption.monospacedDigit().bold())
                                 .foregroundStyle(.white).padding(.horizontal, 6).padding(.vertical, 3)
                                 .background(.black.opacity(0.65), in: Capsule())
                         }
-                    }.frame(width: 76, height: 90)
+                    }.frame(width: 80, height: 95)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Gulma \(index + 1)")
                         .accessibilityValue(cut ? "Bersih" : "\(hits) dari 3 sapuan")

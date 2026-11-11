@@ -36,11 +36,29 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         }
     }
     private var isResult: Bool { flow.screen == .result || flow.screen == .explanation }
+    private var targetProgress: CGFloat {
+        content.id.progress(isResult: isResult)
+    }
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                LessonBackdrop(asset: (isResult ? content.after : content.before).assetName)
+                CinematicAtmosphereView(progress: targetProgress, isActive: scenePhase == .active)
+                    .accessibilityHidden(true)
+                SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active)
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+
+                // Clean and bright matching Home screen, with only a subtle top vignette for header readability
+                LinearGradient(stops: [
+                    .init(color: .black.opacity(0.22), location: 0),
+                    .init(color: .clear, location: 0.14)
+                ], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+
                 if immersive {
                     surface().environment(card)
                         .disabled(!session.isActive || blocksScene)
@@ -261,7 +279,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     @ViewBuilder private var equipmentArtwork: some View {
         switch content.id {
         case .ngaseuk:
-            AseukTool().frame(width: 34)
+            AseukTool(interactive: true, autoRotate: true).frame(width: 68)
         case .ngored:
             KoredTool().frame(width: 150, height: 120)
         case .mipit:

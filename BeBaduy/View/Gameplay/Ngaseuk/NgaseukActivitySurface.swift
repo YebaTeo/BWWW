@@ -20,7 +20,6 @@ struct NgaseukActivitySurface: View {
             let point = target(toolTarget, in: geometry.size)
             let toolHeight = geometry.size.height * 0.38
             ZStack {
-                ActivityPhoto(asset: "ngaseuk_before")
                 if model.step != .instructions {
                     ForEach(0..<3) { index in
                         Group {
@@ -36,27 +35,58 @@ struct NgaseukActivitySurface: View {
                                     guard !model.isDemonstrating, items.contains("rice-seed") else { return false }
                                     return model.seed(index)
                                 }
+                            } else if model.step == .digging {
+                                Button {
+                                    model.dig(index)
+                                } label: {
+                                    soilMark(index, toolTarget: toolTarget)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Lubang \(index + 1)")
+                                .accessibilityIdentifier("field.hole.\(index)")
                             } else {
                                 soilMark(index, toolTarget: toolTarget)
                                     .accessibilityHidden(true)
                             }
                         }
-                            .position(target(index, in: geometry.size))
+                        .position(target(index, in: geometry.size))
                     }
                 }
                 if model.step == .digging || isStroking {
-                    AseukTool().frame(width: 31, height: toolHeight)
-                        .position(x: point.x, y: point.y - toolHeight / 2 + toolDepth)
-                        // The part below the soil surface disappears into the hole.
-                        .mask(alignment: .top) { Rectangle().frame(height: point.y + 2) }
+                    // Dynamic ground contact shadow connecting the 3D tool to the huma soil
+                    let penetration = max(0.0, min(1.0, (toolDepth + 70.0) / 70.0))
+                    let shadowW: CGFloat = 46.0 * (0.75 + 0.35 * (1.0 - penetration))
+                    let shadowH: CGFloat = 20.0 * (0.75 + 0.35 * (1.0 - penetration))
+                    let shadowAlpha: Double = 0.22 + 0.48 * penetration
+
+                    Ellipse()
+                        .fill(RadialGradient(
+                            colors: [
+                                Color(red: 0.12, green: 0.08, blue: 0.05).opacity(shadowAlpha),
+                                Color(red: 0.12, green: 0.08, blue: 0.05).opacity(shadowAlpha * 0.35),
+                                .clear
+                            ],
+                            center: .center,
+                            startRadius: 2,
+                            endRadius: shadowW * 0.5
+                        ))
+                        .frame(width: shadowW, height: shadowH)
+                        .offset(x: 6.0 * (1.0 - penetration), y: 3.0 * (1.0 - penetration))
+                        .position(point)
                         .allowsHitTesting(false)
+                        .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)
+
+                    AseukTool().frame(width: 110, height: toolHeight)
+                        .position(x: point.x, y: point.y - toolHeight / 2 + toolDepth)
+                        .allowsHitTesting(false)
+                        .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)
                 }
                 if model.step == .instructions {
                     tutorial
                 }
                 if model.step == .digging {
                     VStack(spacing: 6) {
-                        Text(model.motionActive ? "Gerakkan ponsel ke bawah" : model.session.feedback)
+                        Text(model.motionActive ? "Gerakkan ponsel ke bawah atau ketuk lubang" : model.session.feedback)
                             .font(.headline)
                         Text("\(visibleHoles.count) / 3 lubang").font(.subheadline.monospacedDigit())
                     }.multilineTextAlignment(.center).padding(16)
@@ -65,10 +95,10 @@ struct NgaseukActivitySurface: View {
                         .allowsHitTesting(false)
                 }
                 if model.step == .seeding {
-                    Label("Benih", systemImage: "leaf.fill").font(.headline).padding(16)
-                        .foregroundStyle(.white).background(.black.opacity(0.75), in: Capsule())
-                        .draggable("rice-seed").accessibilityIdentifier("field.seed")
-                        .position(x: geometry.size.width / 2, y: geometry.size.height * 0.32)
+                    RiceSeed3DView()
+                        .draggable("rice-seed")
+                        .accessibilityIdentifier("field.seed")
+                        .position(x: geometry.size.width / 2, y: geometry.size.height * 0.30)
                 }
                 if let target = model.peekTarget {
                     NgaseukSeedPeekView(model: model, target: target)
@@ -133,14 +163,22 @@ struct NgaseukActivitySurface: View {
         isStroking = true
         toolDepth = -70
         if !reduceMotion {
-            withAnimation(.easeIn(duration: 0.2)) { toolDepth = 12 }
-            do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
+            // Windup: slight backward raise
+            withAnimation(.easeOut(duration: 0.12)) { toolDepth = -92 }
+            do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
+
+            // Powerful downward strike into soil
+            withAnimation(.easeIn(duration: 0.16)) { toolDepth = 22 }
+            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
         }
         visibleHoles = model.holes
         if !reduceMotion {
-            do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
-            withAnimation(.easeOut(duration: 0.28)) { toolDepth = -70 }
-            do { try await Task.sleep(for: .milliseconds(280)) } catch { return }
+            // Dwell in soil
+            do { try await Task.sleep(for: .milliseconds(130)) } catch { return }
+
+            // Spring recoil retraction
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) { toolDepth = -70 }
+            do { try await Task.sleep(for: .milliseconds(320)) } catch { return }
         }
         isStroking = false
         workingTarget = nil
