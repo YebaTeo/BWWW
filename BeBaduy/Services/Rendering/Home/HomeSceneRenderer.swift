@@ -1205,7 +1205,6 @@ final class HomeSceneRenderer: NSObject {
             let thatchTexture = UIImage(named: "HumaThatchTexture")
             let terrainTexture = UIImage(named: "HumaTerrainTexture")
             let grassTex = UIImage(named: "HumaGrassTexture")
-            let riceRoofTexture = UIImage(named: "HumaRiceRoof")
 
             for child in sourceScene.rootNode.childNodes {
                 if child.name != "Camera" && !(child.name?.hasPrefix("Light") ?? false) && child.name != "env_light" {
@@ -1246,15 +1245,15 @@ final class HomeSceneRenderer: NSObject {
                             material.roughness.contents = 0.82
                             material.metalness.contents = 0.0
                         } else {
-                            // Authentic thatched roof of golden rice straw (Hateup Padi)
-                            material.diffuse.contents = riceRoofTexture ?? thatchTexture ?? material.diffuse.contents
+                            // Authentic weathered golden thatch roof (atap rumbia / ijuk)
+                            material.diffuse.contents = thatchTexture ?? material.diffuse.contents
                             material.diffuse.wrapS = .repeat
                             material.diffuse.wrapT = .repeat
-                            material.diffuse.contentsTransform = SCNMatrix4MakeScale(3.0, 4.0, 1)
-                            material.multiply.contents = UIColor(red: 1.0, green: 0.92, blue: 0.72, alpha: 1)
+                            material.diffuse.contentsTransform = SCNMatrix4MakeScale(2.2, 2.2, 1)
+                            material.multiply.contents = UIColor(red: 0.88, green: 0.78, blue: 0.58, alpha: 1)
                             material.normal.contents = leafNormal
-                            material.normal.intensity = 0.32
-                            material.roughness.contents = 0.82
+                            material.normal.intensity = 0.30
+                            material.roughness.contents = 0.86
                             material.metalness.contents = 0.0
                         }
                         smoothTextureSampling(material.diffuse)
@@ -1335,82 +1334,41 @@ final class HomeSceneRenderer: NSObject {
                 container.addChildNode(tuftNode)
             }
 
-            // 3. Layered Golden Rice Straw Roof Tiers & Eave Fringe (Atap Bertingkat Jerami Padi)
-            let riceMat = SCNMaterial()
-            riceMat.lightingModel = .physicallyBased
-            riceMat.diffuse.contents = riceRoofTexture ?? thatchTexture ?? UIColor(red: 0.88, green: 0.78, blue: 0.45, alpha: 1)
-            riceMat.diffuse.wrapS = .repeat
-            riceMat.diffuse.wrapT = .repeat
-            riceMat.diffuse.contentsTransform = SCNMatrix4MakeScale(4.0, 1.0, 1)
-            riceMat.multiply.contents = UIColor(red: 1.0, green: 0.92, blue: 0.72, alpha: 1)
-            riceMat.roughness.contents = 0.82
-            riceMat.isDoubleSided = true
+            // 3. Overhang Thatch Eaves Fringe along roof edges
+            let fringeMat = SCNMaterial()
+            fringeMat.lightingModel = .physicallyBased
+            fringeMat.diffuse.contents = thatchTexture ?? UIColor(red: 0.82, green: 0.72, blue: 0.52, alpha: 1)
+            fringeMat.multiply.contents = UIColor(red: 0.82, green: 0.72, blue: 0.52, alpha: 1)
+            fringeMat.roughness.contents = 0.92
+            fringeMat.isDoubleSided = true
 
-            // Layered Tiers on both roof slopes
-            for side: Float in [-1, 1] {
-                let sideRotX = side * 0.55
+            let eave1 = SCNBox(width: 4.85, height: 0.07, length: 0.15, chamferRadius: 0.02)
+            eave1.materials = [fringeMat]
+            let eNode1 = SCNNode(geometry: eave1)
+            eNode1.position = SCNVector3(0.15, 4.35, 1.88)
+            eNode1.eulerAngles = SCNVector3(0.55, 0, 0)
+            container.addChildNode(eNode1)
 
-                // Tier 1: Eave Overhang (Rumbai Jerami Padi Teritisan)
-                let eave = SCNBox(width: 4.90, height: 0.14, length: 0.24, chamferRadius: 0.03)
-                eave.materials = [riceMat]
-                let eNode = SCNNode(geometry: eave)
-                eNode.position = SCNVector3(0.15, 4.30, side * 1.90)
-                eNode.eulerAngles = SCNVector3(sideRotX, 0, 0)
-                container.addChildNode(eNode)
+            let eave2 = SCNBox(width: 4.85, height: 0.07, length: 0.15, chamferRadius: 0.02)
+            eave2.materials = [fringeMat]
+            let eNode2 = SCNNode(geometry: eave2)
+            eNode2.position = SCNVector3(0.15, 4.35, -1.88)
+            eNode2.eulerAngles = SCNVector3(-0.55, 0, 0)
+            container.addChildNode(eNode2)
 
-                // Tier 2: Mid-Slope Layer (Lapisan Tengah Jerami Padi)
-                let tier2 = SCNBox(width: 4.85, height: 0.11, length: 0.20, chamferRadius: 0.02)
-                tier2.materials = [riceMat]
-                let t2Node = SCNNode(geometry: tier2)
-                t2Node.position = SCNVector3(0.15, 5.08, side * 1.30)
-                t2Node.eulerAngles = SCNVector3(sideRotX, 0, 0)
-                container.addChildNode(t2Node)
+            // 4. Bamboo Ridge Cap (Wuwung Hateup) along peak
+            let ridgeMat = SCNMaterial()
+            ridgeMat.lightingModel = .physicallyBased
+            ridgeMat.diffuse.contents = woodTexture ?? UIColor(red: 0.50, green: 0.38, blue: 0.24, alpha: 1)
+            ridgeMat.multiply.contents = UIColor(red: 0.50, green: 0.38, blue: 0.24, alpha: 1)
+            ridgeMat.roughness.contents = 0.85
 
-                // Tier 3: Upper Slope Layer (Lapisan Atas Jerami Padi)
-                let tier3 = SCNBox(width: 4.80, height: 0.10, length: 0.18, chamferRadius: 0.02)
-                tier3.materials = [riceMat]
-                let t3Node = SCNNode(geometry: tier3)
-                t3Node.position = SCNVector3(0.15, 5.85, side * 0.70)
-                t3Node.eulerAngles = SCNVector3(sideRotX, 0, 0)
-                container.addChildNode(t3Node)
-            }
-
-            // Front & Back Gable Edges with Rice Straw Trim
-            for gableSide: Float in [-1, 1] {
-                let gX = gableSide * 2.30
-                for slope: Float in [-1, 1] {
-                    let gableTrim = SCNBox(width: 0.12, height: 0.10, length: 2.38, chamferRadius: 0.02)
-                    gableTrim.materials = [riceMat]
-                    let gNode = SCNNode(geometry: gableTrim)
-                    gNode.position = SCNVector3(gX, 5.50, slope * 0.95)
-                    gNode.eulerAngles = SCNVector3(slope * 0.52, 0, 0)
-                    container.addChildNode(gNode)
-                }
-            }
-
-            // 4. Rice Straw Ridge Cap & Split Bamboo Slats (Wuwung Padi & Bilah Bambu Penjepit)
-            let ridgeCap = SCNCapsule(capRadius: 0.16, height: 4.95)
-            ridgeCap.materials = [riceMat]
-            let ridgeNode = SCNNode(geometry: ridgeCap)
+            let ridgeGeo = SCNCylinder(radius: 0.10, height: 4.90)
+            ridgeGeo.materials = [ridgeMat]
+            let ridgeNode = SCNNode(geometry: ridgeGeo)
             ridgeNode.eulerAngles.z = .pi / 2
             ridgeNode.position = SCNVector3(0.15, 6.72, 0)
             container.addChildNode(ridgeNode)
-
-            let slatMat = SCNMaterial()
-            slatMat.lightingModel = .physicallyBased
-            slatMat.diffuse.contents = woodTexture ?? UIColor(red: 0.45, green: 0.32, blue: 0.20, alpha: 1)
-            slatMat.multiply.contents = UIColor(red: 0.45, green: 0.32, blue: 0.20, alpha: 1)
-            slatMat.roughness.contents = 0.78
-
-            for k in 0..<7 {
-                let sX = -2.10 + Float(k) * 0.70
-                let slat = SCNCylinder(radius: 0.022, height: 0.65)
-                slat.materials = [slatMat]
-                let sNode = SCNNode(geometry: slat)
-                sNode.position = SCNVector3(sX, 6.72, 0)
-                sNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
-                container.addChildNode(sNode)
-            }
 
             let granaryScale: CGFloat = 0.078
             container.scale = SCNVector3(granaryScale, granaryScale, granaryScale)
