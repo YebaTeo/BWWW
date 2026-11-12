@@ -4,9 +4,10 @@ import SwiftUI
 struct AseukTool: View {
     var interactive: Bool = false
     var autoRotate: Bool = false
+    var rotationSpeed: Float = 0.55
 
     var body: some View {
-        Aseuk3DView(interactive: interactive, autoRotate: autoRotate)
+        Aseuk3DView(interactive: interactive, autoRotate: autoRotate, rotationSpeed: rotationSpeed)
             .accessibilityHidden(true)
     }
 }

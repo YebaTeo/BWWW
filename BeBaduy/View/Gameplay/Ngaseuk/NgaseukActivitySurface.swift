@@ -76,7 +76,8 @@ struct NgaseukActivitySurface: View {
                         .allowsHitTesting(false)
                         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)
 
-                    AseukTool().frame(width: 110, height: toolHeight)
+                    AseukTool(autoRotate: isStroking && !reduceMotion, rotationSpeed: 4.5)
+                        .frame(width: 110, height: toolHeight)
                         .position(x: point.x, y: point.y - toolHeight / 2 + toolDepth)
                         .allowsHitTesting(false)
                         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)

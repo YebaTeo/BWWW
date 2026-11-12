@@ -16,6 +16,7 @@ import SwiftUI
 struct Aseuk3DView: UIViewRepresentable {
     var interactive: Bool = false
     var autoRotate: Bool = false
+    var rotationSpeed: Float = 0.55
     var defaultPitch: Float = 0.22
     var defaultYaw: Float = 0.45
     var defaultRoll: Float = -0.08
@@ -40,11 +41,14 @@ struct Aseuk3DView: UIViewRepresentable {
         view.autoenablesDefaultLighting = false
         view.rendersContinuously = autoRotate
 
+        context.coordinator.rotationSpeed = rotationSpeed
         context.coordinator.setupScene(in: view)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
+        view.rendersContinuously = autoRotate
+        context.coordinator.rotationSpeed = rotationSpeed
         context.coordinator.update(
             interactive: interactive,
             autoRotate: autoRotate,
@@ -61,6 +65,7 @@ struct Aseuk3DView: UIViewRepresentable {
     final class Coordinator: NSObject {
         var interactive: Bool
         var autoRotate: Bool
+        var rotationSpeed: Float = 0.55
         var pitch: Float
         var yaw: Float
         var roll: Float
@@ -218,7 +223,7 @@ struct Aseuk3DView: UIViewRepresentable {
             lastTime = now
 
             if autoRotate && !isUserDragging {
-                node.eulerAngles.y += dt * 0.55 // Continuous smooth 3D rotation
+                node.eulerAngles.y += dt * rotationSpeed // Continuous smooth 3D rotation
             }
         }
 
