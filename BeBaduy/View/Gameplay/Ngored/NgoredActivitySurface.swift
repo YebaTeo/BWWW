@@ -14,24 +14,32 @@ struct NgoredActivitySurface: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ForEach(0..<8) { index in
-                    let cut = model.removed.contains(index)
-                    let hits = model.strokes[index] ?? 0
-                    VStack(spacing: 0) {
-                        NgoredWeedArtwork(cut: cut, hits: hits)
-                        if !cut {
-                            Text("\(hits)/3").font(.caption.monospacedDigit().bold())
-                                .foregroundStyle(.white).padding(.horizontal, 6).padding(.vertical, 3)
-                                .background(.black.opacity(0.65), in: Capsule())
+                NarawasSurface(scene: model.scene)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active)) { _ in
+                    let points = model.scene.projectedNgoredWeedPoints()
+                    ForEach(0..<8) { index in
+                        let cut = model.removed.contains(index)
+                        let hits = model.strokes[index] ?? 0
+                        if !cut, points.indices.contains(index) {
+                            let pt = points[index]
+                            if pt.x > 0 && pt.y > 0 && pt.x < geometry.size.width && pt.y < geometry.size.height {
+                                Text("\(hits)/3")
+                                    .font(.caption.monospacedDigit().bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(.black.opacity(0.62), in: Capsule())
+                                    .accessibilityElement(children: .ignore)
+                                    .accessibilityLabel("Gulma \(index + 1)")
+                                    .accessibilityValue("\(hits) dari 3 sapuan")
+                                    .accessibilityIdentifier("field.weed.\(index)")
+                                    .accessibilityAction(named: "Sapukan kored") { model.remove(index) }
+                                    .position(pt)
+                            }
                         }
-                    }.frame(width: 80, height: 95)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Gulma \(index + 1)")
-                        .accessibilityValue(cut ? "Bersih" : "\(hits) dari 3 sapuan")
-                        .accessibilityIdentifier("field.weed.\(index)")
-                        .accessibilityAction(named: "Sapukan kored") { model.remove(index) }
-                        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.5), value: hits)
-                        .position(spot(index, geometry.size))
+                    }
                 }
                 if model.step == .weeding {
                     Button { model.remove(8) } label: {
@@ -69,7 +77,7 @@ struct NgoredActivitySurface: View {
                     let initial = spot(0, geometry.size)
                     let center = toolCenter ?? CGPoint(x: initial.x + 10, y: initial.y - 18)
                     ZStack {
-                        KoredTool().frame(width: 62, height: 118).allowsHitTesting(false)
+                        KoredTool(isDragging: dragOrigin != nil && !reduceMotion).frame(width: 62, height: 118).allowsHitTesting(false)
                         KoredDragHandle(move: { translation in
                             guard model.session.isActive, !model.isDemonstrating else { return }
                             if dragOrigin == nil {
@@ -80,10 +88,7 @@ struct NgoredActivitySurface: View {
                             let next = CGPoint(x: min(geometry.size.width - 30, max(30, origin.x + translation.width)),
                                                y: min(geometry.size.height - 145, max(90, origin.y + translation.height)))
                             toolCenter = next
-                            let targets = (0..<8).map { index in
-                                let p = spot(index, geometry.size)
-                                return CGPoint(x: p.x, y: p.y + 30)
-                            }
+                            let targets = model.scene.projectedNgoredWeedPoints()
                             if let hit = strokeTracker.move(blade: CGPoint(x: next.x - 10, y: next.y + 48), targets: targets, removed: model.removed) {
                                 model.remove(hit)
                             }
@@ -94,6 +99,13 @@ struct NgoredActivitySurface: View {
             }.contentShape(Rectangle()).coordinateSpace(name: "ngored.field").disabled(model.isDemonstrating)
 
         }
+        .task {
+            model.configureLookMotion(reduceMotion: reduceMotion)
+            await model.scene.prepareAssets()
+            model.scene.showNgoredField()
+        }
+        .onChange(of: reduceMotion) { _, value in model.configureLookMotion(reduceMotion: value) }
+        .onChange(of: scenePhase) { _, value in model.setVisible(value == .active) }
         .onChange(of: card.mode) { _, mode in
             if mode != .hidden { dragOrigin = nil; strokeTracker.reset() }
         }
@@ -103,7 +115,7 @@ struct NgoredActivitySurface: View {
         .task(id: model.removed) {
             if model.removed.isEmpty && model.strokes.isEmpty { toolCenter = nil; dragOrigin = nil; strokeTracker.reset() }
             if model.step == .cleared {
-                do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+                do { try await Task.sleep(for: .milliseconds(900)) } catch { return }
                 card.showInstruction()
             }
         }

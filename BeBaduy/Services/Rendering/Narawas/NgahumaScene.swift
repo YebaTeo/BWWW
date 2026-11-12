@@ -87,6 +87,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private var treeEntries: [TreeEntry] = []
+    private var ngoredWeedRoots: [SCNNode] = []
+    private var ngoredWeedRestPositions: [SCNVector3] = []
     private var treeChopStartTimes: [Int: Double] = [:]
     private var treeChopProgress: [Int: Float] = [:]
     private var treeCutStartTimes: [Int: Double] = [:]
@@ -294,6 +296,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         // 4. HomeView 3D Wild Grass Blades distributed 360° around the huma clearing
         buildWildGrass(using: materials)
+        buildNgoredWeeds(using: materials)
 
         // 5. 3D Floating Golden Dust Motes integrated throughout the 360° AR space
         buildAtmosphericMotes(using: materials)
@@ -755,10 +758,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         wildRoot.opacity = 1
         worldRoot.addChildNode(wildRoot)
 
-        // 1. Inner 360° clearing grass blades (matching HomeView's arched undergrowth at AR scale)
-        for index in 0..<96 {
+        // 1. Dense inner 360° wild grass ring, visible around the participant.
+        for index in 0..<240 {
             let angle = Float(index) * 2.3999
-            let distance = 0.82 + Float((index * 13) % 37) * 0.036
+            let distance = 0.62 + Float((index * 13) % 73) * 0.034
             let base = SCNVector3(
                 sin(angle) * distance,
                 soilY,
@@ -827,6 +830,120 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 phase: Float(index % 13) * 0.31,
                 materials: materials
             )
+        }
+    }
+
+    private func buildNgoredWeeds(using materials: NgahumaMaterials) {
+        ngoredWeedRoots.removeAll()
+        ngoredWeedRestPositions.removeAll()
+        for index in 0..<8 {
+            let angle = Float(index) * (2 * .pi / 8)
+            let distance: Float = 1.45
+            let center = SCNVector3(sin(angle) * distance, soilY, -cos(angle) * distance)
+            let clump = SCNNode()
+            clump.name = "ngoredWeed_\(index)"
+            clump.position = center
+            wildRoot.addChildNode(clump)
+            for bladeIndex in 0..<7 {
+                let bladeAngle = Float(bladeIndex) * 2.3999
+                let radius: Float = bladeIndex == 0 ? 0 : 0.035
+                let base = SCNVector3(sin(bladeAngle) * radius, 0, cos(bladeAngle) * radius)
+                addBlade(to: clump, base: base, height: 0.20 + Float(bladeIndex % 3) * 0.035,
+                         width: 0.035, yaw: bladeAngle, mass: 0.18, response: 0.9,
+                         tint: UIColor(red: 0.34, green: 0.50, blue: 0.17, alpha: 1),
+                         phase: Float(index * 7 + bladeIndex) * 0.31, materials: materials)
+            }
+            ngoredWeedRoots.append(clump)
+            ngoredWeedRestPositions.append(center)
+        }
+    }
+
+    func projectedNgoredWeedPoints() -> [CGPoint] {
+        guard let view else { return [] }
+        let camPos = simd_make_float3(cameraNode.simdWorldTransform.columns.3)
+        let camForward = -simd_make_float3(cameraNode.simdWorldTransform.columns.2)
+        let viewW = Float(view.bounds.width)
+        let viewH = Float(view.bounds.height)
+
+        return ngoredWeedRoots.map { node in
+            let world = node.convertPosition(SCNVector3(0, 0.08, 0), to: nil)
+            let worldPos = simd_make_float3(Float(world.x), Float(world.y), Float(world.z))
+            let toNode = worldPos - camPos
+            let forwardDot = simd_dot(simd_normalize(camForward), simd_normalize(toNode))
+
+            // Only weeds clearly in front of the camera (never behind or at inverted angles)
+            guard forwardDot > 0.25 else {
+                return CGPoint(x: -9999, y: -9999)
+            }
+
+            let projected = view.projectPoint(world)
+            // Normalized depth must lie between near and far clipping planes
+            guard projected.z > 0.0 && projected.z < 1.0 else {
+                return CGPoint(x: -9999, y: -9999)
+            }
+
+            // Must be within visible screen bounds on the ground
+            guard projected.x >= 24 && projected.x <= viewW - 24 &&
+                  projected.y >= 75 && projected.y <= viewH - 45 else {
+                return CGPoint(x: -9999, y: -9999)
+            }
+
+            return CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
+        }
+    }
+
+    func animateNgoredWeedStrike(_ index: Int, uprooted: Bool) {
+        guard ngoredWeedRoots.indices.contains(index) else { return }
+        let clump = ngoredWeedRoots[index]
+        let position = clump.presentation.position
+        let rotation = clump.presentation.eulerAngles
+        clump.removeAction(forKey: "ngoredStrike")
+        clump.position = position
+        clump.eulerAngles = rotation
+        let rest = ngoredWeedRestPositions[index]
+        let right = cameraNode.simdWorldTransform.columns.0
+        let pushed = SCNVector3(rest.x + right.x * 0.07, rest.y + 0.012, rest.z + right.z * 0.07)
+
+        if reduceMotion {
+            clump.position = rest
+            clump.eulerAngles = SCNVector3Zero
+            if uprooted { clump.runAction(.fadeOut(duration: 0.15), forKey: "ngoredStrike") }
+            return
+        }
+
+        if uprooted {
+            // Show the entire extraction before fading the fallen clump.
+            let lift = SCNAction.move(to: SCNVector3(pushed.x, rest.y + 0.18, pushed.z), duration: 0.22)
+            lift.timingMode = .easeOut
+            let tip = SCNAction.rotateTo(x: 0.35, y: 0.12, z: 0.5, duration: 0.22)
+            let land = SCNAction.move(to: SCNVector3(rest.x + right.x * 0.19, rest.y + 0.02, rest.z + right.z * 0.19), duration: 0.28)
+            land.timingMode = .easeIn
+            let topple = SCNAction.rotateTo(x: 0.8, y: 0.3, z: 1.1, duration: 0.28)
+            clump.runAction(.sequence([
+                .group([lift, tip]), .group([land, topple]),
+                .wait(duration: 0.12), .fadeOut(duration: 0.22),
+                .run { node in node.isHidden = true }
+            ]), forKey: "ngoredStrike")
+        } else {
+            let push = SCNAction.move(to: pushed, duration: 0.10)
+            let bend = SCNAction.rotateTo(x: 0.28, y: 0, z: 0.38, duration: 0.10)
+            let recover = SCNAction.group([
+                .move(to: rest, duration: 0.26),
+                .rotateTo(x: 0, y: 0, z: 0, duration: 0.26)
+            ])
+            recover.timingMode = .easeOut
+            clump.runAction(.sequence([.group([push, bend]), recover]), forKey: "ngoredStrike")
+        }
+    }
+
+    func restoreNgoredWeeds() {
+        for (index, clump) in ngoredWeedRoots.enumerated() {
+            clump.removeAction(forKey: "ngoredStrike")
+            clump.isHidden = false
+            clump.opacity = 1
+            clump.scale = SCNVector3(1, 1, 1)
+            clump.eulerAngles = SCNVector3Zero
+            clump.position = ngoredWeedRestPositions[index]
         }
     }
 
@@ -1672,6 +1789,26 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         audioPlayer?.stop()
         audioPlayer = nil
         progress = 1
+    }
+
+    /// Presents the pre-burn field as an open Ngored AR space.
+    func showNgoredField() {
+        fireRoot.isHidden = true
+        fireRoot.opacity = 0
+        ashRoot.isHidden = true
+        ashRoot.opacity = 0
+        forestRoot.isHidden = true
+        forestRoot.opacity = 0
+        treeEntries.forEach { entry in
+            entry.trunk.isHidden = true
+            entry.rootAnchor.isHidden = true
+            entry.shadow.isHidden = true
+            entry.directionalShadow.isHidden = true
+        }
+        groundMaterial?.multiply.contents = UIColor.white
+        wildRoot.isHidden = false
+        wildRoot.opacity = 1
+        progress = 0
     }
 
     func reset() {

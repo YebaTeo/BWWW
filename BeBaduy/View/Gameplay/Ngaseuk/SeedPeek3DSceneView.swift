@@ -1,7 +1,9 @@
 import SceneKit
 import SwiftUI
 
-/// Seed close-up using the AR terrain texture and the home preview's planting rim.
+/// Close-up 3D dibble hole and golden rice seed view.
+/// Seamlessly uses the authentic Baduy huma terrain from HomeView and the previous page,
+/// rendering the exact 3D dibble hole and 3D rice seeds from Home Stage 3 / Ngored.
 struct SeedPeek3DSceneView: UIViewRepresentable {
     let filled: Bool
     let isPouring: Bool
@@ -40,100 +42,94 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
         private var holeGroup: SCNNode?
         private var wasPouring = false
 
-        // Resting positions of seeds in the cavity (HomeView seed placement)
-        private let restingSpots: [(x: Float, z: Float)] = [
-            (-0.005, 0.002),
-            (0.005, -0.002),
-            (0.001, 0.006),
-            (0.001, -0.006)
-        ].prefix(NgaseukViewModel.seedsPerHole).map { $0 }
+        private struct SeedSpot {
+            let x: Float
+            let y: Float
+            let z: Float
+            let rotX: Float
+            let rotY: Float
+            let rotZ: Float
+        }
+
+        // Natural resting positions and angles of golden rice grains inside the cavity
+        private let restingSpots: [SeedSpot] = [
+            SeedSpot(x: -0.014, y: 0.003, z:  0.006, rotX:  0.25, rotY:  0.70, rotZ: -0.35),
+            SeedSpot(x:  0.014, y: 0.002, z: -0.005, rotX: -0.20, rotY: -0.80, rotZ:  0.40),
+            SeedSpot(x:  0.003, y: 0.004, z:  0.014, rotX:  0.45, rotY:  0.15, rotZ:  0.20),
+            SeedSpot(x: -0.005, y: 0.003, z: -0.012, rotX: -0.35, rotY:  0.85, rotZ: -0.15)
+        ]
 
         func setupScene(in view: SCNView, filled: Bool, isPouring: Bool) {
             self.scnView = view
             let scene = SCNScene()
             view.scene = scene
 
-            // 1. Perspective Camera looking down into the hole at ~46° angle
+            // 1. Perspective Camera matching DibbleHole3DView and HomeView
             let camera = SCNCamera()
             camera.fieldOfView = 36
-            camera.zNear = 0.001
-            camera.zFar = 25.0
+            camera.zNear = 0.02
+            camera.zFar = 10.0
             camera.wantsHDR = false
             camera.exposureOffset = 0.2
 
             let cameraNode = SCNNode()
             cameraNode.camera = camera
-            cameraNode.position = SCNVector3(0, 0.42, 0.35)
+            cameraNode.position = SCNVector3(0, 0.45, 0.60)
             cameraNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(cameraNode)
 
-            // 2. Sunlight, Ambient, and Warm Bounce Lights matching HomeView
+            // 2. Warm Sun Key and Ambient Lighting matching HomeView & DibbleHole3DView
             let sun = SCNLight()
             sun.type = .directional
-            sun.color = UIColor(red: 1.0, green: 0.98, blue: 0.90, alpha: 1)
-            sun.intensity = 950
+            sun.color = UIColor(red: 1.0, green: 0.96, blue: 0.88, alpha: 1)
+            sun.intensity = 900
             sun.castsShadow = true
-            sun.shadowRadius = 3.0
-            sun.shadowColor = UIColor(red: 0.08, green: 0.05, blue: 0.03, alpha: 0.55)
+            sun.shadowRadius = 4.0
+            sun.shadowColor = UIColor(red: 0.06, green: 0.04, blue: 0.02, alpha: 0.60)
             let sunNode = SCNNode()
             sunNode.light = sun
-            sunNode.position = SCNVector3(1.8, 3.2, 2.0)
+            sunNode.position = SCNVector3(1.4, 2.8, 1.8)
             sunNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(sunNode)
 
             let ambient = SCNLight()
             ambient.type = .ambient
-            ambient.color = UIColor(red: 0.86, green: 0.88, blue: 0.92, alpha: 1)
-            ambient.intensity = 400
+            ambient.color = UIColor(red: 0.88, green: 0.85, blue: 0.82, alpha: 1)
+            ambient.intensity = 420
             let ambientNode = SCNNode()
             ambientNode.light = ambient
             scene.rootNode.addChildNode(ambientNode)
 
             let rimLight = SCNLight()
             rimLight.type = .directional
-            rimLight.color = UIColor(red: 1.0, green: 0.94, blue: 0.80, alpha: 1)
-            rimLight.intensity = 280
+            rimLight.color = UIColor(red: 1.0, green: 0.92, blue: 0.78, alpha: 1)
+            rimLight.intensity = 240
             let rimLightNode = SCNNode()
             rimLightNode.light = rimLight
-            rimLightNode.position = SCNVector3(-2.2, 1.8, -1.0)
+            rimLightNode.position = SCNVector3(-1.8, 1.6, -1.2)
             rimLightNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(rimLightNode)
 
-            // Use the same processed soil texture as the AR field, not the raw photo.
-            let environment = UIImage(named: "HumaEnvironment")
-            let soilImage = environment?.cgImage
-                .flatMap { NgahumaMaterials.buildSoilTexture(from: $0) }
-                .map { UIImage(cgImage: $0) }
-                ?? UIImage(named: "HumaTerrainTexture") ?? UIImage()
-
-            let (terrainGeometry, terrainMaterial) = NgahumaMaterials.makeTerrainMesh(
-                span: 1.4,
-                steps: 24,
-                soilY: 0.0,
-                texture: soilImage
-            )
-            // Close-up UV density keeps pebbles proportional to the small planting hole.
-            terrainMaterial.diffuse.contentsTransform = SCNMatrix4MakeScale(8, 8, 1)
-            let terrainNode = SCNNode(geometry: terrainGeometry)
-            terrainNode.name = "arHumaTerrain"
-            terrainNode.castsShadow = false
-            scene.rootNode.addChildNode(terrainNode)
-
-            // 4. Dibble Hole: Exact shape, geometry, and material from HomeView Ngored (HomeSceneRenderer line 1107-1115)
+            // 3. Root Container
             let root = SCNNode()
             root.name = "holeRoot"
 
-            let holeNode = HomeSceneRenderer.makePlantingHoleNode()
+            // 4. Dibble Hole: Exact shape, geometry, and material from HomeView Ngored (makePlantingHoleNode)
+            let holeNode = HomeSceneRenderer.makePlantingHoleNode(homePreview: true)
             holeNode.name = "homeDibbleHole"
-            holeNode.position.y = 0.001
+            holeNode.scale = SCNVector3(3.6, 2.2, 3.6)
+            holeNode.position = SCNVector3(0, 0, 0)
             root.addChildNode(holeNode)
 
-            // 5. Seeds: Exact seed spheres and material from HomeView Ngored (HomeSceneRenderer lines 1121-1129)
-            for (i, spot) in restingSpots.enumerated() {
+            // 5. 3D Rice Seeds: Exact golden rice grains from HomeView Ngored (makePlantingSeedNode)
+            let spotCount = min(NgaseukViewModel.seedsPerHole, restingSpots.count)
+            for i in 0..<spotCount {
+                let spot = restingSpots[i]
                 let seedNode = HomeSceneRenderer.makePlantingSeedNode()
-                seedNode.scale = SCNVector3(0.44, 0.44, 0.44)
+                seedNode.scale = SCNVector3(1.76, 4.0, 1.44)
+                seedNode.eulerAngles = SCNVector3(spot.rotX, spot.rotY, spot.rotZ)
                 seedNode.name = "homeSeed_\(i)"
-                seedNode.position = SCNVector3(spot.x, 0.0035, spot.z)
+                seedNode.position = SCNVector3(spot.x, spot.y, spot.z)
                 seedNode.isHidden = !filled
                 root.addChildNode(seedNode)
                 seedNodes.append(seedNode)
@@ -155,7 +151,8 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
                 for (i, node) in seedNodes.enumerated() {
                     node.removeAction(forKey: "pourDrop")
                     let spot = restingSpots[i]
-                    node.position = SCNVector3(spot.x, 0.0035, spot.z)
+                    node.position = SCNVector3(spot.x, spot.y, spot.z)
+                    node.eulerAngles = SCNVector3(spot.rotX, spot.rotY, spot.rotZ)
                     node.opacity = 1.0
                     node.isHidden = !filled
                 }
@@ -167,30 +164,34 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             for (i, node) in seedNodes.enumerated() {
                 node.removeAction(forKey: "pourDrop")
                 let spot = restingSpots[i]
-                let startY: Float = 0.08 + Float(i) * 0.012
-                let startX: Float = (Float(i % 2) - 0.5) * 0.012
-                let startZ: Float = (Float(i / 2) - 0.5) * 0.012
+                let startY: Float = 0.18 + Float(i) * 0.025
+                let startX: Float = (Float(i % 2) - 0.5) * 0.035
+                let startZ: Float = (Float(i / 2) - 0.5) * 0.035
                 node.position = SCNVector3(startX, startY, startZ)
+                node.eulerAngles = SCNVector3(spot.rotX * 2, spot.rotY, spot.rotZ * 2)
                 node.opacity = 0
                 node.isHidden = false
 
                 let delay = Double(i) * 0.10
                 let wait = SCNAction.wait(duration: delay)
                 let fadeIn = SCNAction.fadeIn(duration: 0.05)
-                let fall = SCNAction.customAction(duration: 0.35) { _, elapsed in
-                    let t = Float(elapsed / 0.35)
+                let fall = SCNAction.customAction(duration: 0.38) { _, elapsed in
+                    let t = Float(elapsed / 0.38)
                     let easeIn = t * t
                     node.position = SCNVector3(
                         startX + (spot.x - startX) * t,
-                        startY + (0.0035 - startY) * easeIn,
+                        startY + (spot.y - startY) * easeIn,
                         startZ + (spot.z - startZ) * t
                     )
                 }
-                let bounceUp = SCNAction.move(by: SCNVector3(0, 0.002, 0), duration: 0.07)
-                let bounceDown = SCNAction.move(by: SCNVector3(0, -0.002, 0), duration: 0.08)
+                let bounceUp = SCNAction.move(by: SCNVector3(0, 0.005, 0), duration: 0.07)
+                let bounceDown = SCNAction.move(by: SCNVector3(0, -0.005, 0), duration: 0.08)
                 bounceUp.timingMode = .easeOut
                 bounceDown.timingMode = .easeIn
-                let settle = SCNAction.run { _ in node.position = SCNVector3(spot.x, 0.0035, spot.z) }
+                let settle = SCNAction.run { _ in
+                    node.position = SCNVector3(spot.x, spot.y, spot.z)
+                    node.eulerAngles = SCNVector3(spot.rotX, spot.rotY, spot.rotZ)
+                }
                 node.runAction(.sequence([wait, fadeIn, fall, bounceUp, bounceDown, settle]), forKey: "pourDrop")
             }
         }

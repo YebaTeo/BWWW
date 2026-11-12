@@ -2,7 +2,12 @@ import SwiftUI
 struct NgoredView: View {
     let journey: JourneyViewModel
     let advance: () -> Void
-    @State private var model = NgoredViewModel()
+    @State private var model: NgoredViewModel
+    init(journey: JourneyViewModel, motion: (any MotionProviding)? = nil, advance: @escaping () -> Void) {
+        self.journey = journey
+        self.advance = advance
+        _model = State(initialValue: NgoredViewModel(motion: motion))
+    }
     var body: some View {
         PhaseContainerView(content: PhaseContent.content(for: .ngored), session: model.session, journey: journey,
             start: model.start, replay: model.start, demonstrate: model.demonstrate,

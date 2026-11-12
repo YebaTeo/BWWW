@@ -23,7 +23,7 @@ struct NgaseukActivitySurface: View {
             let point = target(toolTarget, in: geometry.size)
             let toolHeight = geometry.size.height * 0.38
             ZStack {
-                if model.step != .instructions {
+                if model.step != .instructions && model.peekTarget == nil {
                     ForEach(0..<3) { index in
                         Group {
                             if model.step == .seeding {

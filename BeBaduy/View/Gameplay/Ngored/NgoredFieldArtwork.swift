@@ -2,8 +2,9 @@ import SwiftUI
 
 /// 3D Traditional Baduy "Kored" (weeding hoe) rendered in SceneKit.
 struct KoredTool: View {
+    var isDragging = false
     var body: some View {
-        Kored3DView()
+        Kored3DView(isDragging: isDragging)
             .accessibilityHidden(true)
     }
 }
