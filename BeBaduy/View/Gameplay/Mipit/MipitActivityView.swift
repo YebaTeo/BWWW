@@ -52,11 +52,6 @@ struct MipitActivityView: View {
                 }
             }
         }
-        .background {
-            if showsHelp && model.step == .harvesting {
-                Color.black.opacity(0.22).ignoresSafeArea()
-            }
-        }
         .padding(.horizontal, 16).padding(.bottom, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .disabled(model.isDemonstrating)

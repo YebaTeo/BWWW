@@ -104,11 +104,13 @@ struct WelcomeHomeView: View {
             #endif
             if let stage = GrowthStage.allStages.first(where: { $0.phase == journey.progress.currentPhase }) {
                 preview.selectStage(stage.id, reduceMotion: true)
+                displayedStage = stage.id
             }
         }
         .onChange(of: journey.progress.currentPhase) { _, phase in
             if let saved = GrowthStage.allStages.first(where: { $0.phase == phase }) {
                 preview.selectStage(saved.id, reduceMotion: true)
+                displayedStage = saved.id
             }
         }
         .onDisappear {
@@ -185,7 +187,7 @@ struct WelcomeHomeView: View {
         if stage.isConclusion {
             onCompletion()
         } else {
-            onOpen(journey.progress.isUnlocked(stage.phase) ? stage.phase : journey.progress.currentPhase)
+            onOpen(stage.phase)
         }
     }
 

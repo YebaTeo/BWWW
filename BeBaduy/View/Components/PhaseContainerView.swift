@@ -16,6 +16,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     var showsActiveControls = false
     var usesContextCards = true
     var showsInitialActivityCard = true
+    var mipitHarvested: Set<Int> = []
     @ViewBuilder let surface: () -> Surface
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
@@ -45,11 +46,14 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             ZStack {
                 CinematicAtmosphereView(progress: targetProgress, isActive: scenePhase == .active)
                     .accessibilityHidden(true)
-                SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active)
+                SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active,
+                                 showsRice: content.id != .mipit || flow.screen != .activity,
+                                 mipitHarvested: mipitHarvested)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
-                    .opacity(content.id == .ngaseuk && (flow.screen == .activity || flow.screen == .result) ? 0 : 1)
+                    .opacity((content.id == .ngaseuk && (flow.screen == .activity || flow.screen == .result))
+                             || (content.id == .mipit && flow.screen == .result) ? 0 : 1)
 
                 // Clean and bright matching Home screen, with only a subtle top vignette for header readability
                 LinearGradient(stops: [

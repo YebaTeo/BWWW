@@ -4,6 +4,10 @@ import SwiftUI
 /// Owns the Home SceneKit graph, frame loop, materials, and visual effects.
 @MainActor
 final class HomeSceneRenderer: NSObject {
+    var showsRice = true
+    var mipitHarvested: Set<Int> = []
+    private var mipitStandingNodes: [SCNNode] = []
+    private var mipitSheafNodes: [SCNNode] = []
 
     // ── Blade helper (wind animation) ────────────────────────────────────
     private final class Blade {
@@ -181,6 +185,7 @@ final class HomeSceneRenderer: NSObject {
         buildAsh()           // Post-burn clods
         buildPlantingStage() // Stage 2
         buildRicePlant()     // Stage 3 + 4
+        buildMipitHarvestTargets()
         buildLeuitRack()
         storageBuildLeuitRack()
         buildGranaryPreview()
@@ -386,7 +391,7 @@ final class HomeSceneRenderer: NSObject {
         // Include the entire farming sequence, including cloned harvest
         // bundles. Preserve explicit exclusions for painted contact shadows.
         for root in [forestRoot, rootFlareRoot, stumpRoot, wildRoot,
-                     plantingRoot, leavesRoot, paniclesRoot, ashRoot, leuitRoot] {
+                     plantingRoot, leavesRoot, paniclesRoot, ashRoot, leuitRoot] + mipitStandingNodes {
             root.enumerateChildNodes { node, _ in
                 guard node.geometry != nil else { return }
                 if node.name?.contains("Shadow") == true || node.name?.contains("shadow") == true {
@@ -851,6 +856,7 @@ final class HomeSceneRenderer: NSObject {
             elements: [.init(indices: triangles, primitiveType: .triangles)])
         mesh.materials = [soil]
         let patch = SCNNode(geometry: mesh)
+        patch.name = "rootContactSoil"
         patch.castsShadow = false
         return patch
     }
@@ -1253,6 +1259,31 @@ final class HomeSceneRenderer: NSObject {
         }
     }
 
+    private func buildMipitHarvestTargets() {
+        for index in 0..<3 {
+            let x = Float(index - 1) * 0.17
+            let standing = SCNNode()
+            standing.name = "mipitStanding_\(index)"
+            standing.addChildNode(leavesRoot.clone())
+            standing.addChildNode(paniclesRoot.clone())
+            let soil = Self.makeRootContactSoil(radius: 0.055, soilY: soilY)
+            standing.addChildNode(soil)
+            standing.scale = SCNVector3(0.55, 0.55, 0.55)
+            standing.position = SCNVector3(x, soilY * 0.45, 0)
+            standing.isHidden = true
+            scene.rootNode.addChildNode(standing)
+            mipitStandingNodes.append(standing)
+
+            let sheaf = Self.makeNgalantaiHarvestedSheaf()
+            sheaf.name = "mipitHarvested_\(index)"
+            sheaf.scale = SCNVector3(0.55, 0.55, 0.55)
+            sheaf.position = SCNVector3(x, soilY, 0)
+            sheaf.isHidden = true
+            scene.rootNode.addChildNode(sheaf)
+            mipitSheafNodes.append(sheaf)
+        }
+    }
+
     /// Builds the same rice leaf and panicle geometry used by the Home Ngored → Mipit crop.
     static func makeNgoredTransitionRicePlant() -> SCNNode {
         let root = SCNNode()
@@ -1321,6 +1352,341 @@ final class HomeSceneRenderer: NSObject {
             panicles.addChildNode(panicle)
         }
         return root
+    }
+
+    /// Builds the 3D golden ripe rice plant (padi huma asak / koneng) from Home Stage 4 (Mipit).
+    /// Complete with root soil contact, 28 golden arching leaf blades, and 11 drooping panicles
+    /// laden with 3D gabah grains, featuring natural wind breeze sway.
+    static func makeHomeRipeRicePlant() -> SCNNode {
+        let root = SCNNode()
+        root.name = "homeRipeRicePlant"
+
+        let rootSoil = makeRootContactSoil(radius: 0.082, soilY: 0)
+        rootSoil.scale = SCNVector3(0.35, 1, 0.35)
+        root.addChildNode(rootSoil)
+
+        let leaves = SCNNode()
+        leaves.name = "ripeRiceLeaves"
+        let panicles = SCNNode()
+        panicles.name = "ripeRicePanicles"
+        root.addChildNode(leaves)
+        root.addChildNode(panicles)
+
+        let normal = sharedLeafNormal
+
+        // 1. Golden Rice Blades (Matching Home Mipit ripe gold leaf materials)
+        let leafMat = SCNMaterial()
+        leafMat.lightingModel = .physicallyBased
+        leafMat.normal.contents = normal
+        leafMat.normal.intensity = 0.08
+        leafMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
+        leafMat.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
+        leafMat.roughness.contents = 0.85
+        leafMat.metalness.contents = 0.0
+        leafMat.isDoubleSided = true
+        leafMat.transparencyMode = .aOne
+        leafMat.writesToDepthBuffer = true
+        leafMat.diffuse.wrapS = .repeat
+        leafMat.diffuse.wrapT = .clamp
+        NgahumaMaterials.smoothTextureSampling(leafMat.diffuse)
+
+        for index in 0..<28 {
+            let ring = index / 8
+            let angle = Float(index) * 2.3999
+            let height = 0.36 + Float(index % 6) * 0.035
+            let distance = Float(ring) * 0.014
+            let geometry = SceneGeometry.makeBladeGeometry(
+                height: height,
+                width: 0.022,
+                arch: height * 0.234,
+                material: leafMat
+            )
+            let blade = SCNNode(geometry: geometry)
+            blade.name = "ripeLeaf_\(index)"
+            blade.position = SCNVector3(cos(angle) * distance, 0.01, sin(angle) * distance)
+            blade.eulerAngles.y = angle
+            leaves.addChildNode(blade)
+
+            let swayAmp: CGFloat = CGFloat(0.024 + Float(index % 4) * 0.007)
+            let swayDur: TimeInterval = 2.4 + Double(index % 5) * 0.35
+            let sway1 = SCNAction.rotateBy(x: swayAmp * 0.15, y: 0, z: swayAmp, duration: swayDur)
+            sway1.timingMode = .easeInEaseOut
+            let sway2 = SCNAction.rotateBy(x: -swayAmp * 0.15, y: 0, z: -swayAmp, duration: swayDur)
+            sway2.timingMode = .easeInEaseOut
+            blade.runAction(SCNAction.repeatForever(SCNAction.sequence([sway1, sway2])))
+        }
+
+        // 2. Golden Rice Panicles laden with 3D Grains (Matching Home Mipit ripe panicles)
+        let grainMat = SCNMaterial()
+        grainMat.lightingModel = .physicallyBased
+        grainMat.normal.contents = normal
+        grainMat.normal.intensity = 0.12
+        grainMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
+        grainMat.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
+        grainMat.roughness.contents = 0.58
+        grainMat.metalness.contents = 0.02
+        grainMat.isDoubleSided = true
+        grainMat.writesToDepthBuffer = true
+        NgahumaMaterials.smoothTextureSampling(grainMat.diffuse)
+
+        for index in 0..<11 {
+            let angle = Float(index) * 2.3999
+            let height = 0.46 + Float(index % 4) * 0.022
+            let geometry = makeRicePanicleGeometry(
+                height: height,
+                droopArch: height * 0.32,
+                material: grainMat,
+                bound: false
+            )
+            let panicle = SCNNode(geometry: geometry)
+            panicle.name = "ripePanicle_\(index)"
+            panicle.position = SCNVector3(cos(angle) * 0.025, 0.015, sin(angle) * 0.025)
+            panicle.eulerAngles.y = angle
+            panicles.addChildNode(panicle)
+
+            let swayAmp: CGFloat = CGFloat(0.018 + Float(index % 3) * 0.006)
+            let swayDur: TimeInterval = 2.8 + Double(index % 4) * 0.4
+            let swayDown = SCNAction.rotateBy(x: swayAmp * 0.3, y: 0, z: swayAmp, duration: swayDur)
+            swayDown.timingMode = .easeInEaseOut
+            let swayUp = SCNAction.rotateBy(x: -swayAmp * 0.3, y: 0, z: -swayAmp, duration: swayDur)
+            swayUp.timingMode = .easeInEaseOut
+            panicle.runAction(SCNAction.repeatForever(SCNAction.sequence([swayDown, swayUp])))
+        }
+
+        return root
+    }
+
+    /// Builds the authentic Baduy harvested rice sheaf (ikatan padi jemuran / geugeusan pare)
+    /// from the next stage (Ngalantai / Stage 5) WITHOUT the drying tarp ("tanpa terpalnya").
+    /// Features cut straw butts, split-bamboo tali awian / sulam tie collar with knot and trailing tails,
+    /// 32 lush golden blades, and 14 drooping panicles laden with 3D grains resting on the soil.
+    static func makeNgalantaiHarvestedSheaf() -> SCNNode {
+        let bundle = SCNNode()
+        bundle.name = "ngalantaiHarvestedSheaf"
+
+        let normal = sharedLeafNormal
+
+        // 1. Panicle Grains & Rachis Material (Matching Mipit/Ngalantai)
+        let grainMat = SCNMaterial()
+        grainMat.lightingModel = .physicallyBased
+        grainMat.normal.contents = normal
+        grainMat.normal.intensity = 0.12
+        grainMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
+        grainMat.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
+        grainMat.roughness.contents = 0.58
+        grainMat.metalness.contents = 0.02
+        grainMat.isDoubleSided = true
+        grainMat.writesToDepthBuffer = true
+        NgahumaMaterials.smoothTextureSampling(grainMat.diffuse)
+
+        // 2. Golden Rice Blade / Leaf Material
+        let leafMat = SCNMaterial()
+        leafMat.lightingModel = .physicallyBased
+        leafMat.normal.contents = normal
+        leafMat.normal.intensity = 0.08
+        leafMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
+        leafMat.multiply.contents = UIColor(red: 0.98, green: 0.82, blue: 0.32, alpha: 1)
+        leafMat.roughness.contents = 0.85
+        leafMat.metalness.contents = 0.0
+        leafMat.isDoubleSided = true
+        leafMat.transparencyMode = .aOne
+        leafMat.writesToDepthBuffer = true
+        NgahumaMaterials.smoothTextureSampling(leafMat.diffuse)
+
+        // 3. Cut Straw Butt (Puntung Jerami Hasil Panen Ani-ani)
+        let strawMat = SCNMaterial()
+        strawMat.lightingModel = .physicallyBased
+        strawMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+            ?? UIColor(red: 0.88, green: 0.74, blue: 0.32, alpha: 1)
+        strawMat.multiply.contents = UIColor(red: 0.92, green: 0.78, blue: 0.36, alpha: 1)
+        strawMat.normal.contents = normal
+        strawMat.normal.intensity = 0.10
+        strawMat.roughness.contents = 0.85
+        strawMat.metalness.contents = 0.0
+        NgahumaMaterials.smoothTextureSampling(strawMat.diffuse)
+
+        let buttNode = SCNNode()
+        buttNode.name = "strawButt"
+        for i in 0..<16 {
+            let angle = Float(i) * 2.3999
+            let ringRadius: Float = (i < 5) ? 0.005 : ((i < 11) ? 0.011 : 0.016)
+            let strawGeo = SCNCylinder(radius: 0.0022, height: 0.075)
+            strawGeo.radialSegmentCount = 6
+            strawGeo.materials = [strawMat]
+            let straw = SCNNode(geometry: strawGeo)
+            straw.eulerAngles.z = .pi / 2
+            let sy = 0.021 + sin(angle) * ringRadius
+            let sz = cos(angle) * ringRadius
+            straw.position = SCNVector3(-0.098, max(0.0025, sy), sz)
+            buttNode.addChildNode(straw)
+        }
+        bundle.addChildNode(buttNode)
+
+        // 4. Traditional Baduy Split-Bamboo Sheaf Tie (Tali Awian / Sulam)
+        let tieMat = SCNMaterial()
+        tieMat.lightingModel = .physicallyBased
+        tieMat.diffuse.contents = UIImage(named: "HumaThatchTexture")
+            ?? UIImage(named: "HumaWoodTexture")
+            ?? UIColor(red: 0.85, green: 0.70, blue: 0.40, alpha: 1)
+        tieMat.multiply.contents = UIColor(red: 0.88, green: 0.74, blue: 0.42, alpha: 1)
+        tieMat.normal.contents = normal
+        tieMat.normal.intensity = 0.25
+        tieMat.roughness.contents = 0.82
+        tieMat.metalness.contents = 0.0
+        tieMat.isDoubleSided = true
+        NgahumaMaterials.smoothTextureSampling(tieMat.diffuse)
+
+        let tieRoot = SCNNode()
+        tieRoot.name = "taliAwianTie"
+        tieRoot.position = SCNVector3(-0.060, 0.021, 0.0)
+
+        let ring1Geo = SCNTorus(ringRadius: 0.0215, pipeRadius: 0.0032)
+        ring1Geo.ringSegmentCount = 24
+        ring1Geo.pipeSegmentCount = 12
+        ring1Geo.materials = [tieMat]
+        let ring1 = SCNNode(geometry: ring1Geo)
+        ring1.eulerAngles.z = .pi / 2
+        ring1.position.x = -0.004
+        tieRoot.addChildNode(ring1)
+
+        let ring2Geo = SCNTorus(ringRadius: 0.0210, pipeRadius: 0.0028)
+        ring2Geo.ringSegmentCount = 24
+        ring2Geo.pipeSegmentCount = 12
+        ring2Geo.materials = [tieMat]
+        let ring2 = SCNNode(geometry: ring2Geo)
+        ring2.eulerAngles.z = .pi / 2
+        ring2.position.x = 0.004
+        tieRoot.addChildNode(ring2)
+
+        let knotGeo = SCNBox(width: 0.007, height: 0.006, length: 0.015, chamferRadius: 0.0025)
+        knotGeo.materials = [tieMat]
+        let knot = SCNNode(geometry: knotGeo)
+        knot.position = SCNVector3(0, 0.021, 0.006)
+        knot.eulerAngles = SCNVector3(0.15, 0.35, 0.10)
+        tieRoot.addChildNode(knot)
+
+        for side: Float in [-1, 1] {
+            let tailGeo = SCNBox(width: 0.022, height: 0.0015, length: 0.0040, chamferRadius: 0.0006)
+            tailGeo.materials = [tieMat]
+            let tail = SCNNode(geometry: tailGeo)
+            tail.position = SCNVector3(0.012, 0.019 - side * 0.003, 0.008 + side * 0.004)
+            tail.eulerAngles = SCNVector3(side * 0.18, side * 0.15, -0.22)
+            tieRoot.addChildNode(tail)
+        }
+        bundle.addChildNode(tieRoot)
+
+        let startX: Float = -0.060
+        let startY: Float = 0.021
+
+        // 5a. Ground-Resting Tier
+        for i in 0..<10 {
+            let yaw: Float = -0.72 + Float(i) * 0.16
+            let bladeZ = Float(i % 5 - 2) * 0.005
+            let geom = makeRestingRiceBladeGeometry(
+                startX: startX,
+                startY: startY,
+                startZ: bladeZ,
+                length: 0.30 + Float(i % 4) * 0.020,
+                yaw: yaw,
+                archHeight: 0.005 + Float(i % 3) * 0.003,
+                sideCurve: Float(i % 3 - 1) * 0.018,
+                width: 0.020,
+                material: leafMat
+            )
+            bundle.addChildNode(SCNNode(geometry: geom))
+        }
+
+        // 5b. Mid-Elevation Tier
+        for i in 0..<12 {
+            let yaw: Float = -0.58 + Float(i) * 0.105
+            let bladeZ = Float(i % 4 - 2) * 0.006
+            let geom = makeRestingRiceBladeGeometry(
+                startX: startX,
+                startY: startY + 0.004,
+                startZ: bladeZ,
+                length: 0.34 + Float(i % 4) * 0.020,
+                yaw: yaw,
+                archHeight: 0.065 + Float(i % 4) * 0.015,
+                sideCurve: Float(i % 3 - 1) * 0.025,
+                width: 0.022,
+                material: leafMat
+            )
+            bundle.addChildNode(SCNNode(geometry: geom))
+        }
+
+        // 5c. Top-Canopy Sunlit Tier
+        for i in 0..<10 {
+            let yaw: Float = -0.42 + Float(i) * 0.092
+            let bladeZ = Float(i % 3 - 1) * 0.006
+            let geom = makeRestingRiceBladeGeometry(
+                startX: startX,
+                startY: startY + 0.008,
+                startZ: bladeZ,
+                length: 0.36 + Float(i % 3) * 0.025,
+                yaw: yaw,
+                archHeight: 0.140 + Float(i % 3) * 0.022,
+                sideCurve: Float(i % 2 == 0 ? 1 : -1) * 0.015,
+                width: 0.021,
+                material: leafMat
+            )
+            bundle.addChildNode(SCNNode(geometry: geom))
+        }
+
+        // 6. 14 Golden Panicles Laden with 3D Grains
+        let groundYaws: [Float] = [-0.62, -0.24, 0.24, 0.62]
+        for (idx, yaw) in groundYaws.enumerated() {
+            let geom = makeRestingRicePanicleGeometry(
+                startX: startX,
+                startY: startY,
+                startZ: Float(idx - 2) * 0.006,
+                length: 0.35 + Float(idx) * 0.015,
+                yaw: yaw,
+                droopArch: 0.022 + Float(idx % 2) * 0.008,
+                sideCurve: Float(idx % 2 == 0 ? 1 : -1) * 0.015,
+                material: grainMat
+            )
+            bundle.addChildNode(SCNNode(geometry: geom))
+        }
+
+        let midYaws: [Float] = [-0.48, -0.28, -0.10, 0.10, 0.28, 0.48]
+        for (idx, yaw) in midYaws.enumerated() {
+            let geom = makeRestingRicePanicleGeometry(
+                startX: startX,
+                startY: startY + 0.005,
+                startZ: Float(idx % 3 - 1) * 0.007,
+                length: 0.38 + Float(idx % 3) * 0.018,
+                yaw: yaw,
+                droopArch: 0.080 + Float(idx % 3) * 0.015,
+                sideCurve: Float(idx % 2 == 0 ? 1 : -1) * 0.020,
+                material: grainMat
+            )
+            bundle.addChildNode(SCNNode(geometry: geom))
+        }
+
+        let crownYaws: [Float] = [-0.30, -0.10, 0.10, 0.30]
+        for (idx, yaw) in crownYaws.enumerated() {
+            let geom = makeRestingRicePanicleGeometry(
+                startX: startX,
+                startY: startY + 0.010,
+                startZ: Float(idx - 2) * 0.005,
+                length: 0.41 + Float(idx) * 0.012,
+                yaw: yaw,
+                droopArch: 0.150 + Float(idx % 2) * 0.018,
+                sideCurve: Float(idx % 2 == 0 ? 1 : -1) * 0.018,
+                material: grainMat
+            )
+            bundle.addChildNode(SCNNode(geometry: geom))
+        }
+
+        let container = SCNNode()
+        container.name = "harvestedSheafContainer"
+        bundle.position = SCNVector3(-0.08, 0, 0)
+        container.addChildNode(bundle)
+        return container
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2478,7 +2844,7 @@ final class HomeSceneRenderer: NSObject {
         for i in 0..<10 {
             let yaw: Float = -0.72 + Float(i) * 0.16
             let bladeZ = Float(i % 5 - 2) * 0.005
-            let geom = makeRestingRiceBladeGeometry(
+            let geom = Self.makeRestingRiceBladeGeometry(
                 startX: startX,
                 startY: startY,
                 startZ: bladeZ,
@@ -2497,7 +2863,7 @@ final class HomeSceneRenderer: NSObject {
         for i in 0..<12 {
             let yaw: Float = -0.58 + Float(i) * 0.105
             let bladeZ = Float(i % 4 - 2) * 0.006
-            let geom = makeRestingRiceBladeGeometry(
+            let geom = Self.makeRestingRiceBladeGeometry(
                 startX: startX,
                 startY: startY + 0.004,
                 startZ: bladeZ,
@@ -2516,7 +2882,7 @@ final class HomeSceneRenderer: NSObject {
         for i in 0..<10 {
             let yaw: Float = -0.42 + Float(i) * 0.092
             let bladeZ = Float(i % 3 - 1) * 0.006
-            let geom = makeRestingRiceBladeGeometry(
+            let geom = Self.makeRestingRiceBladeGeometry(
                 startX: startX,
                 startY: startY + 0.008,
                 startZ: bladeZ,
@@ -2535,7 +2901,7 @@ final class HomeSceneRenderer: NSObject {
         // 6a. 4 Ground Panicles (heavy grain clusters resting gently on the ground)
         let groundYaws: [Float] = [-0.62, -0.24, 0.24, 0.62]
         for (idx, yaw) in groundYaws.enumerated() {
-            let geom = makeRestingRicePanicleGeometry(
+            let geom = Self.makeRestingRicePanicleGeometry(
                 startX: startX,
                 startY: startY,
                 startZ: Float(idx - 2) * 0.006,
@@ -2552,7 +2918,7 @@ final class HomeSceneRenderer: NSObject {
         // 6b. 6 Mid Panicles (arching gracefully across the middle height)
         let midYaws: [Float] = [-0.48, -0.28, -0.10, 0.10, 0.28, 0.48]
         for (idx, yaw) in midYaws.enumerated() {
-            let geom = makeRestingRicePanicleGeometry(
+            let geom = Self.makeRestingRicePanicleGeometry(
                 startX: startX,
                 startY: startY + 0.005,
                 startZ: Float(idx % 3 - 1) * 0.007,
@@ -2569,7 +2935,7 @@ final class HomeSceneRenderer: NSObject {
         // 6c. 4 Top-Crown Panicles (arching high before cascading down over the sheaf)
         let crownYaws: [Float] = [-0.30, -0.10, 0.10, 0.30]
         for (idx, yaw) in crownYaws.enumerated() {
-            let geom = makeRestingRicePanicleGeometry(
+            let geom = Self.makeRestingRicePanicleGeometry(
                 startX: startX,
                 startY: startY + 0.010,
                 startZ: Float(idx - 2) * 0.005,
@@ -2791,12 +3157,12 @@ final class HomeSceneRenderer: NSObject {
         let riceGrowth = Self.riceGrowthAmount((p - 0.90) / 0.08)
         leavesRoot.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
         let harvestCut = smoothstep(0.75, 0.78, fullP)
-        setVisibility(leavesRoot, opacity: riceGrowth * (1 - harvestCut))
+        setVisibility(leavesRoot, opacity: showsRice ? riceGrowth * (1 - harvestCut) : 0)
 
         // ── 8. Panicles – Tumbuh bersamaan dengan tanaman padi (p 0.90 → 0.98)
         let panicleGrowth = riceGrowth
         paniclesRoot.scale = SCNVector3(panicleGrowth, panicleGrowth, panicleGrowth)
-        setVisibility(paniclesRoot, opacity: panicleGrowth * (1 - harvestCut))
+        setVisibility(paniclesRoot, opacity: showsRice ? panicleGrowth * (1 - harvestCut) : 0)
 
         // ── 9. Rice colour-lerp green → gold ────────────────────────────
         let green    = SIMD3<Float>(0.82, 0.94, 0.70)
@@ -2951,7 +3317,12 @@ final class HomeSceneRenderer: NSObject {
             bundleShadow.isHidden = shadowAlpha < 0.005
         }
 
-        setVisibility(riceSoilRoot, opacity: smoothstep(0.42, 0.52, p) * (1 - harvestCut))
+        setVisibility(riceSoilRoot, opacity: showsRice ? smoothstep(0.42, 0.52, p) * (1 - harvestCut) : 0)
+        for index in mipitStandingNodes.indices {
+            let harvested = mipitHarvested.contains(index)
+            mipitStandingNodes[index].isHidden = showsRice || harvested
+            mipitSheafNodes[index].isHidden = showsRice || !harvested
+        }
 
         // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu, lalu PAN GESER CEPAT KE SAMPING ke lumbung
         let storageFraming = panEase
@@ -3165,7 +3536,7 @@ final class HomeSceneRenderer: NSObject {
         return material
     }
 
-    private func makeRestingRiceBladeGeometry(
+    static func makeRestingRiceBladeGeometry(
         startX: Float, startY: Float, startZ: Float,
         length: Float,
         yaw: Float,
@@ -3233,7 +3604,7 @@ final class HomeSceneRenderer: NSObject {
         return geom
     }
 
-    private func makeRestingRicePanicleGeometry(
+    static func makeRestingRicePanicleGeometry(
         startX: Float, startY: Float, startZ: Float,
         length: Float,
         yaw: Float,
@@ -3358,7 +3729,7 @@ final class HomeSceneRenderer: NSObject {
         return geom
     }
 
-    private static func makeRicePanicleGeometry(
+    static func makeRicePanicleGeometry(
         height: Float,
         droopArch: Float,
         material: SCNMaterial,
@@ -3532,10 +3903,11 @@ final class HomeSceneRenderer: NSObject {
 
     // Generated once per scene. These are subtle tangent-space detail maps,
     // not claimed to be scanned normals matched to the supplied albedo.
-    private lazy var barkNormal = makeDetailNormal(frequency: 12, strength: 0.32)
-    private lazy var leafNormal = makeDetailNormal(frequency: 22, strength: 0.12)
+    private lazy var barkNormal = Self.makeDetailNormal(frequency: 12, strength: 0.32)
+    static let sharedLeafNormal: UIImage = makeDetailNormal(frequency: 22, strength: 0.12)
+    private var leafNormal: UIImage { Self.sharedLeafNormal }
 
-    private func makeDetailNormal(frequency: Float, strength: Float) -> UIImage {
+    static func makeDetailNormal(frequency: Float, strength: Float) -> UIImage {
         let size = 128
         var pixels = [UInt8](repeating: 255, count: size * size * 4)
         for y in 0..<size {

@@ -31,6 +31,8 @@ struct HomeView: View {
                     if journey.continueFrom(phase) != nil { model.path = [] }
                     else if phase == .ngaleuitkeunPare && journey.progress.allComplete {
                         journey.finishJourney(); model.path = []; model.showsCompletion = true
+                    } else {
+                        model.path = []
                     }
                 }
                 .id(phase)
@@ -38,7 +40,7 @@ struct HomeView: View {
             .sheet(isPresented: $showsJourney, onDismiss: {
                 if let phase = pendingPhase {
                     pendingPhase = nil
-                    journey.open(phase)
+                    model.open(phase, journey: journey)
                 }
             }) {
                 NavigationStack {

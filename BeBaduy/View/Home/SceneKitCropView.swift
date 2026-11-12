@@ -17,6 +17,8 @@ import SwiftUI
 struct SceneKitCropView: UIViewRepresentable {
     let progress: CGFloat
     let isActive: Bool
+    var showsRice = true
+    var mipitHarvested: Set<Int> = []
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -27,12 +29,16 @@ struct SceneKitCropView: UIViewRepresentable {
             SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
         ])
         context.coordinator.install(in: view)
+        context.coordinator.showsRice = showsRice
+        context.coordinator.mipitHarvested = mipitHarvested
         context.coordinator.setActive(isActive && scenePhase == .active, in: view, reduceMotion: reduceMotion)
         context.coordinator.update(progress: progress)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
+        context.coordinator.showsRice = showsRice
+        context.coordinator.mipitHarvested = mipitHarvested
         context.coordinator.setActive(isActive && scenePhase == .active, in: view, reduceMotion: reduceMotion)
         context.coordinator.update(progress: progress)
     }
