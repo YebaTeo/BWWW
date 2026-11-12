@@ -43,10 +43,10 @@ import Foundation
     private(set) var isDemonstrating = false
     private var usedDemo = false
     @ObservationIgnored private var task: Task<Void, Never>?
-    func start() { suspend(); removed = []; strokes = [:]; lastRemoved = nil; step = .weeding; usedDemo = false; scene.restoreNgoredWeeds(); session.start(); scene.setSuspended(!visible); updateLookMotion() }
+    func start() { suspend(); removed = []; strokes = [:]; lastRemoved = nil; step = .weeding; usedDemo = false; scene.setNgoredRain(false); scene.restoreNgoredWeeds(); scene.resetNgoredRice(); session.start(); scene.setSuspended(!visible); updateLookMotion() }
     func remove(_ target: Int) {
         guard session.isActive, step == .weeding else { return }
-        guard (0..<8).contains(target) else { session.feedback = "Ini padi. Bersihkan gulma di sekitarnya."; return }
+        guard (0..<4).contains(target) else { session.feedback = "Ini padi. Bersihkan gulma di sekitarnya."; return }
         guard !removed.contains(target) else { return }
         strokes[target, default: 0] += 1
         let uprooted = strokes[target] == 3
@@ -56,18 +56,18 @@ import Foundation
         guard strokes[target] == 3 else { return }
         removed.insert(target)
         lastRemoved = target
-        session.feedback = "\(removed.count) dari 8 gulma disingkirkan."
-        if removed.count == 8 { step = .cleared }
+        session.feedback = "\(removed.count) dari 4 gulma disingkirkan."
+        if removed.count == 4 { step = .cleared }
     }
-    func observeRain() { guard session.isActive, step == .cleared else { return }; step = .rain; ActivityAudio.shared.play(.rain) }
-    func finishRain() { guard session.isActive, step == .rain else { return }; ActivityAudio.shared.stop(); session.finish(usedDemo ? .observed : .performed) }
+    func observeRain() { guard session.isActive, step == .cleared else { return }; step = .rain; scene.setNgoredRain(true); scene.dissolveUprootedWeedsWithRain(); scene.growNgoredRice(); ActivityAudio.shared.play(.rain) }
+    func finishRain() { guard session.isActive, step == .rain else { return }; scene.setNgoredRain(false); ActivityAudio.shared.stop(); session.finish(usedDemo ? .observed : .performed) }
     func setVisible(_ value: Bool) { visible = value; scene.setSuspended(!value); updateLookMotion(); if value && step == .rain { ActivityAudio.shared.play(.rain) } else if !value { suspend() } }
     func suspend() { motionGeneration += 1; motion?.stop(); scene.setSuspended(true); ActivityAudio.shared.stop(); task?.cancel(); task = nil; isDemonstrating = false }
     func demonstrate() {
         guard session.isActive else { return }
         suspend(); scene.setSuspended(!visible); usedDemo = true; isDemonstrating = true
         task = Task { [weak self] in
-            for index in 0..<8 {
+            for index in 0..<4 {
                 for _ in 0..<3 {
                     do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
                     guard !Task.isCancelled, let self else { return }; self.remove(index)
@@ -75,7 +75,7 @@ import Foundation
             }
             do { try await Task.sleep(for: .seconds(1)) } catch { return }
             guard !Task.isCancelled, let self else { return }; self.observeRain()
-            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            do { try await Task.sleep(for: .seconds(10)) } catch { return }
             guard !Task.isCancelled else { return }; self.finishRain(); self.isDemonstrating = false
         }
     }

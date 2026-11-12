@@ -20,7 +20,7 @@ struct NgoredActivitySurface: View {
                     .accessibilityHidden(true)
                 TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active)) { _ in
                     let points = model.scene.projectedNgoredWeedPoints()
-                    ForEach(0..<8) { index in
+                ForEach(0..<4) { index in
                         let cut = model.removed.contains(index)
                         let hits = model.strokes[index] ?? 0
                         if !cut, points.indices.contains(index) {
@@ -50,7 +50,7 @@ struct NgoredActivitySurface: View {
                         .position(x: geometry.size.width / 2, y: geometry.size.height * 0.43)
                     VStack(spacing: 6) {
                         Text("Pegang dan geser kored").font(.headline)
-                        Text("Tiga sapuan ke bawah per gulma · \(model.removed.count)/8 bersih").font(.subheadline)
+                        Text("Tiga sapuan ke bawah per gulma · \(model.removed.count)/4 bersih").font(.subheadline)
                         if model.session.feedback.hasPrefix("Ini padi") {
                             Text(model.session.feedback).font(.subheadline.bold())
                                 .accessibilityIdentifier("ngored.rice.feedback")
@@ -59,19 +59,6 @@ struct NgoredActivitySurface: View {
                         .foregroundStyle(.white).background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 20))
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
-                }
-                if model.step == .rain {
-                    TimelineView(.animation(minimumInterval: 0.05, paused: card.mode == .help || reduceMotion || scenePhase != .active || !model.session.isActive)) { timeline in
-                        Canvas { context, size in
-                            let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
-                            for i in 0..<80 {
-                                let x = CGFloat((i * 73) % 313) / 313 * size.width
-                                let y = CGFloat((Double(i * 19) + time * 180).truncatingRemainder(dividingBy: size.height + 20))
-                                var path = Path(); path.move(to: CGPoint(x: x, y: y)); path.addLine(to: CGPoint(x: x - 4, y: y + 18))
-                                context.stroke(path, with: .color(.white.opacity(0.65)), lineWidth: 1)
-                            }
-                        }
-                    }.allowsHitTesting(false).accessibilityHidden(true)
                 }
                 if model.step == .weeding {
                     let initial = spot(0, geometry.size)

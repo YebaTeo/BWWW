@@ -810,7 +810,7 @@ final class HomeSceneRenderer: NSObject {
     }()
 
     /// Shared shallow, irregular textured soil patch used around roots and the planting hole.
-    private static func makeRootContactSoil(radius: Float, soilY: Float) -> SCNNode {
+    static func makeRootContactSoil(radius: Float, soilY: Float) -> SCNNode {
         var positions: [SCNVector3] = []
         var coords: [CGPoint] = []
         var triangles: [UInt32] = []
@@ -1251,6 +1251,76 @@ final class HomeSceneRenderer: NSObject {
             )
             panicleMaterials.append(mat)
         }
+    }
+
+    /// Builds the same rice leaf and panicle geometry used by the Home Ngored → Mipit crop.
+    static func makeNgoredTransitionRicePlant() -> SCNNode {
+        let root = SCNNode()
+        root.name = "homeStyleNgoredRice"
+        let rootSoil = makeRootContactSoil(radius: 0.082, soilY: 0)
+        rootSoil.scale = SCNVector3(0.24, 1, 0.24)
+        root.addChildNode(rootSoil)
+        let leaves = SCNNode()
+        leaves.name = "homeRiceLeaves"
+        let panicles = SCNNode()
+        panicles.name = "homeRicePanicles"
+        root.addChildNode(leaves)
+        root.addChildNode(panicles)
+
+        for index in 0..<18 {
+            let ring = index / 9
+            let angle = Float(index) * 2.3999
+            let height = 0.36 + Float(index % 6) * 0.035
+            let distance = Float(ring) * 0.014
+            let material = SCNMaterial()
+            material.lightingModel = .physicallyBased
+            material.diffuse.contents = UIImage(named: "HumaYoungRice")
+                ?? UIColor(red: 0.28, green: 0.58, blue: 0.16, alpha: 1)
+            material.multiply.contents = UIColor(white: 0.96, alpha: 1)
+            material.roughness.contents = 0.92
+            material.isDoubleSided = true
+            let geometry = SceneGeometry.makeBladeGeometry(
+                height: height, width: 0.022,
+                arch: height * 0.234, material: material
+            )
+            let youngGeometry = SceneGeometry.makeBladeGeometry(
+                height: height * 0.24, width: 0.011,
+                arch: height * 0.234 * 0.16, material: material
+            )
+            let blade = SCNNode(geometry: youngGeometry)
+            let growth = SCNMorpher()
+            growth.targets = [geometry]
+            blade.morpher = growth
+            blade.name = "homeRiceLeaf_\(index)"
+            blade.position = SCNVector3(cos(angle) * distance, 0, sin(angle) * distance)
+            blade.eulerAngles.y = angle
+            leaves.addChildNode(blade)
+        }
+
+        for index in 0..<7 {
+            let angle = Float(index) * 2.3999
+            let material = SCNMaterial()
+            material.lightingModel = .physicallyBased
+            material.diffuse.contents = UIImage(named: "HumaYoungRice")
+                ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
+            material.multiply.contents = UIColor(red: 0.96, green: 0.82, blue: 0.32, alpha: 1)
+            material.roughness.contents = 0.58
+            material.metalness.contents = 0.02
+            material.isDoubleSided = true
+            let geometry = makeRicePanicleGeometry(
+                height: 0.46 + Float(index % 4) * 0.022,
+                droopArch: (0.46 + Float(index % 4) * 0.022) * 0.32,
+                material: material
+            )
+            let panicle = SCNNode(geometry: geometry)
+            panicle.name = "homeRicePanicle_\(index)"
+            panicle.opacity = 0
+            panicle.scale = SCNVector3(0, 0, 0)
+            panicle.position = SCNVector3(cos(angle) * 0.025, 0, sin(angle) * 0.025)
+            panicle.eulerAngles.y = angle
+            panicles.addChildNode(panicle)
+        }
+        return root
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -2027,7 +2097,7 @@ final class HomeSceneRenderer: NSObject {
         for i in 0..<12 {
             let fanAngle = Float(i % 6 - 2) * 0.14
             let depthAngle = Float(i / 6 - 1) * 0.12
-            let panicleGeo = makeRicePanicleGeometry(
+            let panicleGeo = Self.makeRicePanicleGeometry(
                 height: 0.30 + Float(i % 3) * 0.025,
                 droopArch: 0.05 + Float(i % 2) * 0.015,
                 material: grainMaterial,
@@ -2718,7 +2788,7 @@ final class HomeSceneRenderer: NSObject {
         // ── 7. Rice blades emerge after NGORED (p 0.90 → 0.98) ────────
         // Scale from the planting point so the rice visibly grows out of
         // the hole instead of simply fading in at full size.
-        let riceGrowth = smoothstep(0.90, 0.98, p)
+        let riceGrowth = Self.riceGrowthAmount((p - 0.90) / 0.08)
         leavesRoot.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
         let harvestCut = smoothstep(0.75, 0.78, fullP)
         setVisibility(leavesRoot, opacity: riceGrowth * (1 - harvestCut))
@@ -3072,7 +3142,7 @@ final class HomeSceneRenderer: NSObject {
         material.writesToDepthBuffer = true
         smoothTextureSampling(material.diffuse)
 
-        let geometry = makeRicePanicleGeometry(
+        let geometry = Self.makeRicePanicleGeometry(
             height: height,
             droopArch: height * 0.32,
             material: material
@@ -3288,7 +3358,7 @@ final class HomeSceneRenderer: NSObject {
         return geom
     }
 
-    private func makeRicePanicleGeometry(
+    private static func makeRicePanicleGeometry(
         height: Float,
         droopArch: Float,
         material: SCNMaterial,
@@ -3813,6 +3883,11 @@ final class HomeSceneRenderer: NSObject {
 
     private func smoothstep(_ edge0: Float, _ edge1: Float, _ value: Float) -> Float {
         let t = max(0, min(1, (value - edge0) / (edge1 - edge0)))
+        return t * t * (3 - 2 * t)
+    }
+
+    nonisolated static func riceGrowthAmount(_ progress: Float) -> Float {
+        let t = max(0, min(1, progress))
         return t * t * (3 - 2 * t)
     }
 }

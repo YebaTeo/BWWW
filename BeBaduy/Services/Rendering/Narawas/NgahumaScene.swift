@@ -89,6 +89,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var treeEntries: [TreeEntry] = []
     private var ngoredWeedRoots: [SCNNode] = []
     private var ngoredWeedRestPositions: [SCNVector3] = []
+    private var uprootedNgoredWeeds = Set<Int>()
+    private var ngoredRiceRoots: [SCNNode] = []
+    private var ngoredRainNodes: [SCNNode] = []
     private var treeChopStartTimes: [Int: Double] = [:]
     private var treeChopProgress: [Int: Float] = [:]
     private var treeCutStartTimes: [Int: Double] = [:]
@@ -297,6 +300,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // 4. HomeView 3D Wild Grass Blades distributed 360° around the huma clearing
         buildWildGrass(using: materials)
         buildNgoredWeeds(using: materials)
+        buildNgoredRice(using: materials)
 
         // 5. 3D Floating Golden Dust Motes integrated throughout the 360° AR space
         buildAtmosphericMotes(using: materials)
@@ -836,14 +840,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func buildNgoredWeeds(using materials: NgahumaMaterials) {
         ngoredWeedRoots.removeAll()
         ngoredWeedRestPositions.removeAll()
-        for index in 0..<8 {
-            let angle = Float(index) * (2 * .pi / 8)
-            let distance: Float = 1.45
+        for index in 0..<4 {
+            let angle = Float(index) * (2 * .pi / 4)
+            let distance: Float = 1.12
             let center = SCNVector3(sin(angle) * distance, soilY, -cos(angle) * distance)
             let clump = SCNNode()
             clump.name = "ngoredWeed_\(index)"
             clump.position = center
-            wildRoot.addChildNode(clump)
+            worldRoot.addChildNode(clump)
             for bladeIndex in 0..<7 {
                 let bladeAngle = Float(bladeIndex) * 2.3999
                 let radius: Float = bladeIndex == 0 ? 0 : 0.035
@@ -892,6 +896,151 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    private func buildNgoredRice(using materials: NgahumaMaterials) {
+        ngoredRiceRoots.removeAll()
+        for index in 0..<3 {
+            // Place each padi plant between adjacent cuttable weeds.
+            let angle = Float(index) * (2 * .pi / 3) + .pi / 4
+            // Keep rice on the same planting row/radius as the four weeds,
+            // positioned in the gaps between their targets.
+            let radius: Float = 1.12
+            let base = SCNVector3(sin(angle) * radius, soilY, -cos(angle) * radius)
+            let plant = HomeSceneRenderer.makeNgoredTransitionRicePlant()
+            plant.name = "ngoredRice_\(index)"
+            plant.position = base
+            worldRoot.addChildNode(plant)
+            // Young padi is already visible among the weeds at the start.
+            plant.scale = SCNVector3(1, 1, 1)
+            plant.isHidden = false
+            ngoredRiceRoots.append(plant)
+        }
+    }
+
+    func growNgoredRice() {
+        for plant in ngoredRiceRoots {
+            plant.removeAction(forKey: "riceGrowth")
+            plant.isHidden = false
+            let duration: TimeInterval = reduceMotion ? 0.05 : 8.0
+            let growth = SCNAction.customAction(duration: duration) { node, elapsed in
+                let progress = min(1, max(0, Float(elapsed) / Float(duration)))
+                let riceGrowth = HomeSceneRenderer.riceGrowthAmount(progress)
+                if let leaves = node.childNode(withName: "homeRiceLeaves", recursively: false) {
+                    for blade in leaves.childNodes {
+                        blade.morpher?.setWeight(CGFloat(riceGrowth), forTargetAt: 0)
+                    }
+                }
+                if let panicles = node.childNode(withName: "homeRicePanicles", recursively: false) {
+                    for panicle in panicles.childNodes {
+                        // Home grows the panicle from its rooted base with the leaves.
+                        panicle.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
+                        panicle.opacity = CGFloat(riceGrowth)
+                    }
+                }
+            }
+            plant.runAction(growth, forKey: "riceGrowth")
+        }
+    }
+
+    func resetNgoredRice() {
+        for plant in ngoredRiceRoots {
+            plant.removeAction(forKey: "riceGrowth")
+            plant.scale = SCNVector3(1, 1, 1)
+            plant.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes.forEach {
+                $0.morpher?.setWeight(0, forTargetAt: 0)
+            }
+            plant.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes.forEach {
+                $0.opacity = 0
+                $0.scale = SCNVector3(0, 0, 0)
+            }
+            plant.isHidden = false
+        }
+    }
+
+    func setNgoredRain(_ active: Bool) {
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = reduceMotion ? 0 : 1.2
+        groundMaterial?.multiply.contents = active
+            ? UIColor(red: 0.70, green: 0.66, blue: 0.61, alpha: 1) : UIColor.white
+        // Distance haze affects the mountains and sky more than nearby crops.
+        scnScene.fogColor = UIColor(red: 0.48, green: 0.52, blue: 0.55, alpha: 1)
+        scnScene.fogStartDistance = active ? 5 : 100
+        scnScene.fogEndDistance = active ? 32 : 150
+        sunKeyLight.intensity = active ? 100 : 155
+        sunDiskMaterial?.transparency = active ? 0.28 : 1
+        sunHaloMaterial?.transparency = active ? 0.16 : 1
+        skyDomeMaterial?.multiply.contents = active
+            ? UIColor(red: 0.78, green: 0.82, blue: 0.86, alpha: 1) : UIColor.white
+        SCNTransaction.commit()
+        guard active else {
+            ngoredRainNodes.forEach { node in
+                node.particleSystems?.forEach { $0.birthRate = 0 }
+            }
+            return
+        }
+        guard ngoredRainNodes.isEmpty else {
+            ngoredRainNodes.forEach { $0.particleSystems?.forEach { $0.birthRate = 620 } }
+            return
+        }
+
+        let rainImage = makeRainStreakImage()
+        for layer in 0..<2 {
+            let system = SCNParticleSystem()
+            system.birthRate = layer == 0 ? 760 : 380
+            system.particleLifeSpan = layer == 0 ? 1.35 : 2.0
+            system.particleLifeSpanVariation = 0.25
+            system.particleVelocity = layer == 0 ? 2.8 : 2.0
+            system.particleVelocityVariation = 0.55
+            system.emittingDirection = SCNVector3(0, -1, 0)
+            system.spreadingAngle = 5
+            system.acceleration = SCNVector3(0, -0.18, 0)
+            system.emitterShape = SCNBox(width: 5.8, height: 0.015, length: 5.8, chamferRadius: 0)
+            system.birthLocation = .surface
+            system.birthDirection = .constant
+            system.particleImage = rainImage
+            system.particleColor = layer == 0
+                ? UIColor(red: 0.78, green: 0.86, blue: 0.91, alpha: 0.46)
+                : UIColor(red: 0.86, green: 0.90, blue: 0.92, alpha: 0.30)
+            system.particleSize = layer == 0 ? 0.075 : 0.045
+            system.particleSizeVariation = 0.010
+            system.orientationMode = .billboardYAligned
+            system.blendMode = .alpha
+            system.isLightingEnabled = false
+            system.writesToDepthBuffer = false
+
+            let emitter = SCNNode()
+            emitter.name = "ngoredRain3D_\(layer)"
+            emitter.position = SCNVector3(0, layer == 0 ? 2.5 : 4.1, 0)
+            emitter.addParticleSystem(system)
+            worldRoot.addChildNode(emitter)
+            ngoredRainNodes.append(emitter)
+        }
+    }
+
+    private func makeRainStreakImage() -> UIImage {
+        // Square transparent sprite keeps a narrow droplet narrow when SceneKit
+        // maps it to a square particle; clip the gradient to the water silhouette.
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96), format: format).image { context in
+            let drop = UIBezierPath()
+            drop.move(to: CGPoint(x: 48, y: 6))
+            drop.addCurve(to: CGPoint(x: 51, y: 76), controlPoint1: CGPoint(x: 49, y: 30), controlPoint2: CGPoint(x: 51, y: 63))
+            drop.addQuadCurve(to: CGPoint(x: 45, y: 76), controlPoint: CGPoint(x: 48, y: 90))
+            drop.addCurve(to: CGPoint(x: 48, y: 6), controlPoint1: CGPoint(x: 45, y: 63), controlPoint2: CGPoint(x: 47, y: 30))
+            drop.close()
+            drop.addClip()
+            let colors = [UIColor.white.withAlphaComponent(0.02).cgColor,
+                          UIColor.white.withAlphaComponent(0.65).cgColor,
+                          UIColor.white.withAlphaComponent(0.90).cgColor] as CFArray
+            let locations: [CGFloat] = [0, 0.7, 1]
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) {
+                context.cgContext.drawLinearGradient(gradient,
+                    start: CGPoint(x: 48, y: 6), end: CGPoint(x: 48, y: 84), options: [])
+            }
+        }
+    }
+
     func animateNgoredWeedStrike(_ index: Int, uprooted: Bool) {
         guard ngoredWeedRoots.indices.contains(index) else { return }
         let clump = ngoredWeedRoots[index]
@@ -905,14 +1054,20 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let pushed = SCNVector3(rest.x + right.x * 0.07, rest.y + 0.012, rest.z + right.z * 0.07)
 
         if reduceMotion {
-            clump.position = rest
-            clump.eulerAngles = SCNVector3Zero
-            if uprooted { clump.runAction(.fadeOut(duration: 0.15), forKey: "ngoredStrike") }
+            if uprooted {
+                uprootedNgoredWeeds.insert(index)
+                clump.position = pushed
+                clump.eulerAngles = SCNVector3(0.8, 0.3, index.isMultiple(of: 2) ? 1.1 : -1.1)
+            } else {
+                clump.position = rest
+                clump.eulerAngles = SCNVector3Zero
+            }
             return
         }
 
         if uprooted {
-            // Show the entire extraction before fading the fallen clump.
+            // Keep the uprooted clump visible on the soil until the rain arrives.
+            uprootedNgoredWeeds.insert(index)
             let lift = SCNAction.move(to: SCNVector3(pushed.x, rest.y + 0.18, pushed.z), duration: 0.22)
             lift.timingMode = .easeOut
             let tip = SCNAction.rotateTo(x: 0.35, y: 0.12, z: 0.5, duration: 0.22)
@@ -921,8 +1076,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let topple = SCNAction.rotateTo(x: 0.8, y: 0.3, z: 1.1, duration: 0.28)
             clump.runAction(.sequence([
                 .group([lift, tip]), .group([land, topple]),
-                .wait(duration: 0.12), .fadeOut(duration: 0.22),
-                .run { node in node.isHidden = true }
             ]), forKey: "ngoredStrike")
         } else {
             let push = SCNAction.move(to: pushed, duration: 0.10)
@@ -937,6 +1090,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func restoreNgoredWeeds() {
+        uprootedNgoredWeeds.removeAll()
         for (index, clump) in ngoredWeedRoots.enumerated() {
             clump.removeAction(forKey: "ngoredStrike")
             clump.isHidden = false
@@ -945,6 +1099,16 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             clump.eulerAngles = SCNVector3Zero
             clump.position = ngoredWeedRestPositions[index]
         }
+    }
+
+    func dissolveUprootedWeedsWithRain() {
+        for index in uprootedNgoredWeeds.sorted() where ngoredWeedRoots.indices.contains(index) {
+            let clump = ngoredWeedRoots[index]
+            let fade = SCNAction.fadeOut(duration: reduceMotion ? 0.08 : 1.4)
+            let hide = SCNAction.run { node in node.isHidden = true }
+            clump.runAction(.sequence([.wait(duration: Double(index) * 0.28), fade, hide]), forKey: "rainDissolve")
+        }
+        uprootedNgoredWeeds.removeAll()
     }
 
     @discardableResult
@@ -1806,8 +1970,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             entry.directionalShadow.isHidden = true
         }
         groundMaterial?.multiply.contents = UIColor.white
-        wildRoot.isHidden = false
-        wildRoot.opacity = 1
+        // Hide the generic grass ring. Only four cuttable weeds and three padi plants remain.
+        wildRoot.isHidden = true
+        wildRoot.opacity = 0
+        ngoredWeedRoots.forEach { $0.isHidden = false; $0.opacity = 1 }
         progress = 0
     }
 
