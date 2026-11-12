@@ -92,6 +92,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var uprootedNgoredWeeds = Set<Int>()
     private var ngoredRiceRoots: [SCNNode] = []
     private var ngoredRainNodes: [SCNNode] = []
+    private var ngoredRainRequested = false
+    private var ngoredMoonRoot: SCNNode?
     private var treeChopStartTimes: [Int: Double] = [:]
     private var treeChopProgress: [Int: Float] = [:]
     private var treeCutStartTimes: [Int: Double] = [:]
@@ -124,6 +126,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private var tap: UITapGestureRecognizer?
     private var pan: UIPanGestureRecognizer?
+    private var lookPan: UIPanGestureRecognizer?
+    private var lastLookPanPoint: CGPoint = .zero
     private var swipeAnchorPoint: CGPoint = .zero
     private var lastSwipePoint: CGPoint = .zero
     private var lastSlashDirection: CGVector = .zero
@@ -132,6 +136,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var motionReference = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var yaw: Float = 0
     private var pitch: Float = -0.14
+    private var motionPitch: Float = 0
     private let feedback = UIImpactFeedbackGenerator(style: .medium)
 
     private let soilY: Float = 0.038
@@ -163,6 +168,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         pan.delegate = self
         view.addGestureRecognizer(pan)
         self.pan = pan
+        let lookPan = UIPanGestureRecognizer(target: self, action: #selector(adjustCameraLook(_:)))
+        lookPan.delegate = self
+        view.addGestureRecognizer(lookPan)
+        self.lookPan = lookPan
 
         startDisplayLink()
         if materials != nil {
@@ -256,6 +265,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func buildScene() {
         guard let materials else { return }
 
+        // Scene rebuild detaches the previous emitters with worldRoot; discard
+        // their references so the next rain creates live emitters again.
+        ngoredRainNodes.removeAll()
+        ngoredMoonRoot = nil
         worldRoot.childNodes.forEach { $0.removeFromParentNode() }
         if worldRoot.parent == nil {
             scnScene.rootNode.addChildNode(worldRoot)
@@ -308,6 +321,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // 6. Fire, Embers & Ash Clods (for the burning phase)
         buildFireAndAsh(using: materials)
 
+        if ngoredRainRequested {
+            setNgoredRain(true)
+        }
         onReady?()
     }
 
@@ -326,12 +342,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // ── 3D Sun Rendered in SceneKit as the Primary Light Source ──────────
         sunSystemRoot.name = "spatialSunLightSource"
         // Positioned above the central mountain ridge matching HomeView's Stage 1 sun (orbitPhase = 0)
-        let sunPosition = SCNVector3(0.0, 2.75, -15.5)
+        let sunPosition = SCNVector3(-3.5, soilY + 7.0, -15.5)
         sunSystemRoot.position = sunPosition
 
         // HomeView-style sun: one camera-facing sprite reproducing Home's
         // celestialBody (27 pt disk inside a 90 pt glow frame).
-        let sunPlane = SCNPlane(width: 1.45, height: 1.45)
+        let sunPlane = SCNPlane(width: 1.12, height: 1.12)
         let sunMaterial = SCNMaterial()
         sunMaterial.lightingModel = .constant
         sunMaterial.diffuse.contents = materials.sunHaloSprite
@@ -352,7 +368,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunSystemRoot.addChildNode(sunDiskNode)
 
         // Home's broad daylight glow (radial, endRadius ≈ 0.78 × screen width).
-        let haloPlane = SCNPlane(width: 14.0, height: 14.0)
+        let haloPlane = SCNPlane(width: 9.5, height: 9.5)
         let haloMaterial = SCNMaterial()
         haloMaterial.lightingModel = .constant
         haloMaterial.diffuse.contents = materials.sunSkyGlowSprite
@@ -391,6 +407,30 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunSystemRoot.addChildNode(sunOmniNode)
 
         worldRoot.addChildNode(sunSystemRoot)
+
+        let moonRoot = SCNNode()
+        moonRoot.name = "ngoredMoon"
+        moonRoot.position = SCNVector3(0, 2.2, -15.2)
+        let moonPlane = SCNPlane(width: 1.12, height: 1.12)
+        let moonMaterial = SCNMaterial()
+        moonMaterial.lightingModel = .constant
+        moonMaterial.diffuse.contents = materials.sunHaloSprite
+        moonMaterial.multiply.contents = UIColor(red: 0.78, green: 0.84, blue: 1, alpha: 1)
+        moonMaterial.blendMode = .alpha
+        moonMaterial.writesToDepthBuffer = false
+        moonMaterial.isDoubleSided = true
+        moonMaterial.diffuse.contents = makeNgoredMoonSprite()
+        moonPlane.firstMaterial = moonMaterial
+        let moonDisk = SCNNode(geometry: moonPlane)
+        moonDisk.renderingOrder = -25
+        moonDisk.castsShadow = false
+        let moonBillboard = SCNBillboardConstraint()
+        moonBillboard.freeAxes = .all
+        moonDisk.constraints = [moonBillboard]
+        moonRoot.addChildNode(moonDisk)
+        moonRoot.opacity = 0
+        worldRoot.addChildNode(moonRoot)
+        ngoredMoonRoot = moonRoot
 
         // Fill – Sky Ambient matching HomeView (SceneKitCropView lines 301-307 & 1735-1739)
         skyAmbientLight.type = .ambient
@@ -840,12 +880,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func buildNgoredWeeds(using materials: NgahumaMaterials) {
         ngoredWeedRoots.removeAll()
         ngoredWeedRestPositions.removeAll()
-        for index in 0..<4 {
+        for index in 0..<7 {
             let angle = Float(index) * (2 * .pi / 4)
             let distance: Float = 1.12
             let center = SCNVector3(sin(angle) * distance, soilY, -cos(angle) * distance)
             let clump = SCNNode()
             clump.name = "ngoredWeed_\(index)"
+            clump.isHidden = index >= 4
             clump.position = center
             worldRoot.addChildNode(clump)
             for bladeIndex in 0..<7 {
@@ -859,6 +900,180 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             }
             ngoredWeedRoots.append(clump)
             ngoredWeedRestPositions.append(center)
+        }
+    }
+
+    func revealNgoredRegrowth(duration: TimeInterval = 3.2) {
+        for index in 4..<min(7, ngoredWeedRoots.count) {
+            let weed = ngoredWeedRoots[index]
+            weed.isHidden = false
+            weed.opacity = 0
+            weed.scale = SCNVector3(0.18, 0.18, 0.18)
+            let appear = SCNAction.group([
+                .fadeIn(duration: reduceMotion ? 0.05 : duration),
+                .scale(to: 1, duration: reduceMotion ? 0.05 : duration)
+            ])
+            appear.timingMode = .easeInEaseOut
+            weed.runAction(appear, forKey: "weedRegrowth")
+        }
+    }
+
+    func setNgoredGrowth(_ amount: Float, duration: TimeInterval = 0) {
+        let target = HomeSceneRenderer.riceGrowthAmount(amount)
+        for plant in ngoredRiceRoots {
+            plant.removeAction(forKey: "ngoredGrowth")
+            if duration > 0 {
+                let current = Float(plant.childNode(withName: "homeRiceLeaves", recursively: false)?
+                    .childNodes.first?.morpher?.weight(forTargetAt: 0) ?? 0)
+                let action = SCNAction.customAction(duration: duration) { node, elapsed in
+                    let t = min(1, max(0, Float(elapsed / CGFloat(duration))))
+                    let value = current + (target - current) * HomeSceneRenderer.riceGrowthAmount(t)
+                    for blade in node.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes ?? [] {
+                        blade.morpher?.setWeight(CGFloat(value), forTargetAt: 0)
+                    }
+                    for panicle in node.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes ?? [] {
+                        panicle.opacity = CGFloat(value)
+                        panicle.scale = SCNVector3(value, value, value)
+                    }
+                }
+                plant.runAction(action, forKey: "ngoredGrowth")
+                continue
+            }
+            for blade in plant.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes ?? [] {
+                blade.morpher?.setWeight(CGFloat(target), forTargetAt: 0)
+            }
+            for panicle in plant.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes ?? [] {
+                panicle.opacity = CGFloat(target)
+                panicle.scale = SCNVector3(target, target, target)
+            }
+        }
+    }
+
+    func animateNgoredDayNight(cycles: Int, duration: TimeInterval, growthFrom: Float, growthTo: Float, completion: @escaping () -> Void) {
+        guard cycles > 0 else { completion(); return }
+        let cycleDuration = duration / Double(cycles)
+        let moon = ngoredMoonRoot
+        let sequence = SCNAction.sequence((0..<cycles).map { cycle in
+            SCNAction.customAction(duration: cycleDuration) { [weak self] _, elapsed in
+                guard let self else { return }
+                let localProgress = Float(elapsed / CGFloat(cycleDuration))
+                let isDay = localProgress < 0.5
+                let objectProgress = isDay ? localProgress * 2 : (localProgress - 0.5) * 2
+                let arcX = -3.5 + objectProgress * 7
+                // Keep the bodies above the panoramic mountain cylinder while
+                // preserving the distant, behind-the-landscape placement.
+                let arcY = self.soilY + 7.0 + sin(objectProgress * .pi) * 2.8
+                // Place bodies beyond the mountain cylinder so the ridge can
+                // occlude them as in Home's layered sky.
+                let arcZ: Float = -15.5
+                self.sunSystemRoot.position = SCNVector3(arcX, arcY, arcZ)
+                self.sunSystemRoot.look(at: SCNVector3(0, self.soilY, 0))
+                let daylight = isDay ? 1 - abs(objectProgress - 0.5) * 0.32 : 0
+                let nightfall = isDay ? 0 : 1 - abs(objectProgress - 0.5) * 0.32
+                self.sunKeyLight.intensity = CGFloat(4 + 145 * daylight)
+                self.sunKeyLight.color = self.ngoredBlend(
+                    UIColor(red: 0.38, green: 0.47, blue: 0.68, alpha: 1),
+                    UIColor(red: 1.0, green: 0.91, blue: 0.72, alpha: 1),
+                    daylight
+                )
+                moon?.position = SCNVector3(arcX, arcY, -15.2)
+                moon?.look(at: SCNVector3(0, self.soilY, 0))
+                moon?.opacity = CGFloat(isDay ? 0 : 1)
+                self.skyAmbientLight.intensity = CGFloat(8 + 57 * daylight + 5 * nightfall)
+                self.skyAmbientLight.color = self.ngoredBlend(
+                    UIColor(red: 0.30, green: 0.37, blue: 0.56, alpha: 1),
+                    UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1),
+                    daylight
+                )
+                self.sunDiskMaterial?.transparency = CGFloat(0.12 + daylight * 0.88)
+                self.sunHaloMaterial?.transparency = CGFloat(0.06 + daylight * 0.94)
+                let daySky = SIMD3<Float>(0.84, 0.88, 0.92)
+                let nightSky = SIMD3<Float>(0.10, 0.13, 0.24)
+                let skyColor = simd_mix(nightSky, daySky, SIMD3<Float>(repeating: daylight))
+                self.skyDomeMaterial?.multiply.contents = UIColor(
+                    red: CGFloat(skyColor.x), green: CGFloat(skyColor.y),
+                    blue: CGFloat(skyColor.z), alpha: 1)
+                let soilTint = CGFloat(0.22 + daylight * 0.78)
+                let soilColor = UIColor(red: soilTint, green: soilTint * 0.94,
+                                        blue: soilTint * 0.88, alpha: 1)
+                self.groundMaterial?.multiply.contents = soilColor
+                self.mountainLayerMaterial?.multiply.contents = self.ngoredBlend(
+                    UIColor(red: 0.12, green: 0.15, blue: 0.26, alpha: 1),
+                    .white, daylight)
+                self.horizonLayerMaterial?.multiply.contents = self.ngoredBlend(
+                    UIColor(red: 0.16, green: 0.19, blue: 0.25, alpha: 1),
+                    .white, daylight)
+                let overall = (Float(cycle) + localProgress) / Float(cycles)
+                let rawGrowth = growthFrom + (growthTo - growthFrom) * overall
+                let growth = HomeSceneRenderer.riceGrowthAmount(rawGrowth)
+                for plant in self.ngoredRiceRoots {
+                    for blade in plant.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes ?? [] {
+                        blade.morpher?.setWeight(CGFloat(growth), forTargetAt: 0)
+                    }
+                    for panicle in plant.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes ?? [] {
+                        panicle.opacity = CGFloat(growth)
+                        panicle.scale = SCNVector3(growth, growth, growth)
+                    }
+                }
+            }
+        } + [.run { _ in completion() }])
+        sunSystemRoot.runAction(sequence, forKey: "ngoredDayNight")
+    }
+
+    func presentNgoredDaytime() {
+        sunSystemRoot.removeAction(forKey: "ngoredDayNight")
+        let overhead = SCNVector3(0, soilY + 8.0, -15.5)
+        let settle = SCNAction.move(to: overhead, duration: reduceMotion ? 0.05 : 1.4)
+        settle.timingMode = .easeInEaseOut
+        sunSystemRoot.runAction(settle, forKey: "ngoredDayHold")
+        ngoredMoonRoot?.runAction(.fadeOut(duration: reduceMotion ? 0.05 : 0.8), forKey: "ngoredMoonSet")
+        sunDiskMaterial?.transparency = 1
+        sunHaloMaterial?.transparency = 1
+        sunSystemRoot.look(at: SCNVector3(0, soilY, 0))
+        sunKeyLight.intensity = 149
+        skyAmbientLight.intensity = 65
+        groundMaterial?.multiply.contents = UIColor.white
+        mountainLayerMaterial?.multiply.contents = UIColor.white
+        horizonLayerMaterial?.multiply.contents = UIColor.white
+        skyDomeMaterial?.multiply.contents = UIColor.white
+    }
+
+    private func ngoredBlend(_ night: UIColor, _ day: UIColor, _ daylight: Float) -> UIColor {
+        let amount = CGFloat(min(1, max(0, daylight)))
+        var nr: CGFloat = 0, ng: CGFloat = 0, nb: CGFloat = 0, na: CGFloat = 0
+        var dr: CGFloat = 0, dg: CGFloat = 0, db: CGFloat = 0, da: CGFloat = 0
+        night.getRed(&nr, green: &ng, blue: &nb, alpha: &na)
+        day.getRed(&dr, green: &dg, blue: &db, alpha: &da)
+        return UIColor(red: nr + (dr - nr) * amount, green: ng + (dg - ng) * amount,
+                       blue: nb + (db - nb) * amount, alpha: 1)
+    }
+
+    private func makeNgoredMoonSprite() -> UIImage {
+        let size = CGSize(width: 128, height: 128)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            let cg = context.cgContext
+            let center = CGPoint(x: 64, y: 64)
+            let colors = [UIColor.white.withAlphaComponent(0.12).cgColor,
+                          UIColor.clear.cgColor] as CFArray
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                      colors: colors, locations: [0, 1])!
+            cg.drawRadialGradient(gradient, startCenter: center, startRadius: 14,
+                                  endCenter: center, endRadius: 63, options: [])
+            let disk = CGRect(x: 48, y: 48, width: 32, height: 32)
+            cg.saveGState(); cg.addEllipse(in: disk); cg.clip()
+            cg.drawLinearGradient(CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [UIColor(red: 0.95, green: 0.94, blue: 0.89, alpha: 1).cgColor,
+                         UIColor(red: 0.60, green: 0.65, blue: 0.72, alpha: 1).cgColor] as CFArray,
+                locations: [0, 1])!, start: CGPoint(x: 48, y: 48), end: CGPoint(x: 80, y: 80), options: [])
+            for i in 0..<18 {
+                let x = CGFloat((i * 37 + 11) % 29) + 49
+                let y = CGFloat((i * 19 + 7) % 29) + 49
+                let r: CGFloat = i.isMultiple(of: 4) ? 2.0 : 0.7
+                cg.setFillColor(UIColor(red: 0.25, green: 0.29, blue: 0.34, alpha: 0.13).cgColor)
+                cg.fillEllipse(in: CGRect(x: x, y: y, width: r * 2, height: r * 1.4))
+            }
+            cg.restoreGState()
         }
     }
 
@@ -957,6 +1172,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func setNgoredRain(_ active: Bool) {
+        ngoredRainRequested = active
         SCNTransaction.begin()
         SCNTransaction.animationDuration = reduceMotion ? 0 : 1.2
         groundMaterial?.multiply.contents = active
@@ -1437,8 +1653,26 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === lookPan { return true }
         guard gestureRecognizer is UIPanGestureRecognizer else { return true }
         return stage == .clearing
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        gestureRecognizer === lookPan || otherGestureRecognizer === lookPan
+    }
+
+    @objc private func adjustCameraLook(_ gesture: UIPanGestureRecognizer) {
+        guard gesture === lookPan, !suspended, let view else { return }
+        let point = gesture.location(in: view)
+        if gesture.state == .began { lastLookPanPoint = point; return }
+        guard gesture.state == .changed else { return }
+        let delta = CGPoint(x: point.x - lastLookPanPoint.x, y: point.y - lastLookPanPoint.y)
+        lastLookPanPoint = point
+        yaw -= Float(delta.x) * 0.004
+        // Finger-up should tilt the view toward the sky, finger-down toward the soil.
+        pitch = min(1.12, max(-0.78, pitch - Float(delta.y) * 0.006))
+        updatePreviewCamera()
     }
 
     @objc private func swipedToCut(_ gesture: UIPanGestureRecognizer) {
@@ -1537,6 +1771,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     func applyMotionLook(_ relative: simd_quatf) {
         guard !suspended else { return }
         let combined = simd_normalize(motionReference * relative)
+        let forward = combined.act(SIMD3<Float>(0, 0, -1))
+        motionPitch = min(0.85, max(-0.85, asin(min(1, max(-1, forward.y)))))
         let yawVector = SIMD4<Float>(0, combined.imag.y, 0, combined.real)
         let yawLength = simd_length(yawVector)
         motionOrientation = yawLength > 0.0001
@@ -1548,6 +1784,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     func recenterLook() {
         yaw = 0
         pitch = -0.14
+        motionPitch = 0
         motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
         motionReference = motionOrientation
         updatePreviewCamera()
@@ -1558,7 +1795,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let horizontalOrientation = simd_normalize(
             simd_quatf(angle: yaw, axis: [0, 1, 0]) * motionOrientation
         )
-        let combinedOrientation = horizontalOrientation * simd_quatf(angle: pitch, axis: [1, 0, 0])
+        let combinedOrientation = horizontalOrientation * simd_quatf(angle: pitch + motionPitch, axis: [1, 0, 0])
         cameraNode.simdOrientation = combinedOrientation
 
         let forward = horizontalOrientation.act(SIMD3<Float>(0, 0, -1))
@@ -1970,10 +2207,20 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             entry.directionalShadow.isHidden = true
         }
         groundMaterial?.multiply.contents = UIColor.white
+        // Begin in daylight with the sun already visible at the start of its
+        // left-to-right overhead path, instead of rising from behind the ridge.
+        sunSystemRoot.position = SCNVector3(-3.5, soilY + 7.0, -15.5)
+        sunSystemRoot.look(at: SCNVector3(0, soilY, 0))
+        sunDiskMaterial?.transparency = 1
+        sunHaloMaterial?.transparency = 1
+        ngoredMoonRoot?.opacity = 0
         // Hide the generic grass ring. Only four cuttable weeds and three padi plants remain.
         wildRoot.isHidden = true
         wildRoot.opacity = 0
-        ngoredWeedRoots.forEach { $0.isHidden = false; $0.opacity = 1 }
+        for (index, weed) in ngoredWeedRoots.enumerated() {
+            weed.isHidden = index >= 4
+            weed.opacity = 1
+        }
         progress = 0
     }
 

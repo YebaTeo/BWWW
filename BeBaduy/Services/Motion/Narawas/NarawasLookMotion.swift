@@ -21,13 +21,8 @@ struct NarawasLookMotion {
             return filtered
         }
         let delta = simd_normalize(reference.inverse * orientation)
-        let yawVector = SIMD4<Float>(0, delta.imag.y, 0, delta.real)
-        let yawLength = simd_length(yawVector)
-        let horizontalDelta = yawLength > 0.0001
-            ? simd_quatf(vector: yawVector / yawLength)
-            : simd_quatf(angle: 0, axis: [0, 1, 0])
         let blend = Float(1 - exp(-elapsed / 0.06))
-        filtered = simd_normalize(simd_slerp(filtered, horizontalDelta, blend))
+        filtered = simd_normalize(simd_slerp(filtered, delta, blend))
         return filtered
     }
 }

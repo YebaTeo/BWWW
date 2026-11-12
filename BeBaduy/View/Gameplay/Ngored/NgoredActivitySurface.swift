@@ -4,12 +4,59 @@ struct NgoredActivitySurface: View {
     @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @State private var toolCenter: CGPoint?
-    @State private var dragOrigin: CGPoint?
-    @State private var strokeTracker = KoredStrokeTracker()
+    @State private var isHoldingKored = false
+    @State private var holdTask: Task<Void, Never>?
+    @State private var koredSwingCount = 0
     private func spot(_ index: Int, _ size: CGSize) -> CGPoint {
         CGPoint(x: size.width * (0.17 + CGFloat(index % 4) * 0.22),
                 y: size.height * (index < 4 ? 0.57 : 0.72))
+    }
+
+    private func cutAtKoredTip(in size: CGSize) {
+        guard model.step == .weeding || model.step == .secondWeeding else { return }
+        let points = model.scene.projectedNgoredWeedPoints()
+        let range = model.step == .secondWeeding ? 4..<7 : 0..<4
+        let koredCenterY = size.height * 0.33 + (size.height * 0.66 + 16) / 2
+        let tip = CGPoint(x: size.width - 110, y: koredCenterY - size.height * 0.24)
+        koredSwingCount &+= 1
+        func distance(_ point: CGPoint) -> CGFloat {
+            hypot(point.x - tip.x, point.y - tip.y)
+        }
+        guard let target = range
+            .filter({ !model.removed.contains($0) && points.indices.contains($0) })
+            .min(by: { distance(points[$0]) < distance(points[$1]) }),
+              distance(points[target]) < 108 else {
+            model.session.feedback = "Arahkan mata kored ke gulma, lalu tap atau tahan."
+            return
+        }
+        model.remove(target)
+    }
+
+    private func beginKoredHold(in size: CGSize) {
+        guard !isHoldingKored else { return }
+        isHoldingKored = true
+        holdTask?.cancel()
+        holdTask = Task { @MainActor in
+            while !Task.isCancelled && isHoldingKored {
+                cutAtKoredTip(in: size)
+                do { try await Task.sleep(for: .milliseconds(560)) } catch { return }
+            }
+        }
+    }
+
+    private func endKoredHold() {
+        isHoldingKored = false
+        holdTask?.cancel()
+        holdTask = nil
+    }
+
+    private func shouldDismissCard(for step: NgoredViewModel.Step) -> Bool {
+        switch step {
+        case .weeding, .rain, .cycles, .finalRain, .finalCycles, .secondWeeding:
+            true
+        case .initialRain, .cleared, .secondCleared, .complete:
+            false
+        }
     }
     var body: some View {
         GeometryReader { geometry in
@@ -20,10 +67,11 @@ struct NgoredActivitySurface: View {
                     .accessibilityHidden(true)
                 TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active)) { _ in
                     let points = model.scene.projectedNgoredWeedPoints()
-                ForEach(0..<4) { index in
+                ForEach(0..<7) { index in
+                        let activeRange = model.step == .secondWeeding ? 4..<7 : 0..<4
                         let cut = model.removed.contains(index)
                         let hits = model.strokes[index] ?? 0
-                        if !cut, points.indices.contains(index) {
+                        if activeRange.contains(index), !cut, points.indices.contains(index) {
                             let pt = points[index]
                             if pt.x > 0 && pt.y > 0 && pt.x < geometry.size.width && pt.y < geometry.size.height {
                                 Text("\(hits)/3")
@@ -41,7 +89,10 @@ struct NgoredActivitySurface: View {
                         }
                     }
                 }
-                if model.step == .weeding {
+                if model.step == .weeding || model.step == .secondWeeding {
+                    let roundCount = model.step == .secondWeeding
+                        ? (4..<7).filter { model.removed.contains($0) }.count
+                        : (0..<4).filter { model.removed.contains($0) }.count
                     Button { model.remove(8) } label: {
                         Label("Padi · pertahankan", systemImage: "leaf")
                             .font(.subheadline.weight(.semibold)).padding(12)
@@ -50,7 +101,7 @@ struct NgoredActivitySurface: View {
                         .position(x: geometry.size.width / 2, y: geometry.size.height * 0.43)
                     VStack(spacing: 6) {
                         Text("Pegang dan geser kored").font(.headline)
-                        Text("Tiga sapuan ke bawah per gulma · \(model.removed.count)/4 bersih").font(.subheadline)
+                        Text("Tiga sapuan ke bawah per gulma · \(roundCount)/\(model.step == .secondWeeding ? 3 : 4) bersih").font(.subheadline)
                         if model.session.feedback.hasPrefix("Ini padi") {
                             Text(model.session.feedback).font(.subheadline.bold())
                                 .accessibilityIdentifier("ngored.rice.feedback")
@@ -60,28 +111,38 @@ struct NgoredActivitySurface: View {
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
                 }
-                if model.step == .weeding {
-                    let initial = spot(0, geometry.size)
-                    let center = toolCenter ?? CGPoint(x: initial.x + 10, y: initial.y - 18)
+                if (model.step == .weeding || model.step == .secondWeeding), card.mode == .hidden {
                     ZStack {
-                        KoredTool(isDragging: dragOrigin != nil && !reduceMotion).frame(width: 62, height: 118).allowsHitTesting(false)
-                        KoredDragHandle(move: { translation in
-                            guard model.session.isActive, !model.isDemonstrating else { return }
-                            if dragOrigin == nil {
-                                dragOrigin = center; strokeTracker.reset()
-                                _ = strokeTracker.move(blade: CGPoint(x: center.x - 10, y: center.y + 48), targets: [], removed: [])
-                            }
-                            guard let origin = dragOrigin else { return }
-                            let next = CGPoint(x: min(geometry.size.width - 30, max(30, origin.x + translation.width)),
-                                               y: min(geometry.size.height - 145, max(90, origin.y + translation.height)))
-                            toolCenter = next
-                            let targets = model.scene.projectedNgoredWeedPoints()
-                            if let hit = strokeTracker.move(blade: CGPoint(x: next.x - 10, y: next.y + 48), targets: targets, removed: model.removed) {
-                                model.remove(hit)
-                            }
-                        }, end: { dragOrigin = nil; strokeTracker.reset() })
-                    }.frame(width: 82, height: 138)
-                        .position(center)
+                        KoredTool(isDragging: isHoldingKored, swingCount: koredSwingCount)
+                            // The render surface includes space for the entire swing;
+                            // the enclosing frame still anchors input at the right edge.
+                            .frame(width: geometry.size.width, height: geometry.size.height * 0.66)
+                            .scaleEffect(x: 1, y: -1)
+                            .allowsHitTesting(false)
+                        Circle()
+                            .stroke(.white.opacity(isHoldingKored ? 0.78 : 0.32), lineWidth: isHoldingKored ? 2 : 1)
+                            .frame(width: isHoldingKored ? 34 : 26, height: isHoldingKored ? 34 : 26)
+                            .shadow(color: .white.opacity(isHoldingKored ? 0.5 : 0.15), radius: isHoldingKored ? 8 : 3)
+                            .offset(x: -28, y: -geometry.size.height * 0.24)
+                    }
+                    .frame(width: 164, height: geometry.size.height * 0.66 + 16)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard !model.isDemonstrating else { return }
+                        cutAtKoredTip(in: geometry.size)
+                    }
+                    .onLongPressGesture(minimumDuration: 0.35, pressing: { pressing in
+                        if !pressing { endKoredHold() }
+                    }, perform: {
+                        guard !model.isDemonstrating else { return }
+                        beginKoredHold(in: geometry.size)
+                    })
+                    .position(x: geometry.size.width - 82,
+                              y: geometry.size.height * 0.33 + (geometry.size.height * 0.66 + 16) / 2)
+                    .accessibilityElement()
+                    .accessibilityLabel("Kored")
+                    .accessibilityHint("Tap atau tahan untuk memotong gulma yang berada di ujung mata kored")
+                    .accessibilityIdentifier("field.kored")
                 }
             }.contentShape(Rectangle()).coordinateSpace(name: "ngored.field").disabled(model.isDemonstrating)
 
@@ -94,14 +155,14 @@ struct NgoredActivitySurface: View {
         .onChange(of: reduceMotion) { _, value in model.configureLookMotion(reduceMotion: value) }
         .onChange(of: scenePhase) { _, value in model.setVisible(value == .active) }
         .onChange(of: card.mode) { _, mode in
-            if mode != .hidden { dragOrigin = nil; strokeTracker.reset() }
+            if mode != .hidden { endKoredHold() }
         }
+        .onDisappear { endKoredHold() }
         .onChange(of: model.step) { _, step in
-            if step == .rain { card.dismiss() }
+            if shouldDismissCard(for: step) { card.dismiss() }
         }
         .task(id: model.removed) {
-            if model.removed.isEmpty && model.strokes.isEmpty { toolCenter = nil; dragOrigin = nil; strokeTracker.reset() }
-            if model.step == .cleared {
+            if model.step == .cleared || model.step == .secondCleared {
                 do { try await Task.sleep(for: .milliseconds(900)) } catch { return }
                 card.showInstruction()
             }

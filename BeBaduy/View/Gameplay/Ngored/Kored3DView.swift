@@ -11,14 +11,16 @@ import simd
 /// - PBR metallic reflection and realistic directional lighting
 struct Kored3DView: View {
     var isDragging = false
+    var swingCount = 0
     var body: some View {
-        KoredSceneView(isDragging: isDragging)
+        KoredSceneView(isDragging: isDragging, swingCount: swingCount)
             .accessibilityHidden(true)
     }
 }
 
 private struct KoredSceneView: UIViewRepresentable {
     let isDragging: Bool
+    let swingCount: Int
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
@@ -37,7 +39,7 @@ private struct KoredSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        context.coordinator.setDragging(isDragging)
+        context.coordinator.update(isDragging: isDragging, swingCount: swingCount)
     }
 
     static func dismantleUIView(_ view: SCNView, coordinator: Coordinator) {
@@ -48,9 +50,19 @@ private struct KoredSceneView: UIViewRepresentable {
         private weak var scnView: SCNView?
         private var tool: SCNNode?
         private var dragging = false
+        private var lastSwingCount = 0
 
-        func setDragging(_ value: Bool) {
-            guard value != dragging, let tool else { return }
+        func update(isDragging value: Bool, swingCount: Int) {
+            guard let tool else { return }
+            if swingCount != lastSwingCount {
+                lastSwingCount = swingCount
+                let dip = SCNAction.rotateTo(x: 0.82, y: -0.78, z: -0.16, duration: 0.11, usesShortestUnitArc: true)
+                dip.timingMode = .easeIn
+                let recover = SCNAction.rotateTo(x: 0.24, y: -0.32, z: -0.42, duration: 0.22, usesShortestUnitArc: true)
+                recover.timingMode = .easeOut
+                tool.runAction(.sequence([dip, recover]), forKey: "koredSwing")
+            }
+            guard value != dragging else { return }
             dragging = value
             let rotation = SCNAction.rotateTo(x: value ? 0.45 : 0.24,
                                               y: value ? -0.65 : -0.32,
@@ -68,7 +80,9 @@ private struct KoredSceneView: UIViewRepresentable {
 
             // 1. Perspective Camera
             let camera = SCNCamera()
-            camera.fieldOfView = 36
+            // Fit the extended haft inside the tall portrait SceneKit viewport.
+            camera.fieldOfView = 50
+            camera.projectionDirection = .vertical
             camera.zNear = 0.05
             camera.zFar = 10.0
             camera.wantsHDR = false
@@ -76,8 +90,10 @@ private struct KoredSceneView: UIViewRepresentable {
 
             let cameraNode = SCNNode()
             cameraNode.camera = camera
-            cameraNode.position = SCNVector3(0, 0.15, 0.85)
-            cameraNode.look(at: SCNVector3(0, 0, 0))
+            // Center the framing on the full haft, whose top now rises above
+            // the blade root. Keeping the old low look-at point cropped it.
+            cameraNode.position = SCNVector3(0, 0.42, 1.45)
+            cameraNode.look(at: SCNVector3(0, 0.42, 0))
             scene.rootNode.addChildNode(cameraNode)
 
             // 2. Sunlight & Metallic Rim
@@ -142,11 +158,12 @@ private struct KoredSceneView: UIViewRepresentable {
             bladeMat.metalness.contents = 0.72
 
             // ── A. Ergonomic Hardwood Handle ─────────────────────────────
-            let handleGeo = SCNCapsule(capRadius: 0.024, height: 0.28)
+            // Longer, tapered wooden haft to match the supplied hoe reference.
+            let handleGeo = SCNCapsule(capRadius: 0.021, height: 0.92)
             handleGeo.radialSegmentCount = 32
             handleGeo.materials = [woodMat]
             let handleNode = SCNNode(geometry: handleGeo)
-            handleNode.position = SCNVector3(0.04, 0.12, 0)
+            handleNode.position = SCNVector3(0.04, 0.44, 0)
             handleNode.eulerAngles.z = 0.22
             koredRoot.addChildNode(handleNode)
 
@@ -155,11 +172,11 @@ private struct KoredSceneView: UIViewRepresentable {
             ferruleGeo.radialSegmentCount = 32
             ferruleGeo.materials = [ironMat]
             let ferruleNode = SCNNode(geometry: ferruleGeo)
-            ferruleNode.position = SCNVector3(0, -0.13, 0)
+            ferruleNode.position = SCNVector3(0, -0.44, 0)
             handleNode.addChildNode(ferruleNode)
 
             // A continuous bent shank joins the socket to the blade.
-            let socket = handleNode.convertPosition(SCNVector3(0, -0.13, 0), to: koredRoot)
+            let socket = handleNode.convertPosition(SCNVector3(0, -0.44, 0), to: koredRoot)
             let points: [SIMD3<Float>] = [
                 SIMD3(socket.x, socket.y, socket.z),
                 SIMD3(0.025, -0.045, 0), SIMD3(-0.025, -0.075, 0.012),
@@ -185,11 +202,11 @@ private struct KoredSceneView: UIViewRepresentable {
             // Curved forged blade: rounded shoulders, broad cutting belly,
             // extruded side walls and a bevel that catches the warm field light.
             let outline = UIBezierPath()
-            outline.move(to: CGPoint(x: -0.044, y: 0.032))
-            outline.addQuadCurve(to: CGPoint(x: 0.048, y: 0.032), controlPoint: CGPoint(x: 0, y: 0.040))
-            outline.addQuadCurve(to: CGPoint(x: 0.079, y: -0.028), controlPoint: CGPoint(x: 0.070, y: 0.012))
-            outline.addQuadCurve(to: CGPoint(x: -0.079, y: -0.028), controlPoint: CGPoint(x: 0, y: -0.055))
-            outline.addQuadCurve(to: CGPoint(x: -0.044, y: 0.032), controlPoint: CGPoint(x: -0.068, y: 0.012))
+            outline.move(to: CGPoint(x: -0.050, y: 0.035))
+            outline.addQuadCurve(to: CGPoint(x: 0.050, y: 0.035), controlPoint: CGPoint(x: 0, y: 0.044))
+            outline.addQuadCurve(to: CGPoint(x: 0.100, y: -0.035), controlPoint: CGPoint(x: 0.090, y: 0.010))
+            outline.addQuadCurve(to: CGPoint(x: -0.100, y: -0.035), controlPoint: CGPoint(x: 0, y: -0.068))
+            outline.addQuadCurve(to: CGPoint(x: -0.050, y: 0.035), controlPoint: CGPoint(x: -0.090, y: 0.010))
             outline.close()
             let bladeGeo = SCNShape(path: outline, extrusionDepth: 0.012)
             bladeGeo.chamferRadius = 0.003
@@ -201,7 +218,7 @@ private struct KoredSceneView: UIViewRepresentable {
             edgeMat.roughness.contents = 0.35
             bladeGeo.materials = [bladeMat, bladeMat, ironMat, edgeMat, edgeMat]
             let bladeNode = SCNNode(geometry: bladeGeo)
-            bladeNode.position = SCNVector3(-0.09, -0.10, 0)
+            bladeNode.position = SCNVector3(-0.11, -0.17, 0)
             bladeNode.eulerAngles = SCNVector3(-0.15, 0.40, 0.35)
             koredRoot.addChildNode(bladeNode)
             tool = koredRoot
