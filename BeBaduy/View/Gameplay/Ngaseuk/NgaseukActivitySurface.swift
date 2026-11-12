@@ -6,8 +6,9 @@ struct NgaseukActivitySurface: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visibleDigCounts: [Int: Int] = [:]
     @State private var workingTarget: Int?
-    @State private var toolDepth: CGFloat = -70
+    @State private var toolDepth: CGFloat = -65
     @State private var isStroking = false
+    @State private var isSoilDisplacing = false
     @State private var seedDragLocation: CGPoint?
     @State private var seedDragOffset: CGSize = .zero
 
@@ -55,7 +56,7 @@ struct NgaseukActivitySurface: View {
                 }
                 if model.step == .digging || isStroking {
                     // Dynamic ground contact shadow connecting the 3D tool to the huma soil
-                    let penetration = max(0.0, min(1.0, (toolDepth + 70.0) / 70.0))
+                    let penetration = max(0.0, min(1.0, (toolDepth + 65.0) / 67.0))
                     let shadowW: CGFloat = 46.0 * (0.75 + 0.35 * (1.0 - penetration))
                     let shadowH: CGFloat = 20.0 * (0.75 + 0.35 * (1.0 - penetration))
                     let shadowAlpha: Double = 0.22 + 0.48 * penetration
@@ -77,11 +78,20 @@ struct NgaseukActivitySurface: View {
                         .allowsHitTesting(false)
                         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)
 
-                    AseukTool(autoRotate: isStroking && !reduceMotion, rotationSpeed: 4.5)
+                    AseukTool(autoRotate: isStroking && !reduceMotion, rotationSpeed: 4.5,
+                              pitch: 0, yaw: 0, roll: 0)
                         .frame(width: 110, height: toolHeight)
-                        .position(x: point.x, y: point.y - toolHeight / 2 + toolDepth)
+                        // Align the rendered 3D tip precisely so that at maximum stroke it stops inside the hole cavity
+                        .position(x: point.x, y: point.y - toolHeight * 0.50 + toolDepth)
                         .allowsHitTesting(false)
                         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)
+
+                    if isSoilDisplacing {
+                        SoilStrikeSplashEffect()
+                            .position(point)
+                            .allowsHitTesting(false)
+                            .zIndex(3)
+                    }
                 }
                 if model.step == .instructions {
                     tutorial
@@ -221,34 +231,93 @@ struct NgaseukActivitySurface: View {
     @MainActor private func showStroke() async {
         let count = model.digCounts[model.lastDug, default: 0]
         guard count > visibleDigCounts[model.lastDug, default: 0] else {
-            if model.digCounts.isEmpty { workingTarget = nil; isStroking = false; toolDepth = -70 }
+            if model.digCounts.isEmpty { workingTarget = nil; isStroking = false; toolDepth = -65 }
             return
         }
         let index = model.lastDug
         workingTarget = index
         isStroking = true
-        toolDepth = -70
+        toolDepth = -65
         if !reduceMotion {
             // Windup: slight backward raise
-            withAnimation(.easeOut(duration: 0.12)) { toolDepth = -92 }
+            withAnimation(.easeOut(duration: 0.12)) { toolDepth = -88 }
             do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
 
-            // Powerful downward strike into soil
-            withAnimation(.easeIn(duration: 0.16)) { toolDepth = 22 }
+            // Powerful downward strike into the hole cavity (stops strictly inside hole)
+            withAnimation(.easeIn(duration: 0.16)) { toolDepth = 2 }
             do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+        } else {
+            toolDepth = 2
         }
-        withAnimation(.easeOut(duration: 0.22)) { visibleDigCounts[index] = count }
-        if !reduceMotion {
-            // Dwell in soil
-            do { try await Task.sleep(for: .milliseconds(130)) } catch { return }
 
-            // Spring recoil retraction
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) { toolDepth = -70 }
-            do { try await Task.sleep(for: .milliseconds(320)) } catch { return }
+        // Impact moment: soil heaves upward around the piercing tip inside the hole
+        isSoilDisplacing = true
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        withAnimation(.easeOut(duration: 0.22)) { visibleDigCounts[index] = count }
+
+        if !reduceMotion {
+            // Dwell momentarily inside hole as displaced earth settles
+            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+
+            // Spring recoil retraction back above hole
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) {
+                toolDepth = -65
+                isSoilDisplacing = false
+            }
+            do { try await Task.sleep(for: .milliseconds(280)) } catch { return }
+        } else {
+            isSoilDisplacing = false
+            toolDepth = -65
         }
         isStroking = false
         workingTarget = nil
-        toolDepth = -70
+        toolDepth = -65
         if model.step == .holesReady { card.showInstruction() }
+    }
+}
+
+/// Pure soil splash particle effect ("percikan tanah") when the Aseuk stabs the ground.
+private struct SoilStrikeSplashEffect: View {
+    @State private var splashing = false
+
+    // Randomized but deterministic directions for natural organic dirt splash
+    private let particles: [(angle: Double, distance: CGFloat, lift: CGFloat, size: CGFloat, isDark: Bool)] = [
+        (-2.2, 18.0, -16.0, 2.5, false),
+        (-1.6, 24.0, -22.0, 3.2, true),
+        (-1.1, 19.0, -18.0, 2.0, false),
+        (-0.5, 26.0, -20.0, 3.0, true),
+        (-2.8, 14.0, -11.0, 2.2, false),
+        (-0.2, 17.0, -12.0, 2.6, true),
+        (-1.9, 28.0, -24.0, 2.8, false),
+        (-1.3, 30.0, -25.0, 3.5, true),
+        (-0.8, 22.0, -17.0, 2.4, false),
+        (-2.5, 21.0, -14.0, 2.0, true)
+    ]
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<particles.count, id: \.self) { i in
+                let p = particles[i]
+                let color = p.isDark
+                    ? Color(red: 0.22, green: 0.13, blue: 0.07)
+                    : Color(red: 0.36, green: 0.23, blue: 0.14)
+
+                Circle()
+                    .fill(color)
+                    .frame(width: p.size, height: p.size)
+                    .offset(
+                        x: splashing ? cos(p.angle) * p.distance : 0,
+                        y: splashing ? sin(p.angle) * (p.distance * 0.4) + p.lift : 0
+                    )
+                    .scaleEffect(splashing ? 0.70 : 1.25)
+                    .opacity(splashing ? 0.0 : 0.95)
+            }
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.30)) {
+                splashing = true
+            }
+        }
     }
 }

@@ -5,9 +5,13 @@ struct AseukTool: View {
     var interactive: Bool = false
     var autoRotate: Bool = false
     var rotationSpeed: Float = 0.55
+    var pitch: Float = 0.22
+    var yaw: Float = 0.45
+    var roll: Float = -0.08
 
     var body: some View {
-        Aseuk3DView(interactive: interactive, autoRotate: autoRotate, rotationSpeed: rotationSpeed)
+        Aseuk3DView(interactive: interactive, autoRotate: autoRotate, rotationSpeed: rotationSpeed,
+                    defaultPitch: pitch, defaultYaw: yaw, defaultRoll: roll)
             .accessibilityHidden(true)
     }
 }
