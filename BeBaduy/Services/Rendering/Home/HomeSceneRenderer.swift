@@ -3201,7 +3201,8 @@ final class HomeSceneRenderer: NSObject {
         // Keep the crossbar near its original world height as the landscape
         // activity enlarges it. Scaling the whole root from the soil pushed
         // the bamboo and rice above the camera's frame.
-        storageRackTopRoot.position.y = showsRackPosts ? 0.58 : 0.73 / rackScale
+        let rackTopY: Float = showsRackPosts ? 0.58 : (rackScale > 1.0 ? 0.73 / rackScale : 0.52)
+        storageRackTopRoot.position.y = rackTopY
         storageRackPosts.forEach { $0.isHidden = !showsRackPosts }
         storageRackBraces.forEach { $0.isHidden = !showsRackPosts }
         if rackTopCastsShadow != showsRackPosts {
@@ -3366,7 +3367,15 @@ final class HomeSceneRenderer: NSObject {
         let liftCamLook = 0.035 * liftT * (1.0 - settleOnTarp)
         let activityLookY: Float = -0.12 + 0.25 * rackCamRise
         let homeLookY: Float = 0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise
-        let cropLookY = showsRackPosts ? homeLookY : activityLookY
+        let isPortraitDrying = rackScale <= 1.0 && fullP >= 0.93
+        let cropLookY: Float
+        if isPortraitDrying {
+            cropLookY = homeLookY + 0.06
+        } else if showsRackPosts {
+            cropLookY = homeLookY
+        } else {
+            cropLookY = activityLookY
+        }
         let targetLookY: Float = cropLookY * (1.0 - storageFraming) + 0.12 * storageFraming
         let targetLookX: Float = (0.02 * (1.0 - rackCamRise) * (1.0 - storageFraming))
 
