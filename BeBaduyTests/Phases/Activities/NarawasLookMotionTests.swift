@@ -26,6 +26,22 @@ final class NarawasLookMotionTests: XCTestCase {
         look.reset()
         XCTAssertEqual(try XCTUnwrap(look.consume(sample(2, simd_quatd(angle: 1, axis: [1, 0, 0])))).angle, 0, accuracy: 0.001)
     }
+    func testGyroRestrictsToHorizontalLeftRightOnly() throws {
+        var look = NarawasLookMotion()
+        _ = look.consume(sample(0, simd_quatd(angle: 0, axis: [0, 1, 0])))
+        let purePitch = try XCTUnwrap(look.consume(sample(0.1, simd_quatd(angle: 0.6, axis: [1, 0, 0]))))
+        XCTAssertEqual(purePitch.angle, 0, accuracy: 0.001)
+        let pureRoll = try XCTUnwrap(look.consume(sample(0.2, simd_quatd(angle: 0.4, axis: [0, 0, 1]))))
+        XCTAssertEqual(pureRoll.angle, 0, accuracy: 0.001)
+
+        let combined3D = simd_quatd(angle: 0.5, axis: [0, 1, 0])
+            * simd_quatd(angle: 0.6, axis: [1, 0, 0])
+            * simd_quatd(angle: 0.4, axis: [0, 0, 1])
+        let yawResult = try XCTUnwrap(look.consume(sample(0.3, combined3D)))
+        XCTAssertEqual(yawResult.imag.x, 0, accuracy: 0.0001)
+        XCTAssertEqual(yawResult.imag.z, 0, accuracy: 0.0001)
+        XCTAssertGreaterThan(abs(yawResult.imag.y), 0.1)
+    }
     @MainActor func testMotionLifecycleRecenterAndLateCallback() {
         let motion = FakeMotion()
         let model = NarawasViewModel(motion: motion)

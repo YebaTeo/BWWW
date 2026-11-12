@@ -36,7 +36,14 @@ import XCTest
         vm.collect(3)
         XCTAssertTrue(vm.collected.isEmpty)
         for index in 0..<NarawasViewModel.treeCount {
+            for tap in 1..<NarawasViewModel.tapsPerTree {
+                vm.collect(index)
+                XCTAssertEqual(vm.treeTapCounts[index], tap)
+                XCTAssertFalse(vm.collected.contains(index))
+            }
             vm.collect(index)
+            XCTAssertEqual(vm.treeTapCounts[index], NarawasViewModel.tapsPerTree)
+            XCTAssertTrue(vm.collected.contains(index))
         }
         XCTAssertEqual(vm.collected.count, NarawasViewModel.treeCount)
         XCTAssertEqual(vm.stage, .prepared)

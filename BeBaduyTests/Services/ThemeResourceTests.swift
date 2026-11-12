@@ -11,6 +11,8 @@ final class ThemeResourceTests: XCTestCase {
                 XCTAssertGreaterThan(image?.size.width ?? 0, 0)
             }
         }
+        XCTAssertNotNil(Bundle.main.url(forResource: "ngahuma-fire", withExtension: "wav"))
+        XCTAssertNotNil(Bundle.main.url(forResource: "ngahuma-ignite", withExtension: "wav"))
     }
     @MainActor func testThemeOpacityAndPrimaryButtonContrast() throws {
         for style in [UIUserInterfaceStyle.light, .dark] {

@@ -87,8 +87,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private var treeEntries: [TreeEntry] = []
+    private var treeChopStartTimes: [Int: Double] = [:]
+    private var treeChopProgress: [Int: Float] = [:]
     private var treeCutStartTimes: [Int: Double] = [:]
     private var crackedTrees = Set<Int>()
+    private var fallingSoundTrees = Set<Int>()
     private var impactedTrees = Set<Int>()
     private var charredPatches = Set<Int>()
     private var blades: [Blade] = []
@@ -116,6 +119,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private var tap: UITapGestureRecognizer?
     private var pan: UIPanGestureRecognizer?
+    private var swipeAnchorPoint: CGPoint = .zero
+    private var lastSwipePoint: CGPoint = .zero
+    private var lastSlashDirection: CGVector = .zero
+    private var slashedInCurrentStroke = false
     private(set) var motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var motionReference = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var yaw: Float = 0
@@ -147,7 +154,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         view.addGestureRecognizer(tap)
         self.tap = tap
 
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(lookAround(_:)))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(swipedToCut(_:)))
         pan.delegate = self
         view.addGestureRecognizer(pan)
         self.pan = pan
@@ -260,8 +267,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         ashRoot.childNodes.forEach { $0.removeFromParentNode() }
 
         treeEntries.removeAll()
+        treeChopStartTimes.removeAll()
+        treeChopProgress.removeAll()
         treeCutStartTimes.removeAll()
         crackedTrees.removeAll()
+        fallingSoundTrees.removeAll()
         impactedTrees.removeAll()
         charredPatches.removeAll()
         blades.removeAll()
@@ -1098,69 +1108,145 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    // MARK: - User Interactions (Tap to Cut Tree, Pan & Motion to Look 360°, Ignite & Burn)
+    // MARK: - User Interactions (Swipe to Cut Tree, Motion to Look Left/Right, Tap to Ignite & Burn)
 
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         guard let view, !suspended else { return }
-        if stage == .prepared || stage == .burning {
-            let point = gesture.location(in: view)
-            let near = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 0))
-            let far = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 1))
-            let direction = SIMD3<Float>(far.x - near.x, far.y - near.y, far.z - near.z)
-            guard direction.y < -0.0001 else { return }
-            let t = (soilY - near.y) / direction.y
-            guard t >= 0 else { return }
-            let ground = SIMD2<Float>(near.x + direction.x * t, near.z + direction.z * t)
-            if let index = patchPositions.indices.min(by: {
-                simd_distance(ground, SIMD2(patchPositions[$0].x, patchPositions[$0].z)) < simd_distance(ground, SIMD2(patchPositions[$1].x, patchPositions[$1].z))
-            }), simd_distance(ground, SIMD2(patchPositions[index].x, patchPositions[index].z)) < 0.85 {
-                onIgnitionRequested?(index)
-            }
-            return
+        guard stage == .prepared || stage == .burning else { return }
+        let point = gesture.location(in: view)
+        let near = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 0))
+        let far = view.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 1))
+        let direction = SIMD3<Float>(far.x - near.x, far.y - near.y, far.z - near.z)
+        guard direction.y < -0.0001 else { return }
+        let t = (soilY - near.y) / direction.y
+        guard t >= 0 else { return }
+        let ground = SIMD2<Float>(near.x + direction.x * t, near.z + direction.z * t)
+        if let index = patchPositions.indices.min(by: {
+            simd_distance(ground, SIMD2(patchPositions[$0].x, patchPositions[$0].z)) < simd_distance(ground, SIMD2(patchPositions[$1].x, patchPositions[$1].z))
+        }), simd_distance(ground, SIMD2(patchPositions[index].x, patchPositions[index].z)) < 0.85 {
+            onIgnitionRequested?(index)
         }
-        guard stage == .clearing else { return }
-        let location = gesture.location(in: view)
-        let hits = view.hitTest(location, options: [
-            SCNHitTestOption.boundingBoxOnly: true,
-            SCNHitTestOption.searchMode: SCNHitTestSearchMode.all.rawValue
-        ])
-        for hit in hits {
-            var current: SCNNode? = hit.node
-            while let node = current {
-                if let name = node.name, name.hasPrefix("patch-"),
-                   let index = Int(name.dropFirst(6)) {
-                    onTreeTapped?(index)
-                    return
-                }
-                current = node.parent
-            }
+    }
+
+    func animateChop(_ index: Int, tapCount: Int, requiredTaps: Int) {
+        let chopFraction = Float(tapCount) / Float(max(1, requiredTaps))
+        treeChopProgress[index] = chopFraction
+        treeChopStartTimes[index] = CACurrentMediaTime()
+        feedback.impactOccurred(intensity: min(1.0, 0.45 + 0.10 * CGFloat(tapCount)))
+
+        if !reduceMotion, treeEntries.indices.contains(index) {
+            let entry = treeEntries[index]
+            let cutWorldPos = SCNVector3(
+                entry.worldBasePosition.x,
+                soilY + entry.pivotOrigin.y,
+                entry.worldBasePosition.z
+            )
+            emitCutSplinters(at: cutWorldPos)
         }
     }
 
     func animateCut(_ index: Int) {
-
-        feedback.impactOccurred(intensity: 0.65)
+        treeChopProgress[index] = 1.0
+        feedback.impactOccurred(intensity: 0.85)
         treeCutStartTimes[index] = CACurrentMediaTime()
 
         if reduceMotion, treeEntries.indices.contains(index) {
             applyTreeFallState(index: index, fallT: 1.0)
         }
-
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
-        let velocity = pan.velocity(in: view)
-        return abs(velocity.x) > abs(velocity.y)
+        guard gestureRecognizer is UIPanGestureRecognizer else { return true }
+        return stage == .clearing
     }
 
-    @objc private func lookAround(_ gesture: UIPanGestureRecognizer) {
-        guard let view else { return }
-        let movement = gesture.translation(in: view)
-        yaw -= Float(movement.x) * 0.005
-        pitch = min(0.75, max(-0.95, pitch + Float(movement.y) * 0.005))
-        gesture.setTranslation(.zero, in: view)
-        updatePreviewCamera()
+    @objc private func swipedToCut(_ gesture: UIPanGestureRecognizer) {
+        guard let view, !suspended, stage == .clearing else { return }
+        let currentPoint = gesture.location(in: view)
+
+        switch gesture.state {
+        case .began:
+            swipeAnchorPoint = currentPoint
+            lastSwipePoint = currentPoint
+            lastSlashDirection = .zero
+            slashedInCurrentStroke = false
+
+        case .changed:
+            let dx = currentPoint.x - swipeAnchorPoint.x
+            let dy = currentPoint.y - swipeAnchorPoint.y
+            let distFromAnchor = hypot(dx, dy)
+
+            if slashedInCurrentStroke {
+                let stepDx = currentPoint.x - lastSwipePoint.x
+                let stepDy = currentPoint.y - lastSwipePoint.y
+                let dot = stepDx * lastSlashDirection.dx + stepDy * lastSlashDirection.dy
+                if dot < -2.0 && distFromAnchor >= 22 {
+                    slashedInCurrentStroke = false
+                    swipeAnchorPoint = lastSwipePoint
+                }
+            }
+
+            if !slashedInCurrentStroke && distFromAnchor >= 16 {
+                if let index = hitTreeIndex(from: swipeAnchorPoint, to: currentPoint, in: view) {
+                    slashedInCurrentStroke = true
+                    let invLen = 1.0 / max(1.0, distFromAnchor)
+                    lastSlashDirection = CGVector(dx: dx * invLen, dy: dy * invLen)
+                    swipeAnchorPoint = currentPoint
+                    onTreeTapped?(index)
+                }
+            }
+            lastSwipePoint = currentPoint
+
+        default:
+            slashedInCurrentStroke = false
+            lastSlashDirection = .zero
+        }
+    }
+
+    private func hitTreeIndex(from start: CGPoint, to end: CGPoint, in view: SCNView) -> Int? {
+        let samples = 5
+        for step in 0...samples {
+            let t = CGFloat(step) / CGFloat(samples)
+            let point = CGPoint(
+                x: start.x + (end.x - start.x) * t,
+                y: start.y + (end.y - start.y) * t
+            )
+            let hits = view.hitTest(point, options: [
+                SCNHitTestOption.boundingBoxOnly: true,
+                SCNHitTestOption.searchMode: SCNHitTestSearchMode.all.rawValue
+            ])
+            for hit in hits {
+                var current: SCNNode? = hit.node
+                while let node = current {
+                    if let name = node.name, name.hasPrefix("patch-"),
+                       let index = Int(name.dropFirst(6)),
+                       treeCutStartTimes[index] == nil {
+                        return index
+                    }
+                    current = node.parent
+                }
+            }
+        }
+
+        // Fallback screen-space proximity check so fast slashes across a visible trunk always register
+        let mid = CGPoint(x: (start.x + end.x) * 0.5, y: (start.y + end.y) * 0.5)
+        for (index, entry) in treeEntries.enumerated() where treeCutStartTimes[index] == nil {
+            let trunkWorld = SCNVector3(
+                entry.worldBasePosition.x,
+                soilY + 0.42,
+                entry.worldBasePosition.z
+            )
+            let projected = view.projectPoint(trunkWorld)
+            guard projected.z > 0 && projected.z < 1.0 else { continue }
+            let screenX = CGFloat(projected.x)
+            let screenY = CGFloat(projected.y)
+            let minX = min(start.x, end.x) - 70
+            let maxX = max(start.x, end.x) + 70
+            if screenX >= minX && screenX <= maxX && abs(mid.y - screenY) <= 170 {
+                return index
+            }
+        }
+        return nil
     }
 
     func beginMotionLook() {
@@ -1169,7 +1255,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func applyMotionLook(_ relative: simd_quatf) {
         guard !suspended else { return }
-        motionOrientation = simd_normalize(motionReference * relative)
+        let combined = simd_normalize(motionReference * relative)
+        let yawVector = SIMD4<Float>(0, combined.imag.y, 0, combined.real)
+        let yawLength = simd_length(yawVector)
+        motionOrientation = yawLength > 0.0001
+            ? simd_quatf(vector: yawVector / yawLength)
+            : simd_quatf(angle: 0, axis: [0, 1, 0])
         updatePreviewCamera()
     }
 
@@ -1179,24 +1270,29 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
         motionReference = motionOrientation
         updatePreviewCamera()
+        feedback.impactOccurred(intensity: 0.45)
     }
 
     private func updatePreviewCamera() {
-        let combinedOrientation = simd_quatf(angle: yaw, axis: [0, 1, 0])
-            * simd_quatf(angle: pitch, axis: [1, 0, 0])
-            * motionOrientation
+        let horizontalOrientation = simd_normalize(
+            simd_quatf(angle: yaw, axis: [0, 1, 0]) * motionOrientation
+        )
+        let combinedOrientation = horizontalOrientation * simd_quatf(angle: pitch, axis: [1, 0, 0])
         cameraNode.simdOrientation = combinedOrientation
 
-        let forward = combinedOrientation.act(SIMD3<Float>(0, 0, -1))
+        let forward = horizontalOrientation.act(SIMD3<Float>(0, 0, -1))
         let parallaxOffset = SIMD3<Float>(-forward.x * 0.14, 0, -forward.z * 0.10)
         cameraNode.simdPosition = SIMD3<Float>(0, 0.54, 0) + parallaxOffset
     }
 
     // MARK: - Burning & Frame Update Loop
 
+    private static let burnDuration: Double = 8.0
+
     func animateIgnition(at index: Int) {
         reportedFireSettled = false
-        ignitionTimes[index] = elapsed - (reduceMotion ? 18 : 0)
+        ignitionTimes[index] = elapsed - (reduceMotion ? Self.burnDuration : 0)
+        ActivityAudio.shared.play(.ignite)
         if reduceMotion {
             if treeEntries.indices.contains(index) {
                 treeEntries[index].trunk.isHidden = true
@@ -1224,9 +1320,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         guard let url = audioURL ?? Bundle.main.url(forResource: "ngahuma-fire", withExtension: "wav"),
               audioPlayer == nil else { return }
         do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
             let player = try AVAudioPlayer(contentsOf: url)
             player.numberOfLoops = -1
-            player.volume = muted ? 0 : 0.45
+            player.volume = 0
             player.prepareToPlay()
             player.play()
             audioPlayer = player
@@ -1263,7 +1360,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let moteTime = reduceMotion ? Float(0) : windTime
         let burnCinderBoost: Float = stage == .burning ? ignited.map {
             let time = Float(patchBurnTime($0))
-            return smoothstep(0.0, 2.0, time) * (1.0 - smoothstep(13.5, 17.5, time))
+            return smoothstep(0.0, 1.2, time) * (1.0 - smoothstep(5.5, 7.8, time))
         }.max() ?? 0 : 0
         for mote in atmosphereMotes {
             let effectiveSpeed = mote.speed * (1.0 + burnCinderBoost * 2.5)
@@ -1281,10 +1378,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         guard stage == .burning else { return }
 
         elapsed += min(delta, 0.1)
-        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / 18, 1) } / Double(max(1, patchPositions.count))
+        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / Self.burnDuration, 1) } / Double(max(1, patchPositions.count))
 
         let flicker = 0.90 + 0.06 * sin(windTime * 4.1) + 0.04 * sin(windTime * 7.3)
-        let activePatch = ignited.filter { patchBurnTime($0) < 11.8 }.sorted().first ?? 0
+        let activePatch = ignited.filter { patchBurnTime($0) < 7.5 }.sorted().first ?? 0
         if patchPositions.indices.contains(activePatch) {
             let pos = patchPositions[activePatch]
             fireGlowNode.position = SCNVector3(pos.x, soilY + 0.25, pos.z)
@@ -1292,22 +1389,23 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         let fireEnvelope = ignited.map { index -> Float in
             let time = patchBurnTime(index)
-            return Float(min(1.0, time / 1.5) * max(0.0, min(1.0, (11.8 - time) / 3.5)))
+            return Float(min(1.0, max(0.0, (time - 0.12) / 0.85)) * max(0.0, min(1.0, (7.5 - time) / 2.2)))
         }.max() ?? 0
         fireLight.intensity = CGFloat(fireEnvelope * flicker * 380)
         if fireEnvelope > 0 && !muted {
+            audioPlayer?.volume = fireEnvelope * 0.48
             if audioPlayer?.isPlaying == false { audioPlayer?.play() }
         } else { audioPlayer?.pause() }
 
         for index in patchPositions.indices {
             let localTime = patchBurnTime(index)
-            let isBurningPatch = localTime > 0 && localTime < 8.2
-            let isSmokingPatch = localTime > 0 && localTime < 11.8
+            let isBurningPatch = localTime > 0 && localTime < 5.5
+            let isSmokingPatch = localTime > 0 && localTime < 7.5
 
             // Soft glowing ember bed disk on the soil beneath the fire
             if groundGlowNodes.indices.contains(index) {
                 let emberGlow = isBurningPatch
-                    ? CGFloat(min(1.0, Float(localTime) / 0.6) * max(0.0, (8.2 - Float(localTime)) / 2.0) * flicker)
+                    ? CGFloat(min(1.0, Float(localTime) / 0.5) * max(0.0, (5.5 - Float(localTime)) / 1.5) * flicker)
                     : 0
                 groundGlowNodes[index].opacity = emberGlow * 0.92
                 groundGlowNodes[index].isHidden = emberGlow < 0.005
@@ -1317,8 +1415,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let baseEmitterIdx = index * 7
             for sub in 0..<7 {
                 let sysIdx = baseEmitterIdx + sub
-                let subDelay = Double(sub % 4) * 0.12
-                let subBurn = (localTime - subDelay) > 0 && (localTime - subDelay) < 8.2
+                let subDelay = Double(sub % 4) * 0.10
+                let subBurn = (localTime - subDelay) > 0 && (localTime - subDelay) < 5.5
                 if flameSystems.indices.contains(sysIdx) {
                     flameSystems[sysIdx].birthRate = (subBurn && !reduceMotion && isBurningPatch) ? 46 : 0
                 }
@@ -1330,8 +1428,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 smokeSystems[index].birthRate = (!reduceMotion && isSmokingPatch) ? 8 : 0
             }
 
-            if localTime > 0 && localTime < 3.5 {
-                let burnFraction = Float(min(1.0, localTime / 3.5))
+            if localTime > 0 && localTime < 2.5 {
+                let burnFraction = Float(min(1.0, localTime / 2.5))
                 if treeEntries.indices.contains(index) {
                     let entry = treeEntries[index]
                     let rootAnchor = entry.rootAnchor
@@ -1361,7 +1459,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                     }
                     rootAnchor.opacity = CGFloat(max(0.0, 1.0 - burnFraction * 0.90))
                 }
-            } else if localTime >= 3.5, charredPatches.insert(index).inserted {
+            } else if localTime >= 2.5, charredPatches.insert(index).inserted {
                 if treeEntries.indices.contains(index) {
                     let entry = treeEntries[index]
                     entry.rootAnchor.childNodes.forEach { child in
@@ -1387,7 +1485,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         for (bladeIdx, blade) in blades.enumerated() {
             let localTime = nearestPatch(to: blade.pivot).map { patchBurnTime($0) } ?? -1
             let stagger = Float(bladeIdx % 6) * 0.08
-            let bladeBurnT = min(1.0, max(0.0, (Float(localTime / 12) - stagger) / max(0.1, 0.72 - stagger)))
+            let bladeBurnT = min(1.0, max(0.0, (Float(localTime / 6.5) - stagger) / max(0.1, 0.72 - stagger)))
             if bladeBurnT > 0.001 {
                 if bladeBurnT < 0.45 {
                     // Scorching amber-brown phase as flames engulf the grass blade
@@ -1426,7 +1524,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
         for clod in ashNodes {
             let localTime = nearestPatch(to: clod).map { patchBurnTime($0) } ?? -1
-            let ashAlpha = CGFloat(min(1.0, max(0.0, (localTime - 2.2) / 4.5)))
+            let ashAlpha = CGFloat(min(1.0, max(0.0, (localTime - 1.5) / 3.0)))
             clod.opacity = ashAlpha
             clod.isHidden = ashAlpha < 0.01
         }
@@ -1434,10 +1532,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // Fade only vegetation belonging to a patch the user actually lit.
         for blade in blades {
             let localTime = nearestPatch(to: blade.pivot).map { patchBurnTime($0) } ?? -1
-            let fade = max(0, 1 - smoothstep(0.35, 0.88, Float(max(0, localTime) / 12)))
+            let fade = max(0, 1 - smoothstep(0.35, 0.88, Float(max(0, localTime) / 6.5)))
             blade.pivot.opacity = CGFloat(fade)
         }
-        if ignited.count == patchPositions.count && ignited.allSatisfy({ patchBurnTime($0) >= 18 }) {
+        if ignited.count == patchPositions.count && ignited.allSatisfy({ patchBurnTime($0) >= Self.burnDuration }) {
             reportFireSettled()
         }
     }
@@ -1449,14 +1547,16 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         let contactTime: Float = 0.84
         let groundAngle: Float = 1.49
+        let chopProgress = treeChopProgress[index] ?? 0
         // Reveal both the standing stump's split wood cross-section (baseFracture)
-        // and the falling trunk's cross-section (fallingFracture) as the tree splits.
-        let fractureReveal = smoothstep(0.06, 0.22, fallT)
+        // and the falling trunk's cross-section (fallingFracture) as the tree is chopped & splits.
+        let fractureReveal = max(chopProgress * 0.45, smoothstep(0.04, 0.22, fallT))
         entry.baseFracture.opacity = CGFloat(fractureReveal)
         entry.fallingFracture.opacity = CGFloat(fractureReveal)
 
-        if fallT >= 0.16 && !crackedTrees.contains(index) {
+        if fallT >= 0.12 && !crackedTrees.contains(index) {
             crackedTrees.insert(index)
+            ActivityAudio.shared.play(.woodCrack)
             if !reduceMotion {
                 let cutWorldPos = SCNVector3(
                     entry.worldBasePosition.x,
@@ -1467,9 +1567,29 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             }
         }
 
-        let release = smoothstep(0, 0.10, fallT) * 0.012
-        let descent = max(0, min(1, (fallT - 0.10) / (contactTime - 0.10)))
-        let angle = release + (groundAngle - 0.012) * descent * descent
+        if fallT >= 0.54 && !fallingSoundTrees.contains(index) {
+            fallingSoundTrees.insert(index)
+            ActivityAudio.shared.play(.treeFall)
+        }
+
+        let angle: Float
+        let descent: Float
+        if fallT <= 0.0001 {
+            descent = 0
+            var chopVibration: Float = 0
+            if !reduceMotion, let chopStart = treeChopStartTimes[index] {
+                let dt = Float(max(0, CACurrentMediaTime() - chopStart))
+                if dt < 0.28 {
+                    chopVibration = sin(dt * 44.0) * exp(-dt * 14.0) * 0.048
+                }
+            }
+            angle = chopProgress * 0.032 + chopVibration
+        } else {
+            let baseTilt: Float = 0.032
+            let release = max(baseTilt, smoothstep(0, 0.10, fallT) * 0.042)
+            descent = max(0, min(1, (fallT - 0.10) / (contactTime - 0.10)))
+            angle = release + (groundAngle - release) * descent * descent
+        }
 
         trunk.eulerAngles.x = angle * 0.34
         trunk.eulerAngles.z = -angle * 0.94 * entry.fallDirection
@@ -1505,6 +1625,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         if fallT >= contactTime && !impactedTrees.contains(index) {
             impactedTrees.insert(index)
+            feedback.impactOccurred(intensity: 0.55)
             if !reduceMotion {
                 let impactWorld = entry.holder.convertPosition(
                     SCNVector3(reachX * signX, 0.002, reachZ * signZ),

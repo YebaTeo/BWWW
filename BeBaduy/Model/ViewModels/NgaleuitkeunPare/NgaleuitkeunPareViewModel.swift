@@ -16,6 +16,7 @@ import Foundation
     @discardableResult func place(at space: Int) -> Bool {
         guard session.isActive, (0..<3).contains(space), let selected, storage[space] == nil, !storage.values.contains(selected) else { return false }
         storage[space] = selected; self.selected = nil
+        ActivityAudio.shared.play(.bamboo)
         session.feedback = "\(storage.count) dari 3 leuit contoh terisi."
         return true
     }

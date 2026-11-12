@@ -16,6 +16,7 @@ import Foundation
         guard (0..<8).contains(target) else { session.feedback = "Ini padi. Bersihkan gulma di sekitarnya."; return }
         guard !removed.contains(target) else { return }
         strokes[target, default: 0] += 1
+        ActivityAudio.shared.play(.weed)
         session.feedback = "Gulma \(target + 1): \(strokes[target] ?? 0)/3 sapuan."
         guard strokes[target] == 3 else { return }
         removed.insert(target)

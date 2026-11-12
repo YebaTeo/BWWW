@@ -31,6 +31,7 @@ struct NarawasView: View {
                     if model.stage == .burning {
                         ProgressView(value: model.scene.progress)
                             .tint(orange).padding(.horizontal, 40)
+                            .padding(.top, 48)
                             .accessibilityLabel("Progres pembakaran")
                     }
                     Spacer()
@@ -47,12 +48,28 @@ struct NarawasView: View {
                                 .font(.caption).padding(.horizontal, 14).padding(.vertical, 7)
                                 .background(Color.brown.opacity(0.85), in: Capsule())
                                 .accessibilityIdentifier("narawas.progress")
+                        } else if model.stage == .prepared || model.stage == .burning {
+                            Text("Titik api dinyalakan: \(model.ignited.count)/\(NarawasViewModel.treeCount)")
+                                .font(.caption).padding(.horizontal, 14).padding(.vertical, 7)
+                                .background(Color.brown.opacity(0.85), in: Capsule())
+                                .accessibilityIdentifier("narawas.fire.progress")
                         }
                         card {
-                            Text(model.stage == .clearing
-                                 ? "Coba arahkan ponselmu ke sekeliling dan tap pohon untuk mulai membuka lahan!"
-                                 : "Yuk, arahkan ponsel ke sekeliling dan ketuk lahan untuk menyalakan api. Pantau api pembakaran lahan.")
-                                .accessibilityIdentifier("narawas.sceneReady")
+                            if model.stage == .clearing {
+                                Text("Coba arahkan ponselmu ke kiri dan kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!")
+                                    .accessibilityIdentifier("narawas.sceneReady")
+                            } else if model.ignited.count < NarawasViewModel.treeCount {
+                                Text("Yuk, arahkan ponsel ke sekeliling dan ketuk setiap pangkal pohon untuk menyalakan api.")
+                                    .accessibilityIdentifier("narawas.sceneReady")
+                            } else {
+                                Text("Semua titik api sudah menyala! Amati sisa tebasan terbakar menjadi abu penyubur tanah.")
+                                    .accessibilityIdentifier("narawas.sceneReady")
+                                Button("Tampilkan kondisi setelah api reda", action: model.finishBurn)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(orange)
+                                    .frame(minHeight: 44)
+                                    .accessibilityIdentifier("narawas.finishBurn")
+                            }
                             if !model.motionMessage.isEmpty {
                                 Text(model.motionMessage).font(.caption)
                             }
@@ -72,6 +89,16 @@ struct NarawasView: View {
                             .font(.caption).padding(.horizontal, 16).frame(minHeight: 44)
                             .background(orange.opacity(0.25), in: Capsule())
                             .accessibilityIdentifier("replay")
+                    } else if message == nil && !model.scene.loadingAssets && model.scene.assetError == nil {
+                        Button(action: model.recenterLook) {
+                            Label("Pusatkan", systemImage: "scope")
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 14)
+                                .frame(minHeight: 44)
+                                .background(Color.brown.opacity(0.85), in: Capsule())
+                        }
+                        .accessibilityLabel("Pusatkan pandangan")
+                        .accessibilityIdentifier("narawas.recenter")
                     }
                 }
                 Spacer()

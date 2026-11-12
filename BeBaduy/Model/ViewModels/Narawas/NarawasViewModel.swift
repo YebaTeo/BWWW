@@ -2,11 +2,13 @@ import Observation
 import Foundation
 @Observable @MainActor final class NarawasViewModel {
     static let treeCount = 3
+    static let tapsPerTree = 4
     enum Stage { case entering, clearing, prepared, burning, complete }
     private(set) var stage: Stage = .entering
     private(set) var ignited: Set<Int> = []
     var session = PhaseSessionState()
     private(set) var collected: Set<Int> = []
+    private(set) var treeTapCounts: [Int: Int] = [:]
     private(set) var isDemonstrating = false
     let scene = NgahumaScene()
     @ObservationIgnored private var demoTask: Task<Void, Never>?
@@ -41,6 +43,7 @@ import Foundation
         suspend()
         stage = .entering
         collected.removeAll()
+        treeTapCounts.removeAll()
         ignited.removeAll()
         usedDemo = false
         session.start()
@@ -56,9 +59,19 @@ import Foundation
 
     private func cutTree(_ index: Int) {
         guard session.isActive, stage == .clearing, (0..<NarawasViewModel.treeCount).contains(index),
-              collected.insert(index).inserted else { return }
-        scene.animateCut(index)
+              !collected.contains(index) else { return }
+        let tapCount = (treeTapCounts[index] ?? 0) + 1
+        treeTapCounts[index] = tapCount
         ActivityAudio.shared.play(.cut)
+
+        if tapCount < Self.tapsPerTree {
+            scene.animateChop(index, tapCount: tapCount, requiredTaps: Self.tapsPerTree)
+            session.feedback = "Pohon \(index + 1) ditebas (\(tapCount)/\(Self.tapsPerTree) tebasan)."
+            return
+        }
+
+        collected.insert(index)
+        scene.animateCut(index)
         session.feedback = "\(collected.count) dari \(Self.treeCount) pohon pada ilustrasi telah ditebang."
         if collected.count == NarawasViewModel.treeCount { stage = .prepared }
     }
@@ -102,7 +115,7 @@ import Foundation
     private func startLookMotion() {
         guard motionConfigured, motionEnabled, visible, !helpVisible, session.isActive, !motionActive else { return }
         guard let motion, motion.available else {
-            motionMessage = "Sensor gerakan tidak tersedia. Geser mendatar di lahan untuk melihat sekeliling."
+            motionMessage = "Arahkan ponsel ke kiri dan kanan untuk melihat sekeliling."
             return
         }
         lookMotion.reset(); scene.beginMotionLook(); motionMessage = ""; motionActive = true
@@ -112,7 +125,7 @@ import Foundation
             guard let self, self.motionActive, self.motionGeneration == generation else { return }
             guard let sample, sample.attitude != nil else {
                 self.stopLookMotion()
-                self.motionMessage = "Gerakan dijeda. Gunakan geseran atau aktifkan gerakan lagi."
+                self.motionMessage = "Gerakan dijeda. Aktifkan gerakan lagi untuk melihat sekeliling."
                 self.motionEnabled = false
                 return
             }
@@ -129,9 +142,12 @@ import Foundation
         demoTask?.cancel(); usedDemo = true; isDemonstrating = true
         demoTask = Task { [weak self] in
             for index in 0..<NarawasViewModel.treeCount {
-                do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
-                guard let self, !Task.isCancelled else { return }
-                self.cutTree(index)
+                for _ in 0..<NarawasViewModel.tapsPerTree {
+                    do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+                    guard let self, !Task.isCancelled else { return }
+                    if self.collected.contains(index) { break }
+                    self.cutTree(index)
+                }
             }
             do { try await Task.sleep(for: .seconds(1)) } catch { return }
             guard let self, !Task.isCancelled else { return }
