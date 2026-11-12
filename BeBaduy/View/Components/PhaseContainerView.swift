@@ -17,6 +17,10 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     var usesContextCards = true
     var showsInitialActivityCard = true
     var mipitHarvested: Set<Int> = []
+    var activityProgress: CGFloat? = nil
+    var showsRackPosts = true
+    var rackBalance = 0.0
+    var rackScale: Float = 0.92
     @ViewBuilder let surface: () -> Surface
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
@@ -38,7 +42,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     }
     private var isResult: Bool { flow.screen == .result || flow.screen == .explanation }
     private var targetProgress: CGFloat {
-        content.id.progress(isResult: isResult)
+        if flow.screen == .activity, let activityProgress { return activityProgress }
+        return content.id.progress(isResult: isResult)
     }
 
     var body: some View {
@@ -48,7 +53,12 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     .accessibilityHidden(true)
                 SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active,
                                  showsRice: content.id != .mipit || flow.screen != .activity,
-                                 mipitHarvested: mipitHarvested)
+                                 mipitHarvested: mipitHarvested,
+                                 showsRackPosts: showsRackPosts || flow.screen != .activity,
+                                 rackBalance: rackBalance,
+                                 animateWhileInactive: content.id == .ngalantai && flow.screen == .activity,
+                                 rackTransitionTimeConstant: content.id == .ngalantai && flow.screen == .activity ? 0.38 : 0.16,
+                                 rackScale: rackScale)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)

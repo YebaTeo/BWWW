@@ -19,6 +19,11 @@ struct SceneKitCropView: UIViewRepresentable {
     let isActive: Bool
     var showsRice = true
     var mipitHarvested: Set<Int> = []
+    var showsRackPosts = true
+    var rackBalance = 0.0
+    var animateWhileInactive = false
+    var rackTransitionTimeConstant = 0.16
+    var rackScale: Float = 0.92
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -31,7 +36,11 @@ struct SceneKitCropView: UIViewRepresentable {
         context.coordinator.install(in: view)
         context.coordinator.showsRice = showsRice
         context.coordinator.mipitHarvested = mipitHarvested
-        context.coordinator.setActive(isActive && scenePhase == .active, in: view, reduceMotion: reduceMotion)
+        context.coordinator.showsRackPosts = showsRackPosts
+        context.coordinator.rackBalance = rackBalance
+        context.coordinator.rackTransitionTimeConstant = rackTransitionTimeConstant
+        context.coordinator.rackScale = rackScale
+        context.coordinator.setActive(shouldRender, in: view, reduceMotion: reduceMotion)
         context.coordinator.update(progress: progress)
         return view
     }
@@ -39,13 +48,21 @@ struct SceneKitCropView: UIViewRepresentable {
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.showsRice = showsRice
         context.coordinator.mipitHarvested = mipitHarvested
-        context.coordinator.setActive(isActive && scenePhase == .active, in: view, reduceMotion: reduceMotion)
+        context.coordinator.showsRackPosts = showsRackPosts
+        context.coordinator.rackBalance = rackBalance
+        context.coordinator.rackTransitionTimeConstant = rackTransitionTimeConstant
+        context.coordinator.rackScale = rackScale
+        context.coordinator.setActive(shouldRender, in: view, reduceMotion: reduceMotion)
         context.coordinator.update(progress: progress)
     }
 
     static func dismantleUIView(_ view: SCNView, coordinator: HomeSceneRenderer) {
         coordinator.stopUpdates()
         view.isPlaying = false
+    }
+
+    private var shouldRender: Bool {
+        (isActive && scenePhase == .active) || (animateWhileInactive && scenePhase == .inactive)
     }
 
 }

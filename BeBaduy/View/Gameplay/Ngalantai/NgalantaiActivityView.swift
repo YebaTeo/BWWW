@@ -63,9 +63,6 @@ struct NgalantaiActivityView: View {
             case .complete:
                 EmptyView()
             }
-            if model.step == .balanceInstructions || model.step == .awaitingLandscape {
-                Spacer(minLength: 0)
-            }
         }.padding(.horizontal, 16).padding(.bottom, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .disabled(model.isDemonstrating)

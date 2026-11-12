@@ -5,6 +5,10 @@ import SwiftUI
 @MainActor
 final class HomeSceneRenderer: NSObject {
     var showsRice = true
+    var showsRackPosts = true
+    var rackBalance = 0.0
+    var rackTransitionTimeConstant = 0.16
+    var rackScale: Float = 0.92
     var mipitHarvested: Set<Int> = []
     private var mipitStandingNodes: [SCNNode] = []
     private var mipitSheafNodes: [SCNNode] = []
@@ -49,6 +53,8 @@ final class HomeSceneRenderer: NSObject {
     private let storageLeuitRoot    = SCNNode()
     private var storageRackPosts: [SCNNode] = []
     private var storageRackBraces: [SCNNode] = []
+    private let storageRackTopRoot = SCNNode()
+    private var rackTopCastsShadow: Bool?
     private let storageRackBeam = SCNNode()
     private var storageHangingBundles: [SCNNode] = []
     private let storageRackShadowRoot = SCNNode()
@@ -141,7 +147,7 @@ final class HomeSceneRenderer: NSObject {
         // Frame-rate independent settling; retarget from the current state
         // when dragging reverses, instead of queuing more animations.
         let isConclusionPan = targetProgress >= 0.95 && displayedProgress >= 0.949
-        let blend = isWindEnabled && !isConclusionPan ? 1 - exp(-dt / 0.16) : 1
+        let blend = isWindEnabled && !isConclusionPan ? 1 - exp(-dt / rackTransitionTimeConstant) : 1
         displayedProgress += (targetProgress - displayedProgress) * blend
         if abs(targetProgress - displayedProgress) < 0.0001 {
             displayedProgress = targetProgress
@@ -2116,14 +2122,17 @@ final class HomeSceneRenderer: NSObject {
             }
         }
 
+        storageRackTopRoot.name = "bambooRackTop"
+        storageRackTopRoot.position.y = postHeight
+        storageLeuitRoot.addChildNode(storageRackTopRoot)
+
         let beamGeometry = SCNCylinder(radius: 0.018, height: 0.58)
         beamGeometry.radialSegmentCount = 16
         beamGeometry.materials = [bamboo]
         storageRackBeam.name = "bambooCrossbar"
         storageRackBeam.geometry = beamGeometry
         storageRackBeam.eulerAngles.z = .pi / 2
-        storageRackBeam.position.y = postHeight
-        storageLeuitRoot.addChildNode(storageRackBeam)
+        storageRackTopRoot.addChildNode(storageRackBeam)
         for side: Float in [-1, 1] {
             let brace = branch(
                 from: SIMD3<Float>(side * 0.245, 0.40, 0),
@@ -2140,8 +2149,8 @@ final class HomeSceneRenderer: NSObject {
             let bundleIndex = storageHangingBundles.count
             let bundle = storageMakeHangingRiceBundle(from: harvestedPanicles, tie: tieMaterial)
             bundle.name = "hangingRiceBundle_\(bundleIndex)"
-            bundle.position = SCNVector3(x, postHeight, 0.020)
-            storageLeuitRoot.addChildNode(bundle)
+            bundle.position = SCNVector3(x, 0, 0.020)
+            storageRackTopRoot.addChildNode(bundle)
             storageHangingBundles.append(bundle)
         }
 
@@ -3188,6 +3197,28 @@ final class HomeSceneRenderer: NSObject {
         let panEase = Float(HomeConclusionPan.amount(progress: progress))
         storageLeuitRoot.position.x = 0
         setVisibility(storageLeuitRoot, opacity: rackArrival)
+        storageLeuitRoot.scale = SCNVector3(rackScale, rackScale, rackScale)
+        // Keep the crossbar near its original world height as the landscape
+        // activity enlarges it. Scaling the whole root from the soil pushed
+        // the bamboo and rice above the camera's frame.
+        storageRackTopRoot.position.y = showsRackPosts ? 0.58 : 0.73 / rackScale
+        storageRackPosts.forEach { $0.isHidden = !showsRackPosts }
+        storageRackBraces.forEach { $0.isHidden = !showsRackPosts }
+        if rackTopCastsShadow != showsRackPosts {
+            rackTopCastsShadow = showsRackPosts
+            storageRackTopRoot.enumerateChildNodes { node, _ in
+                node.castsShadow = showsRackPosts
+            }
+        }
+        storageRackPostShadows.forEach { $0.isHidden = !showsRackPosts }
+        storageRackPostContactShadows.forEach { $0.isHidden = !showsRackPosts }
+        storageRackBeamShadow.position.z = showsRackPosts ? 0.50 : 0.16
+        storageRackBeamShadow.scale.y = showsRackPosts ? 1 : 0.55
+        for shadow in storageRackBundleShadows {
+            shadow.position.z = showsRackPosts ? 0.32 : 0.16
+            shadow.scale.y = showsRackPosts ? 1 : 0.50
+        }
+        storageRackTopRoot.eulerAngles.z = Float(rackBalance) * 0.12
         granaryRoot.position = SCNVector3(HomeConclusionPan.distance, soilY, 0.02)
         setVisibility(granaryRoot, opacity: fullP >= 0.95 ? 1 : 0)
         // Landscape parallax supplies the speed cue without drawn streaks.
@@ -3260,7 +3291,7 @@ final class HomeSceneRenderer: NSObject {
             // Bundle Tengah (index 1): Mengambil alih posisi padi yang naik, lalu merilekskan volumenya
             let centerBundleFade = smoothstep(0.922, 0.930, fullP)
             let centerScaleX = 1.0 + 0.18 * (1.0 - splitEase)
-            storageHangingBundles[1].position = SCNVector3(0, 0.58, 0.020)
+            storageHangingBundles[1].position = SCNVector3(0, 0, 0.020)
             storageHangingBundles[1].eulerAngles = SCNVector3(0, 0, 0)
             storageHangingBundles[1].scale = SCNVector3(centerScaleX, 1.0, 1.0)
             storageHangingBundles[1].opacity = CGFloat(centerBundleFade)
@@ -3270,7 +3301,7 @@ final class HomeSceneRenderer: NSObject {
             let leftX: Float = -0.15 * splitEase
             let leftSway: Float = -0.08 * sin(splitProgress * Float.pi)
             let sideScale: Float = 0.88 + 0.12 * splitEase
-            storageHangingBundles[0].position = SCNVector3(leftX, 0.58, 0.020)
+            storageHangingBundles[0].position = SCNVector3(leftX, 0, 0.020)
             storageHangingBundles[0].eulerAngles = SCNVector3(0, 0, leftSway)
             storageHangingBundles[0].scale = SCNVector3(sideScale, sideScale, sideScale)
             storageHangingBundles[0].opacity = CGFloat(sideFade)
@@ -3279,7 +3310,7 @@ final class HomeSceneRenderer: NSObject {
             // Bundle Kanan (index 2): Meluncur halus dari x=0 ke x=+0.15 dengan ayunan fisik alami
             let rightX: Float = 0.15 * splitEase
             let rightSway: Float = 0.08 * sin(splitProgress * Float.pi)
-            storageHangingBundles[2].position = SCNVector3(rightX, 0.58, 0.020)
+            storageHangingBundles[2].position = SCNVector3(rightX, 0, 0.020)
             storageHangingBundles[2].eulerAngles = SCNVector3(0, 0, rightSway)
             storageHangingBundles[2].scale = SCNVector3(sideScale, sideScale, sideScale)
             storageHangingBundles[2].opacity = CGFloat(sideFade)
@@ -3327,11 +3358,16 @@ final class HomeSceneRenderer: NSObject {
         // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu, lalu PAN GESER CEPAT KE SAMPING ke lumbung
         let storageFraming = panEase
         let storageCamY: Float = 0.52 * (1.0 - storageFraming) + 0.52 * storageFraming
-        let storageCamZ: Float = 1.75 * (1.0 - storageFraming) + 1.75 * storageFraming
+        let rackCamRise = smoothstep(0.902, 0.938, fullP)
+        let enlargedActivityRack = !showsRackPosts && rackScale > 1.0
+        let landscapeZoomOut: Float = enlargedActivityRack ? 0.50 * rackCamRise : 0
+        let storageCamZ: Float = 1.75 + landscapeZoomOut * (1.0 - storageFraming)
 
         let liftCamLook = 0.035 * liftT * (1.0 - settleOnTarp)
-        let rackCamRise = smoothstep(0.902, 0.938, fullP)
-        let targetLookY: Float = (0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise) * (1.0 - storageFraming) + 0.12 * storageFraming
+        let activityLookY: Float = -0.12 + 0.25 * rackCamRise
+        let homeLookY: Float = 0.10 + liftCamLook - 0.02 * settleOnTarp + 0.28 * rackCamRise
+        let cropLookY = showsRackPosts ? homeLookY : activityLookY
+        let targetLookY: Float = cropLookY * (1.0 - storageFraming) + 0.12 * storageFraming
         let targetLookX: Float = (0.02 * (1.0 - rackCamRise) * (1.0 - storageFraming))
 
         let cameraX = HomeConclusionPan.distance * panEase
