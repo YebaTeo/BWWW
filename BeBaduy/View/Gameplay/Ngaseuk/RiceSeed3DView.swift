@@ -8,15 +8,35 @@ import SwiftUI
 /// golden seed grains inviting the user to touch and drag into the dibble holes.
 struct RiceSeed3DView: View {
     var isDragging: Bool = false
+    var isInteractable: Bool = false
+    var isPouring = false
+    @State private var isPulsing = false
 
     var body: some View {
         ZStack {
+            if isInteractable && !isDragging && !isPouring {
+                Ellipse()
+                    .stroke(AppTheme.heading.opacity(0.38), lineWidth: 1.2)
+                    .frame(width: 112, height: 42)
+                    .shadow(color: AppTheme.heading.opacity(0.15), radius: 4)
+                    .offset(y: 24)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
             RiceSeedSceneView()
                 .frame(width: 130, height: 110)
                 .shadow(color: Color(red: 0.15, green: 0.10, blue: 0.05).opacity(0.45), radius: 8, x: 0, y: 6)
         }
+        .scaleEffect(isDragging || isPouring ? 1.08 : (isInteractable && isPulsing ? 1.045 : 1))
+        .rotation3DEffect(.degrees(isPouring ? 34 : 0), axis: (x: 1, y: 0, z: 0), perspective: 0.55)
+        .rotationEffect(.degrees(isPouring ? -65 : 0))
+        .animation(.spring(response: 0.28, dampingFraction: 0.78), value: isDragging)
+        .animation(.easeInOut(duration: 0.42), value: isPouring)
+        .animation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: isPulsing)
+        .onAppear { if isInteractable { isPulsing = true } }
         .accessibilityLabel("Wadah benih padi huma 3 dimensi")
-        .accessibilityHint("Seret benih padi ini ke lubang tanah yang telah dibuat")
+        .accessibilityHint("Seret baskom benih ini ke lubang tanah yang telah dibuat")
     }
 }
 

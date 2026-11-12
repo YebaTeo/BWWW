@@ -32,7 +32,7 @@ struct PhaseContent: Identifiable, Sendable {
                 title: "Ngaseuk",
                 subtitle: "Membuka tempat untuk benih",
                 introduction: "Kenali aseuk, tongkat untuk membuat lubang tanam.",
-                instruction: "Gerakkan ponsel perlahan dari atas ke bawah untuk membuat tiga lubang, lalu masukkan benih.",
+                instruction: "Tusukkan aseuk tiga kali pada setiap titik untuk memperbesar tiga lubang, lalu masukkan benih.",
                 explanation: "Aseuk membuat lubang tanpa membajak tanah. Penempatan benih dilakukan setelah lubang tersedia. Kegiatan menanam melibatkan kerja bersama; pertumbuhan tetap membutuhkan waktu, hujan, dan perawatan.",
                 result: "Tiga lubang berisi benih.",
                 timeCue: nil,

@@ -49,6 +49,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
+                    .opacity(content.id == .ngaseuk && (flow.screen == .activity || flow.screen == .result) ? 0 : 1)
 
                 // Clean and bright matching Home screen, with only a subtle top vignette for header readability
                 LinearGradient(stops: [

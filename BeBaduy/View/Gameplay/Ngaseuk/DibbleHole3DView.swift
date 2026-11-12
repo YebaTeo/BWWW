@@ -9,19 +9,19 @@ import SwiftUI
 /// - 3 to 4 clustered golden unhulled rice grains (gabah) when seeded
 /// - Concentric targeted huma furrow guide when undug
 struct DibbleHole3DView: View {
-    let dug: Bool
+    let digCount: Int
     let seeded: Bool
     let focused: Bool
 
     var body: some View {
-        DibbleHoleSceneView(dug: dug, seeded: seeded, focused: focused)
+        DibbleHoleSceneView(digCount: digCount, seeded: seeded, focused: focused)
             .frame(width: 84, height: 56)
             .accessibilityHidden(true)
     }
 }
 
 private struct DibbleHoleSceneView: UIViewRepresentable {
-    let dug: Bool
+    let digCount: Int
     let seeded: Bool
     let focused: Bool
 
@@ -38,12 +38,12 @@ private struct DibbleHoleSceneView: UIViewRepresentable {
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
 
-        context.coordinator.setupScene(in: view, dug: dug, seeded: seeded, focused: focused)
+        context.coordinator.setupScene(in: view, digCount: digCount, seeded: seeded, focused: focused)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        context.coordinator.update(dug: dug, seeded: seeded, focused: focused)
+        context.coordinator.update(digCount: digCount, seeded: seeded, focused: focused)
     }
 
     static func dismantleUIView(_ view: SCNView, coordinator: Coordinator) {
@@ -58,7 +58,7 @@ private struct DibbleHoleSceneView: UIViewRepresentable {
         private var seedsGroupNode: SCNNode?
         private var focusGlowNode: SCNNode?
 
-        func setupScene(in view: SCNView, dug: Bool, seeded: Bool, focused: Bool) {
+        func setupScene(in view: SCNView, digCount: Int, seeded: Bool, focused: Bool) {
             self.scnView = view
             let scene = SCNScene()
             view.scene = scene
@@ -130,75 +130,23 @@ private struct DibbleHoleSceneView: UIViewRepresentable {
             root.addChildNode(targetGroup)
             self.targetNode = targetGroup
 
-            // ── Excavated 3D Dibble Hole (matching HomeView Stage 3 Ngored) ────
-            let holeGroup = SCNNode()
+            // Reuse the same disturbed-soil patch, rim, and cavity as HomeView Ngored.
+            let holeGroup = HomeSceneRenderer.makePlantingHoleNode()
             holeGroup.name = "excavatedHole"
-
-            // Earthen Torus Collar matching HomeView line 1107
-            let rimGeo = SCNTorus(ringRadius: 0.078, pipeRadius: 0.024)
-            rimGeo.ringSegmentCount = 36
-            rimGeo.pipeSegmentCount = 18
-            let rimMat = SCNMaterial()
-            rimMat.lightingModel = .physicallyBased
-            rimMat.diffuse.contents  = UIColor(red: 0.10, green: 0.06, blue: 0.035, alpha: 1)
-            rimMat.roughness.contents = 1.0
-            rimMat.metalness.contents = 0.0
-            rimGeo.materials = [rimMat]
-            let rimNode = SCNNode(geometry: rimGeo)
-            rimNode.scale = SCNVector3(1.0, 0.42, 0.82)
-            holeGroup.addChildNode(rimNode)
-
-            // Deep Dark Cavity Interior
-            let cavityGeo = SCNCone(topRadius: 0.072, bottomRadius: 0.008, height: 0.065)
-            cavityGeo.radialSegmentCount = 24
-            let cavityMat = SCNMaterial()
-            cavityMat.lightingModel = .lambert
-            cavityMat.diffuse.contents = UIColor(red: 0.05, green: 0.03, blue: 0.015, alpha: 1)
-            cavityGeo.materials = [cavityMat]
-            let cavityNode = SCNNode(geometry: cavityGeo)
-            cavityNode.eulerAngles.x = .pi // Pointing downwards into earth
-            cavityNode.position.y = -0.015
-            cavityNode.scale = SCNVector3(1.0, 1.0, 0.78)
-            holeGroup.addChildNode(cavityNode)
-
-            // Loose Soil Clods around rim
-            let clodMat = SCNMaterial()
-            clodMat.lightingModel = .physicallyBased
-            clodMat.diffuse.contents = UIColor(red: 0.18, green: 0.11, blue: 0.06, alpha: 1)
-            clodMat.roughness.contents = 0.96
-            for i in 0..<8 {
-                let angle = Float(i) * (.pi / 4.0) + Float(i) * 0.12
-                let dist: Float = 0.092 + Float(i % 3) * 0.012
-                let clodGeo = SCNSphere(radius: CGFloat(0.009 + Float(i % 2) * 0.004))
-                clodGeo.materials = [clodMat]
-                let clodNode = SCNNode(geometry: clodGeo)
-                clodNode.scale = SCNVector3(1.2, 0.6, 1.0)
-                clodNode.position = SCNVector3(cos(angle) * dist, 0.006, sin(angle) * dist * 0.78)
-                holeGroup.addChildNode(clodNode)
-            }
 
             // ── 3D Seeds matching HomeView Stage 3 Ngored (line 1121) ────
             let seedsGroup = SCNNode()
             seedsGroup.name = "seedsInside"
 
-            let seedMat = SCNMaterial()
-            seedMat.lightingModel = .lambert
-            seedMat.diffuse.contents  = UIColor(red: 0.95, green: 0.90, blue: 0.78, alpha: 1)
-            seedMat.roughness.contents = 0.70
-            seedMat.metalness.contents = 0.0
-
             let seedOffsets: [(x: Float, z: Float)] = [
-                (-0.014, 0.004),
-                (0.012, -0.005),
-                (0.002, 0.012),
-                (0.004, -0.011)
+                (-0.004, 0.001),
+                (0.004, -0.001),
+                (0.001, 0.004),
+                (0.001, -0.004)
             ]
             for offset in seedOffsets {
-                let seedGeo = SCNSphere(radius: 0.013)
-                seedGeo.segmentCount = 12
-                seedGeo.materials = [seedMat]
-                let seedNode = SCNNode(geometry: seedGeo)
-                seedNode.position = SCNVector3(offset.x, -0.006, offset.z)
+                let seedNode = HomeSceneRenderer.makePlantingSeedNode()
+                seedNode.position = SCNVector3(offset.x, -0.002, offset.z)
                 seedsGroup.addChildNode(seedNode)
             }
             holeGroup.addChildNode(seedsGroup)
@@ -207,17 +155,25 @@ private struct DibbleHoleSceneView: UIViewRepresentable {
             root.addChildNode(holeGroup)
             self.holeNode = holeGroup
 
-            applyState(dug: dug, seeded: seeded, focused: focused)
+            applyState(digCount: digCount, seeded: seeded, focused: focused)
         }
 
-        func update(dug: Bool, seeded: Bool, focused: Bool) {
-            applyState(dug: dug, seeded: seeded, focused: focused)
+        func update(digCount: Int, seeded: Bool, focused: Bool) {
+            applyState(digCount: digCount, seeded: seeded, focused: focused)
         }
 
-        private func applyState(dug: Bool, seeded: Bool, focused: Bool) {
-            targetNode?.isHidden = dug
+        private func applyState(digCount: Int, seeded: Bool, focused: Bool) {
+            targetNode?.isHidden = digCount > 0
             focusGlowNode?.opacity = focused ? 1.0 : 0.45
-            holeNode?.isHidden = !dug
+            holeNode?.isHidden = digCount == 0
+            let completedStrokes = min(3, max(0, digCount))
+            let scale: Float = switch completedStrokes {
+            case 0: 0.5
+            case 1: 1.0
+            case 2: 1.8
+            default: 2.7
+            }
+            holeNode?.scale = SCNVector3(scale, 1, scale)
             seedsGroupNode?.isHidden = !seeded
             if seeded {
                 seedsGroupNode?.opacity = 1.0

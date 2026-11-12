@@ -4,10 +4,12 @@ struct NgaseukActivitySurface: View {
     let model: NgaseukViewModel
     @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var visibleHoles: Set<Int> = []
+    @State private var visibleDigCounts: [Int: Int] = [:]
     @State private var workingTarget: Int?
     @State private var toolDepth: CGFloat = -70
     @State private var isStroking = false
+    @State private var seedDragLocation: CGPoint?
+    @State private var seedDragOffset: CGSize = .zero
 
     private func target(_ index: Int, in size: CGSize) -> CGPoint {
         CGPoint(x: size.width * CGFloat(index + 1) / 4,
@@ -24,24 +26,23 @@ struct NgaseukActivitySurface: View {
                     ForEach(0..<3) { index in
                         Group {
                             if model.step == .seeding {
-                                Button { model.peek(index) } label: {
-                                    soilMark(index, toolTarget: toolTarget)
-                                }
-                                .buttonStyle(.plain)
+                                soilMark(index, toolTarget: toolTarget)
+                                    .allowsHitTesting(false)
                                 .accessibilityLabel("Lubang \(index + 1)")
-                                .accessibilityValue(model.seeds.contains(index) ? "Berisi benih" : "Sudah dibuat")
-                                .accessibilityIdentifier("field.hole.\(index)")
-                                .dropDestination(for: String.self) { items, _ in
-                                    guard !model.isDemonstrating, items.contains("rice-seed") else { return false }
-                                    return model.seed(index)
-                                }
+                                    .accessibilityValue(model.seeds.contains(index) ? "Berisi benih" : "Sudah dibuat")
                             } else if model.step == .digging {
                                 Button {
                                     model.dig(index)
                                 } label: {
-                                    soilMark(index, toolTarget: toolTarget)
+                                    VStack(spacing: 2) {
+                                        soilMark(index, toolTarget: toolTarget)
+                                        Text("\(model.digCounts[index, default: 0])/3")
+                                            .font(.caption2.monospacedDigit().bold())
+                                            .foregroundStyle(.white.opacity(0.9))
+                                    }
                                 }
                                 .buttonStyle(.plain)
+                                .disabled(index != model.selectedTarget || model.isDemonstrating)
                                 .accessibilityLabel("Lubang \(index + 1)")
                                 .accessibilityIdentifier("field.hole.\(index)")
                             } else {
@@ -89,23 +90,33 @@ struct NgaseukActivitySurface: View {
                     VStack(spacing: 6) {
                         Text(model.motionActive ? "Gerakkan ponsel ke bawah atau ketuk lubang" : model.session.feedback)
                             .font(.headline)
-                        Text("\(visibleHoles.count) / 3 lubang").font(.subheadline.monospacedDigit())
+                        Text("\(model.holes.count) / 3 lubang").font(.subheadline.monospacedDigit())
                     }.multilineTextAlignment(.center).padding(16)
                         .foregroundStyle(.white).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
                 }
-                if model.step == .seeding {
-                    RiceSeed3DView()
-                        .draggable("rice-seed")
+                if model.step == .seeding && (
+                    model.isDraggingSeed ||
+                    !(model.isBasketEntering || model.isBasketTilting || model.isPouring)
+                ) {
+                    RiceSeed3DView(isDragging: model.isDraggingSeed,
+                                   isInteractable: true,
+                                   isPouring: model.isBasketTilting || model.isPouring)
                         .accessibilityIdentifier("field.seed")
-                        .position(x: geometry.size.width / 2, y: geometry.size.height * 0.30)
+                        .position(seedDragLocation ?? homeSeedBowlPosition(in: geometry.size))
+                        .contentShape(Rectangle())
+                        .gesture(seedDragGesture(in: geometry.size))
+                        .zIndex(model.isDraggingSeed ? 2 : 0)
                 }
                 if let target = model.peekTarget {
-                    NgaseukSeedPeekView(model: model, target: target)
+                    NgaseukSeedPeekView(model: model, target: target, dragActive: model.isDraggingSeed,
+                                        canPlant: model.isSeedInPlantingRange)
                         .transition(.opacity)
                 }
-            }.disabled(model.isDemonstrating)
+            }
+            .coordinateSpace(name: "ngaseukField")
+            .disabled(model.isDemonstrating)
         }
         .onChange(of: model.step) { _, step in
             switch step {
@@ -116,14 +127,69 @@ struct NgaseukActivitySurface: View {
             }
         }
         .onChange(of: model.peekTarget) { _, target in
-            if target != nil { card.dismiss() }
+            if target != nil {
+                card.dismiss()
+            } else if !model.isDraggingSeed {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                    seedDragLocation = nil
+                }
+                seedDragOffset = .zero
+            }
         }
-        .task(id: model.holes) { await showStroke() }
+        .task(id: model.digCounts) { await showStroke() }
     }
 
     private func soilMark(_ index: Int, toolTarget: Int) -> some View {
-        NgaseukSoilMark(dug: visibleHoles.contains(index), seeded: model.seeds.contains(index),
+        NgaseukSoilMark(digCount: visibleDigCounts[index, default: 0], seeded: model.seeds.contains(index),
                        focused: model.step == .digging && toolTarget == index)
+    }
+
+    private func seedDragGesture(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named("ngaseukField"))
+            .onChanged { value in
+                if !model.isDraggingSeed {
+                    let home = homeSeedBowlPosition(in: size)
+                    seedDragOffset = CGSize(width: home.x - value.startLocation.x,
+                                            height: home.y - value.startLocation.y)
+                    model.beginSeedDrag()
+                }
+                seedDragLocation = CGPoint(x: value.location.x + seedDragOffset.width,
+                                           y: value.location.y + seedDragOffset.height)
+                updateSeedDrag(at: value.location, in: size)
+            }
+            .onEnded { value in
+                updateSeedDrag(at: value.location, in: size)
+                let isPouring = model.endSeedDrag()
+                if !isPouring {
+                    seedDragLocation = nil
+                    seedDragOffset = .zero
+                }
+            }
+    }
+
+    private func homeSeedBowlPosition(in size: CGSize) -> CGPoint {
+        CGPoint(x: size.width / 2, y: size.height * 0.49)
+    }
+
+    private func updateSeedDrag(at location: CGPoint, in size: CGSize) {
+        // Once a hole is zoomed in, keep that detail view open for the duration
+        // of this drag. The second, smaller target is the opening at its center.
+        if let activeTarget = model.peekTarget {
+            let holeCenter = CGPoint(x: size.width / 2, y: size.height / 2)
+            let distance = hypot(location.x - holeCenter.x, location.y - holeCenter.y)
+            model.updateSeedDrag(near: activeTarget, canPlant: distance < 78)
+            return
+        }
+
+        let nearest = (0..<3).map { index -> (index: Int, distance: CGFloat) in
+            let point = target(index, in: size)
+            return (index, hypot(location.x - point.x, location.y - point.y))
+        }.min { $0.distance < $1.distance }
+        guard let nearest, nearest.distance < 100 else {
+            model.updateSeedDrag(near: nil, canPlant: false)
+            return
+        }
+        model.updateSeedDrag(near: nearest.index, canPlant: false)
     }
 
     private var tutorial: some View {
@@ -153,13 +219,12 @@ struct NgaseukActivitySurface: View {
     }
 
     @MainActor private func showStroke() async {
-        let added = model.holes.subtracting(visibleHoles)
-        guard let index = added.contains(model.lastDug) ? model.lastDug : added.first else {
-            visibleHoles = model.holes
-            if model.holes.isEmpty { workingTarget = nil; isStroking = false; toolDepth = -70 }
+        let count = model.digCounts[model.lastDug, default: 0]
+        guard count > visibleDigCounts[model.lastDug, default: 0] else {
+            if model.digCounts.isEmpty { workingTarget = nil; isStroking = false; toolDepth = -70 }
             return
         }
-        visibleHoles = model.holes.subtracting([index])
+        let index = model.lastDug
         workingTarget = index
         isStroking = true
         toolDepth = -70
@@ -172,7 +237,7 @@ struct NgaseukActivitySurface: View {
             withAnimation(.easeIn(duration: 0.16)) { toolDepth = 22 }
             do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
         }
-        visibleHoles = model.holes
+        withAnimation(.easeOut(duration: 0.22)) { visibleDigCounts[index] = count }
         if !reduceMotion {
             // Dwell in soil
             do { try await Task.sleep(for: .milliseconds(130)) } catch { return }

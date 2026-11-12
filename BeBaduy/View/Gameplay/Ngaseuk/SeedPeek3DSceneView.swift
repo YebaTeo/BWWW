@@ -46,7 +46,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             (0.005, -0.002),
             (0.001, 0.006),
             (0.001, -0.006)
-        ]
+        ].prefix(NgaseukViewModel.seedsPerHole).map { $0 }
 
         func setupScene(in view: SCNView, filled: Bool, isPouring: Bool) {
             self.scnView = view
@@ -160,7 +160,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
                     node.isHidden = !filled
                 }
             }
-            self.wasPouring = isPouring
+            wasPouring = isPouring
         }
 
         private func animatePouring() {
@@ -175,29 +175,23 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
                 node.isHidden = false
 
                 let delay = Double(i) * 0.10
-                let waitAction = SCNAction.wait(duration: delay)
+                let wait = SCNAction.wait(duration: delay)
                 let fadeIn = SCNAction.fadeIn(duration: 0.05)
-
-                let fallAction = SCNAction.customAction(duration: 0.35) { _, elapsed in
+                let fall = SCNAction.customAction(duration: 0.35) { _, elapsed in
                     let t = Float(elapsed / 0.35)
-                    let easeIn = t * t // Gravity
-                    let currentY = startY + (0.0035 - startY) * easeIn
-                    let currentX = startX + (spot.x - startX) * t
-                    let currentZ = startZ + (spot.z - startZ) * t
-                    node.position = SCNVector3(currentX, currentY, currentZ)
+                    let easeIn = t * t
+                    node.position = SCNVector3(
+                        startX + (spot.x - startX) * t,
+                        startY + (0.0035 - startY) * easeIn,
+                        startZ + (spot.z - startZ) * t
+                    )
                 }
-
                 let bounceUp = SCNAction.move(by: SCNVector3(0, 0.002, 0), duration: 0.07)
                 let bounceDown = SCNAction.move(by: SCNVector3(0, -0.002, 0), duration: 0.08)
                 bounceUp.timingMode = .easeOut
                 bounceDown.timingMode = .easeIn
-
-                let settle = SCNAction.run { _ in
-                    node.position = SCNVector3(spot.x, 0.0035, spot.z)
-                }
-
-                let sequence = SCNAction.sequence([waitAction, fadeIn, fallAction, bounceUp, bounceDown, settle])
-                node.runAction(sequence, forKey: "pourDrop")
+                let settle = SCNAction.run { _ in node.position = SCNVector3(spot.x, 0.0035, spot.z) }
+                node.runAction(.sequence([wait, fadeIn, fall, bounceUp, bounceDown, settle]), forKey: "pourDrop")
             }
         }
 

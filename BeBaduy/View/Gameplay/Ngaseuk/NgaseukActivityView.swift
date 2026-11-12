@@ -5,11 +5,11 @@ struct NgaseukActivityView: View {
         VStack(alignment: .leading, spacing: 20) {
             switch model.step {
             case .instructions, .digging:
-                Text("Gerakkan ponselmu dari atas ke bawah untuk menggunakan aseuk. Ulangi sampai tiga lubang terbentuk.")
+                Text("Tusukkan aseuk tiga kali pada setiap titik. Lubang akan membesar sampai siap ditanami.")
             case .holesReady:
-                InstructionCard(title: "Tanah berhasil dilubangi", message: "Ketuk lubang untuk melihat ke dalam. Gerakkan ponsel perlahan bolak-balik untuk menuang benih, atau ketuk Tuang benih.", identifier: "ngaseuk.seeds", action: model.proceed)
+                InstructionCard(title: "Tanah berhasil dilubangi", message: "Seret benih ke lubang. Di tampilan dekat, arahkan ke pusat lubang lalu lepaskan untuk menanam 4 benih sekaligus. Kamu juga bisa menuang dengan tombol.", identifier: "ngaseuk.seeds", action: model.proceed)
             case .seeding:
-                Text("Ketuk lubang di lahan untuk melihat ke dalam dan menuang benih. Pilihan di bawah juga dapat langsung mengisi lubang.")
+                Text("Seret benih dari wadah ke lubang, lalu arahkan ke pusat lubang di tampilan dekat dan lepaskan untuk menanam 4 benih sekaligus.")
                 Text("\(model.seeds.count) / 3 lubang berisi benih").font(.headline)
                 ForEach(0..<3) { index in
                     ActivityChoice(title: "Isi lubang \(index + 1)", symbol: "leaf", done: model.seeds.contains(index), identifier: "seed_\(index)") { model.seed(index) }

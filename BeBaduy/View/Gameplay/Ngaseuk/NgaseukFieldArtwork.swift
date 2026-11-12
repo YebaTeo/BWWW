@@ -25,11 +25,11 @@ private struct AseukOutline: Shape {
 }
 
 struct NgaseukSoilMark: View {
-    let dug: Bool
+    let digCount: Int
     let seeded: Bool
     let focused: Bool
     var body: some View {
-        DibbleHole3DView(dug: dug, seeded: seeded, focused: focused)
+        DibbleHole3DView(digCount: digCount, seeded: seeded, focused: focused)
             .contentShape(Rectangle())
     }
 }
