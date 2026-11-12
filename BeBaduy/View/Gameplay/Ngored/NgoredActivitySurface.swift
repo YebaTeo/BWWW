@@ -52,9 +52,9 @@ struct NgoredActivitySurface: View {
 
     private func shouldDismissCard(for step: NgoredViewModel.Step) -> Bool {
         switch step {
-        case .weeding, .rain, .cycles, .finalRain, .finalCycles, .secondWeeding:
+        case .rain, .cycles, .finalRain, .finalCycles, .secondWeeding:
             true
-        case .initialRain, .cleared, .secondCleared, .complete:
+        case .initialRain, .weeding, .cleared, .secondCleared, .complete:
             false
         }
     }
