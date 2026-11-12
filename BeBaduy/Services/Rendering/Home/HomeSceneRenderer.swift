@@ -809,8 +809,8 @@ final class HomeSceneRenderer: NSObject {
             elements: [.init(indices: indices, primitiveType: .triangles)])
     }()
 
-    /// A shallow, irregular soil lip fixed to the ground.
-    private func addRootContact(to parent: SCNNode, x: Float, z: Float, radius: Float) {
+    /// Shared shallow, irregular textured soil patch used around roots and the planting hole.
+    private static func makeRootContactSoil(radius: Float, soilY: Float) -> SCNNode {
         var positions: [SCNVector3] = []
         var coords: [CGPoint] = []
         var triangles: [UInt32] = []
@@ -850,10 +850,15 @@ final class HomeSceneRenderer: NSObject {
             .init(textureCoordinates: coords)],
             elements: [.init(indices: triangles, primitiveType: .triangles)])
         mesh.materials = [soil]
-        let lip = SCNNode(geometry: mesh)
-        lip.position = SCNVector3(x, 0, z)
-        lip.castsShadow = false
-        parent.addChildNode(lip)
+        let patch = SCNNode(geometry: mesh)
+        patch.castsShadow = false
+        return patch
+    }
+
+    private func addRootContact(to parent: SCNNode, x: Float, z: Float, radius: Float) {
+        let patch = Self.makeRootContactSoil(radius: radius, soilY: soilY)
+        patch.position = SCNVector3(x, 0, z)
+        parent.addChildNode(patch)
     }
 
     private func stumpMaterial(index: Int) -> SCNMaterial {
@@ -1091,15 +1096,63 @@ final class HomeSceneRenderer: NSObject {
 
     /// Shared by the home preview and the seed close-up: one consistent dibble rim.
     static func makePlantingHoleNode() -> SCNNode {
-        let hole = SCNTorus(ringRadius: 0.017, pipeRadius: 0.006)
-        hole.ringSegmentCount = 24
-        let holeMat = SCNMaterial()
-        holeMat.lightingModel = .physicallyBased
-        holeMat.diffuse.contents  = UIColor(red: 0.10, green: 0.06, blue: 0.035, alpha: 1)
-        holeMat.roughness.contents = 1.0
-        holeMat.metalness.contents = 0.0
-        hole.materials = [holeMat]
-        return SCNNode(geometry: hole)
+        let root = SCNNode()
+        root.addChildNode(makeRootContactSoil(radius: 0.055, soilY: 0))
+
+        // Recessed, tapered cavity makes the opening read as a hole instead
+        // of a dark ring resting on top of the soil.
+        let cavity = SCNCone(topRadius: 0.013, bottomRadius: 0.0025, height: 0.036)
+        cavity.radialSegmentCount = 32
+        let cavityMaterial = SCNMaterial()
+        cavityMaterial.lightingModel = .physicallyBased
+        cavityMaterial.diffuse.contents = UIColor(red: 0.055, green: 0.030, blue: 0.018, alpha: 1)
+        cavityMaterial.roughness.contents = 1
+        cavityMaterial.isDoubleSided = true
+        cavity.materials = [cavityMaterial]
+        let cavityNode = SCNNode(geometry: cavity)
+        cavityNode.position.y = -0.018
+        root.addChildNode(cavityNode)
+
+        // A dark floor far below the rim gives the center real visual depth.
+        let floor = SCNCylinder(radius: 0.006, height: 0.001)
+        let floorMaterial = SCNMaterial()
+        floorMaterial.lightingModel = .constant
+        floorMaterial.diffuse.contents = UIColor(red: 0.018, green: 0.010, blue: 0.006, alpha: 1)
+        floorMaterial.isDoubleSided = true
+        floor.materials = [floorMaterial]
+        let floorNode = SCNNode(geometry: floor)
+        floorNode.position.y = -0.034
+        root.addChildNode(floorNode)
+
+        let rim = SCNTorus(ringRadius: 0.017, pipeRadius: 0.0028)
+        rim.ringSegmentCount = 32
+        rim.pipeSegmentCount = 12
+        let rimMaterial = SCNMaterial()
+        rimMaterial.lightingModel = .physicallyBased
+        rimMaterial.diffuse.contents = UIColor(red: 0.24, green: 0.12, blue: 0.055, alpha: 1)
+        rimMaterial.roughness.contents = 1
+        rim.materials = [rimMaterial]
+        let rimNode = SCNNode(geometry: rim)
+        rimNode.position.y = 0.001
+        root.addChildNode(rimNode)
+
+        return root
+    }
+
+    /// Shared seed geometry and warm grain material for the home preview and activity.
+    static func makePlantingSeedNode() -> SCNNode {
+        let geometry = SCNSphere(radius: 0.008)
+        geometry.segmentCount = 12
+        let material = SCNMaterial()
+        material.lightingModel = .physicallyBased
+        material.diffuse.contents = UIColor(red: 0.95, green: 0.86, blue: 0.62, alpha: 1)
+        material.roughness.contents = 0.78
+        geometry.materials = [material]
+        let node = SCNNode()
+        let grain = SCNNode(geometry: geometry)
+        grain.scale = SCNVector3(0.72, 1.0, 0.58)
+        node.addChildNode(grain)
+        return node
     }
 
     private func buildPlantingStage() {
@@ -1123,15 +1176,7 @@ final class HomeSceneRenderer: NSObject {
             plantingRoot.addChildNode(holeNode)
 
             // ── Seed sphere ────────────────────────────────────────────
-            let seed    = SCNSphere(radius: 0.008)
-            seed.segmentCount = 8
-            let seedMat = SCNMaterial()
-            seedMat.lightingModel = .lambert
-            seedMat.diffuse.contents  = UIColor(red: 0.95, green: 0.90, blue: 0.78, alpha: 1)
-            seedMat.roughness.contents = 0.70
-            seedMat.metalness.contents = 0.0
-            seed.materials = [seedMat]
-            let seedNode        = SCNNode(geometry: seed)
+            let seedNode = Self.makePlantingSeedNode()
             seedNode.name       = "seed_\(index)"
             seedNode.position   = SCNVector3(position.x, position.y + 0.015, position.z)
             seedNode.scale      = SCNVector3(0.001, 0.001, 0.001)

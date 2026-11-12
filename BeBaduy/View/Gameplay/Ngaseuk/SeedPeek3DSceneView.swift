@@ -63,7 +63,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
 
             let cameraNode = SCNNode()
             cameraNode.camera = camera
-            cameraNode.position = SCNVector3(0, 0.22, 0.18)
+            cameraNode.position = SCNVector3(0, 0.42, 0.35)
             cameraNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(cameraNode)
 
@@ -129,17 +129,9 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             root.addChildNode(holeNode)
 
             // 5. Seeds: Exact seed spheres and material from HomeView Ngored (HomeSceneRenderer lines 1121-1129)
-            let seedMat = SCNMaterial()
-            seedMat.lightingModel = .lambert
-            seedMat.diffuse.contents  = UIColor(red: 0.95, green: 0.90, blue: 0.78, alpha: 1)
-            seedMat.roughness.contents = 0.70
-            seedMat.metalness.contents = 0.0
-
             for (i, spot) in restingSpots.enumerated() {
-                let seedGeo = SCNSphere(radius: 0.0035)
-                seedGeo.segmentCount = 16
-                seedGeo.materials = [seedMat]
-                let seedNode = SCNNode(geometry: seedGeo)
+                let seedNode = HomeSceneRenderer.makePlantingSeedNode()
+                seedNode.scale = SCNVector3(0.44, 0.44, 0.44)
                 seedNode.name = "homeSeed_\(i)"
                 seedNode.position = SCNVector3(spot.x, 0.0035, spot.z)
                 seedNode.isHidden = !filled
