@@ -1095,33 +1095,36 @@ final class HomeSceneRenderer: NSObject {
     // ════════════════════════════════════════════════════════════════════
 
     /// Shared by the home preview and the seed close-up: one consistent dibble rim.
-    static func makePlantingHoleNode() -> SCNNode {
+    static func makePlantingHoleNode(homePreview: Bool = false) -> SCNNode {
         let root = SCNNode()
         root.addChildNode(makeRootContactSoil(radius: 0.055, soilY: 0))
 
-        // Recessed, tapered cavity makes the opening read as a hole instead
-        // of a dark ring resting on top of the soil.
-        let cavity = SCNCone(topRadius: 0.013, bottomRadius: 0.0025, height: 0.036)
-        cavity.radialSegmentCount = 32
-        let cavityMaterial = SCNMaterial()
-        cavityMaterial.lightingModel = .physicallyBased
-        cavityMaterial.diffuse.contents = UIColor(red: 0.055, green: 0.030, blue: 0.018, alpha: 1)
-        cavityMaterial.roughness.contents = 1
-        cavityMaterial.isDoubleSided = true
-        cavity.materials = [cavityMaterial]
-        let cavityNode = SCNNode(geometry: cavity)
-        cavityNode.position.y = -0.018
-        root.addChildNode(cavityNode)
-
-        // A dark floor far below the rim gives the center real visual depth.
-        let floor = SCNCylinder(radius: 0.006, height: 0.001)
+        let floor: SCNCylinder
+        if homePreview {
+            // The compact cone extends below the soil patch at the distant
+            // home camera angle, so use a shallow inset cavity there.
+            floor = SCNCylinder(radius: 0.013, height: 0.0015)
+        } else {
+            let cavity = SCNCone(topRadius: 0.013, bottomRadius: 0.0025, height: 0.036)
+            cavity.radialSegmentCount = 32
+            let cavityMaterial = SCNMaterial()
+            cavityMaterial.lightingModel = .physicallyBased
+            cavityMaterial.diffuse.contents = UIColor(red: 0.055, green: 0.030, blue: 0.018, alpha: 1)
+            cavityMaterial.roughness.contents = 1
+            cavityMaterial.isDoubleSided = true
+            cavity.materials = [cavityMaterial]
+            let cavityNode = SCNNode(geometry: cavity)
+            cavityNode.position.y = -0.018
+            root.addChildNode(cavityNode)
+            floor = SCNCylinder(radius: 0.006, height: 0.001)
+        }
         let floorMaterial = SCNMaterial()
         floorMaterial.lightingModel = .constant
         floorMaterial.diffuse.contents = UIColor(red: 0.018, green: 0.010, blue: 0.006, alpha: 1)
         floorMaterial.isDoubleSided = true
         floor.materials = [floorMaterial]
         let floorNode = SCNNode(geometry: floor)
-        floorNode.position.y = -0.034
+        floorNode.position.y = homePreview ? -0.002 : -0.034
         root.addChildNode(floorNode)
 
         let rim = SCNTorus(ringRadius: 0.017, pipeRadius: 0.0028)
@@ -1159,6 +1162,8 @@ final class HomeSceneRenderer: NSObject {
         plantingRoot.name = "plantingStage"
         scene.rootNode.addChildNode(plantingRoot)
 
+        // Ngored preview shows one planting point, matching the focused
+        // Ngaseuk activity view. Keep the four grains clustered in its cavity.
         let positions: [SCNVector3] = [.init(0, 0.039, 0)]
         /*
             .init(0,     0.039, 0),    .init(-0.10, 0.039, -0.05),
@@ -1170,20 +1175,28 @@ final class HomeSceneRenderer: NSObject {
 
         for (index, position) in positions.enumerated() {
             // ── Dibble hole ────────────────────────────────────────────
-            let holeNode = Self.makePlantingHoleNode()
+            let holeNode = Self.makePlantingHoleNode(homePreview: true)
             holeNode.name     = "hole_\(index)"
             holeNode.position = position
             plantingRoot.addChildNode(holeNode)
 
-            // ── Seed sphere ────────────────────────────────────────────
-            let seedNode = Self.makePlantingSeedNode()
-            seedNode.name       = "seed_\(index)"
-            seedNode.position   = SCNVector3(position.x, position.y + 0.015, position.z)
-            seedNode.scale      = SCNVector3(0.001, 0.001, 0.001)
-            seedNode.opacity    = 0
-            seedNode.isHidden   = true
-            plantingRoot.addChildNode(seedNode)
-            seedNodes.append(seedNode)
+            // Match the four golden grains shown in Ngaseuk's detail view.
+            // Place the grains inside the visible opening. The home camera's
+            // low viewing angle projects deep-floor grains below the near rim.
+            let seedOffsets: [(x: Float, z: Float)] = [
+                (-0.004, 0.001), (0.004, -0.001),
+                (0.001, 0.004), (0.001, -0.004)
+            ]
+            for (seedIndex, offset) in seedOffsets.enumerated() {
+                let seedNode = Self.makePlantingSeedNode()
+                seedNode.name = "seed_\(index)_\(seedIndex)"
+                seedNode.position = SCNVector3(position.x + offset.x, position.y + 0.008, position.z + offset.z)
+                seedNode.scale = SCNVector3(0.001, 0.001, 0.001)
+                seedNode.opacity = 0
+                seedNode.isHidden = true
+                plantingRoot.addChildNode(seedNode)
+                seedNodes.append(seedNode)
+            }
 
         }
     }
@@ -2692,14 +2705,12 @@ final class HomeSceneRenderer: NSObject {
         setVisibility(plantingRoot, opacity: plantingIn * plantingOut)
 
         // ── 6. Seeds appear with the holes during NGORED ───────────────
-        for (i, seedNode) in seedNodes.enumerated() {
-            // Stagger each seed slightly
-            let offset: Float = Float(i) * 0.012
-            let seedIn  = smoothstep(0.82 + offset, 0.89 + offset, p)
-            let seedOut = smoothstep(0.90 + offset, 0.98 + offset, p)
-            let seedT   = max(0, seedIn - seedOut)
-            let s       = CGFloat(max(0.001, seedT))
-            seedNode.scale    = SCNVector3(s, s, s)
+        for seedNode in seedNodes {
+            // Reveal the seed cluster with the hole and keep each grain full-sized;
+            // scaling each grain by the transition opacity made it disappear at stage entry.
+            let seedT = plantingIn * plantingOut
+            let grainScale = CGFloat(seedT > 0.005 ? 0.72 : 0.001)
+            seedNode.scale    = SCNVector3(grainScale, grainScale, grainScale)
             seedNode.opacity  = CGFloat(seedT)
             seedNode.isHidden = seedT < 0.005
         }

@@ -32,7 +32,14 @@ struct WelcomeHomeView: View {
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
-                CinematicSpeedLinesOverlay(progress: progress)
+                CinematicSpeedLinesOverlay(
+                    progress: progress,
+                    isScrolling: preview.isTransitioning && (
+                        (displayedStage < 5 && selectedStage < 5) ||
+                        (displayedStage == 5 && selectedStage == 6) ||
+                        (displayedStage == 6 && selectedStage == 5)
+                    )
+                )
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
@@ -187,12 +194,13 @@ struct WelcomeHomeView: View {
 /// High-motion-blur speed lines effect rendering dynamic horizontal streaks during the whip-pan to Leuit.
 private struct CinematicSpeedLinesOverlay: View {
     let progress: CGFloat
+    let isScrolling: Bool
 
     var body: some View {
         let panT = min(1.0, max(0.0, (progress - 0.932) / (0.985 - 0.932)))
         let velocity = sin(panT * .pi)
 
-        if velocity > 0.01 {
+        if isScrolling && velocity > 0.01 {
             Canvas { context, size in
                 let w = size.width
                 let h = size.height
