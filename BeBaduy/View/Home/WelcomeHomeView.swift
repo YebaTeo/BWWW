@@ -18,8 +18,12 @@ struct WelcomeHomeView: View {
     @State private var initializedPreview = false
     @State private var openingChapter = false
     @State private var displayedStage = 0
+    @State private var scrollCueStart: Date?
+    @State private var scrollCueTask: Task<Void, Never>?
     private var progress: CGFloat { preview.progress }
     private var selectedStage: Int { preview.selectedStage }
+    private var canScrollUp: Bool { selectedStage > 0 }
+    private var canScrollDown: Bool { selectedStage < GrowthStage.allStages.count - 1 }
 
     private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
     private let gold = Color(red: 1, green: 0.62, blue: 0.14)
@@ -28,7 +32,7 @@ struct WelcomeHomeView: View {
     var body: some View {
         GeometryReader { viewport in
             ZStack {
-                CinematicAtmosphereView(progress: progress, isActive: isActive)
+                CinematicAtmosphereView(progress: progress, isActive: isActive, scrollCueStart: scrollCueStart)
                     .accessibilityHidden(true)
                 SceneKitCropView(progress: progress, isActive: isActive, onFirstFrame: onFirstFrame)
                     .ignoresSafeArea()
@@ -45,6 +49,17 @@ struct WelcomeHomeView: View {
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
+                if let scrollCueStart {
+                    LightScrollCue(
+                        startDate: scrollCueStart,
+                        reduceMotion: reduceMotion,
+                        showsUp: canScrollUp,
+                        showsDown: canScrollDown
+                    )
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 VStack(spacing: 0) {
                     Color.clear
                         .contentShape(Rectangle())
@@ -72,6 +87,39 @@ struct WelcomeHomeView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
                 .padding(.bottom, viewport.size.height * 0.09)
+                if scrollCueStart != nil {
+                    VStack(spacing: 0) {
+                        if canScrollUp {
+                            Button {
+                                cancelScrollCue()
+                                preview.swipe(direction: -1, reduceMotion: reduceMotion)
+                            } label: {
+                                Color.clear
+                                    .frame(height: min(70, viewport.size.height * 0.085))
+                                    .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Tahap sebelumnya")
+                            .padding(.top, max(44, viewport.safeAreaInsets.top + 8))
+                        }
+                        Spacer(minLength: 0)
+                        if canScrollDown {
+                            Button {
+                                cancelScrollCue()
+                                preview.swipe(direction: 1, reduceMotion: reduceMotion)
+                            } label: {
+                                Color.clear
+                                    .frame(height: min(70, viewport.size.height * 0.085))
+                                    .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Tahap berikutnya")
+                            .padding(.bottom, max(4, viewport.safeAreaInsets.bottom))
+                        }
+                    }
+                }
             }
         }
         .foregroundStyle(ivory)
@@ -85,22 +133,32 @@ struct WelcomeHomeView: View {
         }
         .onChange(of: selectedStage) { _, index in
             if !preview.isTransitioning { displayedStage = index }
+            scheduleScrollCue()
         }
         .onChange(of: preview.isTransitioning) { _, transitioning in
             if !transitioning { displayedStage = selectedStage }
+            scheduleScrollCue()
         }
         .sensoryFeedback(.selection, trigger: selectedStage)
-        .onChange(of: reduceMotion) { _, enabled in if enabled { preview.stop() } }
+        .onChange(of: reduceMotion) { _, enabled in
+            if enabled { preview.stop() }
+            scheduleScrollCue()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { preview.stop() }
             else if isActive { playPendingStageTransition() }
+            scheduleScrollCue()
         }
         .onAppear {
             if isActive && playPendingStageTransition() {
                 initializedPreview = true
+                scheduleScrollCue()
                 return
             }
-            guard !initializedPreview else { return }
+            guard !initializedPreview else {
+                scheduleScrollCue()
+                return
+            }
             initializedPreview = true
             #if DEBUG
             if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--preview-stage=") }),
@@ -108,6 +166,7 @@ struct WelcomeHomeView: View {
                GrowthStage.allStages.indices.contains(index) {
                 preview.selectStage(index, reduceMotion: true)
                 displayedStage = index
+                scheduleScrollCue()
                 return
             }
             #endif
@@ -115,6 +174,7 @@ struct WelcomeHomeView: View {
                 preview.selectStage(stage.id, reduceMotion: true)
                 displayedStage = stage.id
             }
+            scheduleScrollCue()
         }
         .onChange(of: journey.progress.currentPhase) { previous, phase in
             guard pendingTransitionFrom == nil, !preview.isPlayingHarvestTransition else { return }
@@ -126,6 +186,7 @@ struct WelcomeHomeView: View {
         }
         .onDisappear {
             preview.stop()
+            cancelScrollCue()
         }
         .onChange(of: isActive) { _, active in
             if !active {
@@ -134,6 +195,7 @@ struct WelcomeHomeView: View {
                 openingChapter = false
                 playPendingStageTransition()
             }
+            scheduleScrollCue()
         }
     }
 
@@ -197,7 +259,9 @@ struct WelcomeHomeView: View {
 
     private var stageSwipe: some Gesture {
         DragGesture(minimumDistance: 18)
+            .onChanged { _ in cancelScrollCue() }
             .onEnded { value in
+                defer { scheduleScrollCue() }
                 guard abs(value.translation.height) > 45,
                       abs(value.translation.height) > abs(value.translation.width) else { return }
                 if value.translation.height < 0 {
@@ -210,6 +274,7 @@ struct WelcomeHomeView: View {
 
     private func openSelectedChapter() {
         guard isActive, !openingChapter, !preview.isTransitioning else { return }
+        cancelScrollCue()
         openingChapter = true
         preview.stop()
         if stage.isConclusion {
@@ -219,6 +284,156 @@ struct WelcomeHomeView: View {
         }
     }
 
+    private func cancelScrollCue() {
+        scrollCueTask?.cancel()
+        scrollCueTask = nil
+        scrollCueStart = nil
+    }
+
+    private func scheduleScrollCue() {
+        cancelScrollCue()
+        guard isActive, scenePhase == .active, !openingChapter,
+              !preview.isTransitioning,
+              (canScrollUp || canScrollDown) else { return }
+        scrollCueTask = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            guard !Task.isCancelled, isActive, !preview.isTransitioning else { return }
+            scrollCueStart = .now
+            do { try await Task.sleep(for: .seconds(ScrollCueMotion.duration)) } catch { return }
+            guard !Task.isCancelled else { return }
+            scrollCueStart = nil
+            scrollCueTask = nil
+        }
+    }
+
+}
+
+/// The Home's rising light orbs gather into soft cues at the available scroll edges.
+private struct LightScrollCue: View {
+    let startDate: Date
+    let reduceMotion: Bool
+    let showsUp: Bool
+    let showsDown: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
+            let elapsed = max(0, timeline.date.timeIntervalSince(startDate))
+            let cueAmount = ScrollCueMotion.amount(elapsed: elapsed)
+            ZStack {
+                if showsDown {
+                    LightCueField(pointsUp: false)
+                        .opacity(cueAmount)
+                }
+                if showsUp {
+                    LightCueField(pointsUp: true)
+                        .opacity(cueAmount)
+                }
+
+                Canvas { context, size in
+                    guard cueAmount > 0 else { return }
+                    let positionAmount = reduceMotion ? CGFloat(1) : CGFloat(cueAmount)
+                    let cueHeight = min(155, size.height * 0.19)
+                    let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+
+                    for index in 0..<28 {
+                        // Reuse the rising orbs, then let each one dissolve into the white field.
+                        let pointsUp = showsUp && (!showsDown || index.isMultiple(of: 2))
+                        let slot = showsUp && showsDown ? index / 2 : index
+                        let lastSlot = showsUp && showsDown ? 13 : 27
+                        let seed = Double(index)
+                        let speed = 0.04 + seed.truncatingRemainder(dividingBy: 5) * 0.012
+                        let cycle = (time * speed + seed * 0.15).truncatingRemainder(dividingBy: 1)
+                        let sourceY = size.height * CGFloat(1 - cycle)
+                        let sourceX = size.width * CGFloat((seed * 17).truncatingRemainder(dividingBy: 100) / 100)
+                            + CGFloat(sin(time * 0.8 + seed * 2) * 18)
+                        let t = CGFloat(slot) / CGFloat(lastSlot)
+                        let targetX = size.width * (0.015 + 0.97 * t)
+                        let curve = sin(t * .pi)
+                        let edgeDistance = cueHeight * (0.94 - 0.82 * curve)
+                        let targetY = (pointsUp ? edgeDistance : size.height - edgeDistance)
+                            + CGFloat((index * 11) % 7 - 3) * 1.3
+                        let x = sourceX + (targetX - sourceX) * positionAmount
+                        let y = sourceY + (targetY - sourceY) * positionAmount
+                        let blend = cueAmount * (1 - Double(positionAmount))
+                        let coreRadius = 1.2 + CGFloat(index % 3) * 0.8
+                        let haloRadius = coreRadius * (3.2 + positionAmount * 3.0)
+                        let haloColor = pointsUp
+                            ? Color(red: 1, green: 0.86, blue: 0.52)
+                            : Color.white
+                        let coreColor = pointsUp
+                            ? Color(red: 1, green: 0.96, blue: 0.76)
+                            : Color.white
+
+                        context.fill(
+                            Path(ellipseIn: CGRect(x: x - haloRadius, y: y - haloRadius,
+                                                   width: haloRadius * 2, height: haloRadius * 2)),
+                            with: .radialGradient(
+                                Gradient(colors: [haloColor.opacity(blend * 0.26), .clear]),
+                                center: CGPoint(x: x, y: y),
+                                startRadius: 0,
+                                endRadius: haloRadius
+                            )
+                        )
+                        context.fill(
+                            Path(ellipseIn: CGRect(x: x - coreRadius, y: y - coreRadius,
+                                                   width: coreRadius * 2, height: coreRadius * 2)),
+                            with: .color(coreColor.opacity(blend * 0.52))
+                        )
+                    }
+                }
+                .blendMode(.screen)
+            }
+        }
+    }
+}
+
+private struct LightCueField: View {
+    let pointsUp: Bool
+
+    var body: some View {
+        let light = pointsUp ? Color(red: 1, green: 0.88, blue: 0.56) : Color.white
+        let strength = pointsUp ? 1.55 : 1.0
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: light.opacity(0.025 * strength), location: 0.38),
+                .init(color: light.opacity(0.08 * strength), location: 0.62),
+                .init(color: light.opacity(0.17 * strength), location: 0.82),
+                .init(color: light.opacity(0.26 * strength), location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .mask {
+            LightBowlShape()
+                .fill(.white)
+                .blur(radius: 30)
+        }
+        .scaleEffect(y: pointsUp ? -1 : 1)
+    }
+}
+
+private struct LightBowlShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let width = rect.width
+        let height = rect.height
+        path.move(to: CGPoint(x: -40, y: height * 0.79))
+        path.addCurve(
+            to: CGPoint(x: width * 0.5, y: height * 0.93),
+            control1: CGPoint(x: width * 0.18, y: height * 0.90),
+            control2: CGPoint(x: width * 0.36, y: height * 0.94)
+        )
+        path.addCurve(
+            to: CGPoint(x: width + 40, y: height * 0.79),
+            control1: CGPoint(x: width * 0.64, y: height * 0.94),
+            control2: CGPoint(x: width * 0.82, y: height * 0.90)
+        )
+        path.addLine(to: CGPoint(x: width + 40, y: height + 40))
+        path.addLine(to: CGPoint(x: -40, y: height + 40))
+        path.closeSubpath()
+        return path
+    }
 }
 
 /// High-motion-blur speed lines effect rendering dynamic horizontal streaks during the whip-pan to Leuit.

@@ -11,6 +11,7 @@ import SwiftUI
 struct CinematicAtmosphereView: View {
     let progress: CGFloat
     let isActive: Bool
+    var scrollCueStart: Date? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
@@ -115,9 +116,12 @@ struct CinematicAtmosphereView: View {
                         .offset(x: depth * 16 + panOffset * 1.0)
                 }
 
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || !isActive || scenePhase != .active)) { timeline in
+                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isActive || scenePhase != .active || (reduceMotion && scrollCueStart == nil))) { timeline in
                     Canvas { context, canvasSize in
                         let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+                        let cueAmount = scrollCueStart.map {
+                            ScrollCueMotion.amount(elapsed: timeline.date.timeIntervalSince($0))
+                        } ?? 0
                         for i in 0..<28 {
                             let seed = Double(i)
                             let speed = 0.04 + (seed.truncatingRemainder(dividingBy: 5)) * 0.012
@@ -126,7 +130,7 @@ struct CinematicAtmosphereView: View {
                             let x = canvasSize.width * CGFloat((seed * 17).truncatingRemainder(dividingBy: 100) / 100) + sin(time * 0.8 + seed * 2) * 18
                             let radius = 1.2 + CGFloat(i % 3) * 0.8
                             let opacity = sin(cycle * .pi) * (0.65 - 0.42 * night)
-                            context.opacity = opacity
+                            context.opacity = opacity * pow(1 - cueAmount, 2)
                             context.fill(
                                 Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
                                 with: .color(Color(red: 1, green: 0.90, blue: 0.65))
@@ -266,6 +270,18 @@ struct CinematicAtmosphereView: View {
             .allowsHitTesting(false)
     }
 
+}
+
+enum ScrollCueMotion {
+    static let duration = 3.4
+
+    static func amount(elapsed: TimeInterval) -> Double {
+        let arrival = min(1, max(0, elapsed / 1.2))
+        let departure = min(1, max(0, (elapsed - 2.2) / 1.2))
+        let gathered = arrival * arrival * (3 - 2 * arrival)
+        let released = departure * departure * (3 - 2 * departure)
+        return gathered * (1 - released)
+    }
 }
 
 private struct ProceduralSunsetSkyView: View {
