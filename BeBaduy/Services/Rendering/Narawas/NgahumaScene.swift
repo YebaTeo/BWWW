@@ -86,6 +86,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let fallDirection: Float
     }
 
+    private var golokSwingNode: SCNNode?
     private var treeEntries: [TreeEntry] = []
     private var ngoredWeedRoots: [SCNNode] = []
     private var ngoredWeedRestPositions: [SCNVector3] = []
@@ -280,6 +281,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         fireRoot.childNodes.forEach { $0.removeFromParentNode() }
         ashRoot.childNodes.forEach { $0.removeFromParentNode() }
 
+        clearGolokSwing()
         treeEntries.removeAll()
         treeChopStartTimes.removeAll()
         treeChopProgress.removeAll()
@@ -1711,7 +1713,89 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    private func clearGolokSwing() {
+        golokSwingNode?.removeAllActions()
+        golokSwingNode?.removeFromParentNode()
+        golokSwingNode = nil
+    }
+
+    private func playGolokSwing(at index: Int) {
+        guard !reduceMotion, !suspended, treeEntries.indices.contains(index) else { return }
+        let swing: SCNNode
+        if let existing = golokSwingNode {
+            swing = existing
+        } else {
+            guard let url = Bundle.main.url(forResource: "GOLOK", withExtension: "usdz")
+                ?? Bundle.main.url(forResource: "GOLOK", withExtension: "usdz", subdirectory: "Asset/Narawas"),
+                  let source = try? SCNScene(url: url) else { return }
+            let model = source.rootNode.clone()
+            let golokLightingMask = 1 << 5
+            model.enumerateChildNodes { node, _ in
+                if node.camera != nil || node.light != nil {
+                    node.removeFromParentNode()
+                } else if node.geometry != nil {
+                    node.categoryBitMask |= golokLightingMask
+                }
+            }
+            let (minBounds, maxBounds) = model.boundingBox
+            let dimensions = SCNVector3(maxBounds.x - minBounds.x, maxBounds.y - minBounds.y, maxBounds.z - minBounds.z)
+            let longest = max(dimensions.x, dimensions.y, dimensions.z)
+            guard longest.isFinite, longest > 0.0001 else { return }
+            let scale = 0.10 / longest
+            // Add a little width and depth while preserving the longest axis.
+            let crossScale = scale * 1.15
+            let toolScale = SCNVector3(
+                dimensions.x == longest ? scale : crossScale,
+                dimensions.y == longest ? scale : crossScale,
+                dimensions.z == longest ? scale : crossScale
+            )
+            model.scale = toolScale
+            model.position = SCNVector3(
+                -(minBounds.x + maxBounds.x) * toolScale.x / 2,
+                -(minBounds.y + maxBounds.y) * toolScale.y / 2,
+                -(minBounds.z + maxBounds.z) * toolScale.z / 2
+            )
+            swing = SCNNode()
+            swing.addChildNode(model)
+            let fill = SCNLight()
+            // A soft fill keeps the tool readable without a hotspot on the blade.
+            fill.type = .ambient
+            fill.intensity = 100
+            fill.categoryBitMask = golokLightingMask
+            let fillNode = SCNNode()
+            fillNode.light = fill
+            swing.addChildNode(fillNode)
+            worldRoot.addChildNode(swing)
+            golokSwingNode = swing
+        }
+
+        let tree = treeEntries[index]
+        let contact = SIMD3<Float>(tree.worldBasePosition.x, soilY + tree.pivotOrigin.y, tree.worldBasePosition.z)
+        let side = motionOrientation.act(SIMD3<Float>(1, 0, 0))
+        let towardCamera = motionOrientation.act(SIMD3<Float>(0, 0, 1))
+        let hit = contact + towardCamera * 0.20 + SIMD3<Float>(0, 0.05, 0)
+        let start = hit + side * 0.34 + SIMD3<Float>(0, 0.26, 0)
+        swing.removeAllActions()
+        swing.isHidden = false
+        swing.opacity = 1
+        swing.simdPosition = start
+        swing.simdOrientation = motionOrientation * simd_quatf(angle: -0.85, axis: [0, 0, 1])
+
+        let strike = SCNAction.group([
+            .move(to: SCNVector3(hit.x, hit.y, hit.z), duration: 0.11),
+            .rotateBy(x: 0, y: 0, z: 1.05, duration: 0.11)
+        ])
+        strike.timingMode = .easeIn
+        let recovery = SCNAction.group([
+            .move(to: SCNVector3(start.x, start.y, start.z), duration: 0.22),
+            .fadeOut(duration: 0.22)
+        ])
+        recovery.timingMode = .easeOut
+        swing.runAction(.sequence([strike, .wait(duration: 0.12), recovery, .hide()]), forKey: "golokSwing")
+    }
+
     func animateChop(_ index: Int, tapCount: Int, requiredTaps: Int) {
+        playGolokSwing(at: index)
         let chopFraction = Float(tapCount) / Float(max(1, requiredTaps))
         treeChopProgress[index] = chopFraction
         treeChopStartTimes[index] = CACurrentMediaTime()
@@ -1729,6 +1813,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func animateCut(_ index: Int) {
+        playGolokSwing(at: index)
         treeChopProgress[index] = 1.0
         feedback.impactOccurred(intensity: 0.85)
         treeCutStartTimes[index] = CACurrentMediaTime()
@@ -2314,11 +2399,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         view?.isPlaying = !value
         updateWindState()
         if value {
+            clearGolokSwing()
             audioPlayer?.pause()
         }
     }
 
     func stop() {
+        clearGolokSwing()
         ngoredCycleFrame = nil
         ngoredCycleCompletion = nil
         displayLink?.invalidate()

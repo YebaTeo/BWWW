@@ -1,4 +1,5 @@
 import Observation
+import SwiftUI
 
 @Observable @MainActor final class HomeViewModel {
     var path: [PhaseID] = []
@@ -13,6 +14,12 @@ import Observation
             }
         }
         journey.open(phase)
-        path = [phase]
+        if phase == .narawas {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { path = [phase] }
+        } else {
+            path = [phase]
+        }
     }
 }

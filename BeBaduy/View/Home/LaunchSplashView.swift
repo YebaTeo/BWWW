@@ -47,8 +47,10 @@ struct LaunchSplashView: View {
 }
 
 struct LaunchLoadingIndicator: View {
+    var message: LocalizedStringKey = "Menyiapkan perjalanan…"
+
     var body: some View {
-        ProgressView("Menyiapkan perjalanan…")
+        ProgressView(message)
             .tint(.white)
             .foregroundStyle(.white)
             .padding(24)
