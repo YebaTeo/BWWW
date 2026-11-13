@@ -110,6 +110,24 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             rimLightNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(rimLightNode)
 
+            // Restore the detailed AR soil surrounding the planting hole.
+            let environment = UIImage(named: "HumaEnvironment")
+            let soilImage = environment?.cgImage
+                .flatMap { NgahumaMaterials.buildSoilTexture(from: $0) }
+                .map { UIImage(cgImage: $0) }
+                ?? UIImage(named: "HumaTerrainTexture") ?? UIImage()
+            let (terrainGeometry, terrainMaterial) = NgahumaMaterials.makeTerrainMesh(
+                span: 1.4,
+                steps: 24,
+                soilY: 0,
+                texture: soilImage
+            )
+            terrainMaterial.diffuse.contentsTransform = SCNMatrix4MakeScale(8, 8, 1)
+            let terrainNode = SCNNode(geometry: terrainGeometry)
+            terrainNode.name = "arHumaTerrain"
+            terrainNode.castsShadow = false
+            scene.rootNode.addChildNode(terrainNode)
+
             // 3. Root Container
             let root = SCNNode()
             root.name = "holeRoot"
