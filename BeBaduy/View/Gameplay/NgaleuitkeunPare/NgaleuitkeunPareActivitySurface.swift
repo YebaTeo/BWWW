@@ -22,7 +22,9 @@ struct NgaleuitkeunPareActivitySurface: View {
                         guard !model.isLadderPlaced else { return }
                         let x = value.location.x / max(1, geometry.size.width)
                         let y = value.location.y / max(1, geometry.size.height)
-                        if (0.27...0.73).contains(x) && (0.18...0.64).contains(y) {
+                        let nearDoor = (0.32...0.68).contains(x) && (0.22...0.50).contains(y)
+                        let nearFootMarker = (0.22...0.55).contains(x) && (0.52...0.75).contains(y)
+                        if nearDoor || nearFootMarker {
                             model.placeLadder()
                         } else {
                             model.moveLadder(x: 0, y: 0)
@@ -51,18 +53,31 @@ struct NgaleuitkeunPareActivitySurface: View {
         .task(id: model.isLadderPlaced && scenePhase == .active) {
             guard model.isLadderPlaced, scenePhase == .active, model.session.isActive else { return }
             model.setClimbProgress(0)
-            model.setEntering(false)
+            model.setDoorOpening(0)
+            model.setEnteringProgress(0)
             do {
                 if !reduceMotion {
-                    for rung in 1...6 {
-                        model.setClimbProgress(Float(rung) / 6)
-                        try await Task.sleep(for: .milliseconds(250))
+                    for frame in 0...25 {
+                        let t = Float(frame) / 25
+                        model.setDoorOpening(t * t * (3 - 2 * t))
+                        try await Task.sleep(for: .milliseconds(16))
+                    }
+                    for frame in 0...90 {
+                        let t = Float(frame) / 90
+                        model.setClimbProgress(t * t * (3 - 2 * t))
+                        try await Task.sleep(for: .milliseconds(16))
+                    }
+                    for frame in 0...70 {
+                        let t = Float(frame) / 70
+                        model.setEnteringProgress(t * t * (3 - 2 * t))
+                        try await Task.sleep(for: .milliseconds(16))
                     }
                 } else {
+                    model.setDoorOpening(1)
                     model.setClimbProgress(1)
+                    model.setEnteringProgress(1)
                 }
-                model.setEntering(true)
-                try await Task.sleep(for: .milliseconds(850))
+                try await Task.sleep(for: .milliseconds(350))
                 guard !Task.isCancelled else { return }
                 model.finish()
             } catch { return }

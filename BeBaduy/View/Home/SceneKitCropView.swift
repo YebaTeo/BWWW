@@ -19,7 +19,8 @@ struct LeuitActivitySceneState {
     var dragX: Float
     var dragY: Float
     var climbProgress: Float
-    var entering: Bool
+    var doorOpening: Float
+    var enteringProgress: Float
 }
 
 struct SceneKitCropView: UIViewRepresentable {

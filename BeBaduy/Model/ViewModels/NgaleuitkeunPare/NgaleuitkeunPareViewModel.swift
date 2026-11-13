@@ -7,17 +7,20 @@ import UIKit
     private(set) var ladderDragX: Float = 0
     private(set) var ladderDragY: Float = 0
     private(set) var climbProgress: Float = 0
-    private(set) var isEntering = false
+    private(set) var doorOpening: Float = 0
+    private(set) var enteringProgress: Float = 0
     private var usedDemo = false
 
     var sceneState: LeuitActivitySceneState {
         LeuitActivitySceneState(ladderPlaced: isLadderPlaced, dragX: ladderDragX,
-                                dragY: ladderDragY, climbProgress: climbProgress, entering: isEntering)
+                                dragY: ladderDragY, climbProgress: climbProgress,
+                                doorOpening: doorOpening, enteringProgress: enteringProgress)
     }
 
     func start() {
         isLadderPlaced = false
-        ladderDragX = 0; ladderDragY = 0; climbProgress = 0; isEntering = false
+        ladderDragX = 0; ladderDragY = 0; climbProgress = 0
+        doorOpening = 0; enteringProgress = 0
         usedDemo = false
         session.start()
     }
@@ -37,7 +40,8 @@ import UIKit
     }
 
     func setClimbProgress(_ value: Float) { climbProgress = value }
-    func setEntering(_ value: Bool) { isEntering = value }
+    func setDoorOpening(_ value: Float) { doorOpening = value }
+    func setEnteringProgress(_ value: Float) { enteringProgress = value }
 
     func finish() {
         guard session.isActive, isLadderPlaced else { return }

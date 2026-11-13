@@ -68,6 +68,12 @@ final class HomeSceneRenderer: NSObject {
     private var granaryPreviewScale: Float = 1
     private var granaryDoorLocal = SCNVector3(0, 0, 0)
     private var granaryModelHeight: Float = 1
+    private var granaryDoorPanelNode: SCNNode?
+    private let leuitOpeningRoot = SCNNode()
+    private let leuitDoorLeftPivot = SCNNode()
+    private let leuitDoorRightPivot = SCNNode()
+    private let leuitLadderTarget = SCNNode()
+    private let leuitDoorGuide = SCNNode()
     private let leuitLadderRoot = SCNNode()
     private let leuitCarrySheaf = SCNNode()
     private var hangingBundles: [SCNNode] = []
@@ -1797,6 +1803,12 @@ final class HomeSceneRenderer: NSObject {
             }
 
             lumbungNode.enumerateChildNodes { node, _ in
+                if node.name == "Plane_010", node.geometry != nil {
+                    granaryDoorPanelNode = node
+                }
+            }
+
+            lumbungNode.enumerateChildNodes { node, _ in
                 if node.light != nil || node.camera != nil {
                     node.removeFromParentNode()
                 }
@@ -2017,12 +2029,88 @@ final class HomeSceneRenderer: NSObject {
         smoothTextureSampling(wood.diffuse)
 
         let h = granaryModelHeight
+        var openingWidth = h * 0.26
+        var openingHeight = h * 0.20
+        var openingCenter = granaryDoorLocal
+        if let panel = granaryDoorPanelNode {
+            let box = panel.boundingBox
+            let corners = [
+                SCNVector3(box.min.x, box.min.y, box.min.z),
+                SCNVector3(box.max.x, box.min.y, box.min.z),
+                SCNVector3(box.min.x, box.max.y, box.min.z),
+                SCNVector3(box.max.x, box.max.y, box.min.z),
+                SCNVector3(box.min.x, box.min.y, box.max.z),
+                SCNVector3(box.max.x, box.min.y, box.max.z),
+                SCNVector3(box.min.x, box.max.y, box.max.z),
+                SCNVector3(box.max.x, box.max.y, box.max.z)
+            ].map { panel.convertPosition($0, to: granaryRoot) }
+            let minX = corners.map(\.x).min() ?? 0
+            let maxX = corners.map(\.x).max() ?? 0
+            let minY = corners.map(\.y).min() ?? 0
+            let maxY = corners.map(\.y).max() ?? 0
+            let frontZ = corners.map(\.z).max() ?? granaryDoorLocal.z
+            openingWidth = max(0.01, maxX - minX)
+            openingHeight = max(0.01, maxY - minY)
+            openingCenter = SCNVector3((minX + maxX) * 0.5, (minY + maxY) * 0.5, frontZ)
+            granaryDoorLocal = openingCenter
+        }
+
+        // The imported front panel stays on Home. In the activity, two bamboo
+        // door leaves swing away from an inset dark cavity so rice enters a hole.
+        let cavityMaterial = SCNMaterial()
+        cavityMaterial.lightingModel = .constant
+        cavityMaterial.diffuse.contents = UIColor(red: 0.045, green: 0.025, blue: 0.012, alpha: 1)
+        cavityMaterial.isDoubleSided = true
+        let cavity = SCNNode(geometry: SCNPlane(width: CGFloat(openingWidth * 0.94),
+                                                height: CGFloat(openingHeight * 0.94)))
+        cavity.geometry?.materials = [cavityMaterial]
+        cavity.position = SCNVector3(openingCenter.x, openingCenter.y, openingCenter.z - h * 0.045)
+        leuitOpeningRoot.addChildNode(cavity)
+        for (pivot, side) in [(leuitDoorLeftPivot, Float(-1)), (leuitDoorRightPivot, Float(1))] {
+            let leafGeometry = SCNBox(width: CGFloat(openingWidth * 0.49),
+                                      height: CGFloat(openingHeight),
+                                      length: CGFloat(h * 0.008), chamferRadius: CGFloat(h * 0.002))
+            leafGeometry.materials = [wood]
+            let leaf = SCNNode(geometry: leafGeometry)
+            leaf.position.x = -side * openingWidth * 0.245
+            pivot.position = SCNVector3(openingCenter.x + side * openingWidth * 0.5,
+                                         openingCenter.y, openingCenter.z + h * 0.003)
+            pivot.addChildNode(leaf)
+            leuitOpeningRoot.addChildNode(pivot)
+        }
+        granaryRoot.addChildNode(leuitOpeningRoot)
+        leuitOpeningRoot.isHidden = true
+
+        let guideMaterial = SCNMaterial()
+        guideMaterial.lightingModel = .constant
+        guideMaterial.diffuse.contents = UIColor(red: 1, green: 0.63, blue: 0.22, alpha: 0.85)
+        guideMaterial.emission.contents = UIColor(red: 0.60, green: 0.29, blue: 0.07, alpha: 1)
+        let guideZ = openingCenter.z + h * 0.015
+        let leftX = openingCenter.x - openingWidth * 0.52
+        let rightX = openingCenter.x + openingWidth * 0.52
+        let lowY = openingCenter.y - openingHeight * 0.52
+        let highY = openingCenter.y + openingHeight * 0.52
+        for (a, b) in [
+            (SIMD3<Float>(leftX, lowY, guideZ), SIMD3<Float>(rightX, lowY, guideZ)),
+            (SIMD3<Float>(leftX, highY, guideZ), SIMD3<Float>(rightX, highY, guideZ)),
+            (SIMD3<Float>(leftX, lowY, guideZ), SIMD3<Float>(leftX, highY, guideZ)),
+            (SIMD3<Float>(rightX, lowY, guideZ), SIMD3<Float>(rightX, highY, guideZ))
+        ] {
+            leuitDoorGuide.addChildNode(branch(from: a, to: b, radius: h * 0.003, material: guideMaterial))
+        }
+        granaryRoot.addChildNode(leuitDoorGuide)
+
         let door = granaryDoorLocal
         let railHalfWidth = h * 0.065
-        let footX = door.x - h * 0.16
+        // Keep both ladder rails on the same centerline as the upper door.
+        // The ladder leans toward the front through its Z depth, rather than
+        // drifting sideways as it rises.
+        let footX = door.x
         let footY = door.y - h * 0.66
         let footZ = door.z + h * 0.53
         let topZ = door.z + h * 0.04
+        leuitLadderTarget.position = SCNVector3(footX, footY + h * 0.005, footZ)
+        granaryRoot.addChildNode(leuitLadderTarget)
         leuitLadderRoot.name = "leuitActivityBambooLadder"
         for side: Float in [-1, 1] {
             let rail = branch(
@@ -2050,13 +2138,24 @@ final class HomeSceneRenderer: NSObject {
 
         // Reuse the same bound rice that hangs on the Ngalantai bamboo rack.
         if storageHangingBundles.count > 1 {
-            leuitCarrySheaf.addChildNode(storageHangingBundles[1].clone())
+            let carriedRice = storageHangingBundles[1].clone()
+            carriedRice.enumerateChildNodes { node, _ in
+                guard let geometry = node.geometry else { return }
+                geometry.materials = geometry.materials.map { source in
+                    let material = source.copy() as! SCNMaterial
+                    material.emission.contents = UIColor(red: 0.42, green: 0.29, blue: 0.07, alpha: 1)
+                    return material
+                }
+            }
+            leuitCarrySheaf.addChildNode(carriedRice)
         }
         leuitCarrySheaf.name = "leuitActivityDryingRice"
-        leuitCarrySheaf.scale = SCNVector3(0.65, 0.65, 0.65)
+        leuitCarrySheaf.scale = SCNVector3(1.20, 1.20, 1.20)
         granaryRoot.addChildNode(leuitCarrySheaf)
         leuitLadderRoot.isHidden = true
         leuitCarrySheaf.isHidden = true
+        leuitLadderTarget.isHidden = true
+        leuitDoorGuide.isHidden = true
     }
 
     /// Builds the camera-attached high-speed horizontal motion blur streak canopy (Garis-Garis Kecepatan).
@@ -3361,11 +3460,22 @@ final class HomeSceneRenderer: NSObject {
         storageRackTopRoot.eulerAngles.z = Float(rackBalance) * 0.12
         granaryRoot.position = SCNVector3(HomeConclusionPan.distance, soilY, 0.02)
         let leuitScene = leuitActivity
-        let granaryScale = granaryPreviewScale * (leuitScene == nil ? 1 : 1.04)
+        let leuitPullback = leuitScene.map { min(1, max(0, $0.enteringProgress)) } ?? 0
+        let leuitSceneScale: Float = 1.04 - 0.20 * leuitPullback
+        let granaryScale = granaryPreviewScale * (leuitScene == nil ? 1 : leuitSceneScale)
         granaryRoot.scale = SCNVector3(granaryScale, granaryScale, granaryScale)
         granaryRoot.eulerAngles.y = leuitScene == nil ? 0.55 : 0
         leuitLadderRoot.isHidden = leuitScene == nil
         leuitCarrySheaf.isHidden = leuitScene == nil
+        let doorOpening = min(1, max(0, leuitScene?.doorOpening ?? 0))
+        granaryDoorPanelNode?.isHidden = leuitScene != nil && doorOpening > 0.001
+        leuitOpeningRoot.isHidden = leuitScene == nil || doorOpening <= 0.001
+        leuitDoorLeftPivot.eulerAngles.y = -1.28 * doorOpening
+        leuitDoorRightPivot.eulerAngles.y = 1.28 * doorOpening
+        leuitLadderTarget.isHidden = leuitScene == nil || leuitScene?.ladderPlaced == true
+        leuitDoorGuide.isHidden = leuitLadderTarget.isHidden
+        let guidePulse = CGFloat(0.55 + 0.22 * sin(time * 3.2))
+        leuitDoorGuide.opacity = guidePulse
         if let leuitScene {
             let h = granaryModelHeight
             if leuitScene.ladderPlaced {
@@ -3373,19 +3483,26 @@ final class HomeSceneRenderer: NSObject {
                 leuitLadderRoot.eulerAngles.z = 0
             } else {
                 leuitLadderRoot.position = SCNVector3(
-                    -h * 0.22 + leuitScene.dragX * h * 1.7,
-                    -h * 0.12 - leuitScene.dragY * h * 1.7,
+                    -h * 0.22 + leuitScene.dragX * h,
+                    -h * 0.12 - leuitScene.dragY * h * 0.7,
                     h * 0.18
                 )
                 leuitLadderRoot.eulerAngles.z = -0.28
             }
             let climb = min(1, max(0, leuitScene.climbProgress))
+            let entering = min(1, max(0, leuitScene.enteringProgress))
+            let ladderFootY = granaryDoorLocal.y - h * 0.66
+            let ladderFootZ = granaryDoorLocal.z + h * 0.53
+            let ladderTopZ = granaryDoorLocal.z + h * 0.04
             leuitCarrySheaf.position = SCNVector3(
-                granaryDoorLocal.x - h * 0.34 + climb * h * 0.34,
-                granaryDoorLocal.y - h * 0.58 + climb * h * 0.55,
-                granaryDoorLocal.z + h * (0.46 - climb * 0.39)
+                granaryDoorLocal.x,
+                ladderFootY + climb * (granaryDoorLocal.y - ladderFootY),
+                ladderFootZ + climb * (ladderTopZ - ladderFootZ) + h * (0.02 - entering * 0.19)
             )
-            leuitCarrySheaf.opacity = leuitScene.entering ? 0 : CGFloat(1 - smoothstep(0.82, 1, climb))
+            leuitCarrySheaf.eulerAngles = SCNVector3(0, 0.48, -0.18 * (1 - climb))
+            let sheafScale = 1.20 - 0.30 * climb - 0.20 * entering
+            leuitCarrySheaf.scale = SCNVector3(sheafScale, sheafScale, sheafScale)
+            leuitCarrySheaf.opacity = CGFloat(1 - smoothstep(0.55, 1, entering))
         }
         setVisibility(granaryRoot, opacity: fullP >= 0.95 ? 1 : 0)
         // Landscape parallax supplies the speed cue without drawn streaks.
@@ -3528,7 +3645,9 @@ final class HomeSceneRenderer: NSObject {
         let rackCamRise = smoothstep(0.902, 0.938, fullP)
         let enlargedActivityRack = !showsRackPosts && rackScale > 1.0
         let landscapeZoomOut: Float = enlargedActivityRack ? 0.50 * rackCamRise : 0
+        let leuitViewPullback: Float = leuitActivity.map { 0.70 * min(1, max(0, $0.enteringProgress)) } ?? 0
         let storageCamZ: Float = 1.75 + landscapeZoomOut * (1.0 - storageFraming)
+            + leuitViewPullback * (1.0 - storageFraming)
 
         let liftCamLook = 0.035 * liftT * (1.0 - settleOnTarp)
         let activityLookY: Float = -0.12 + 0.25 * rackCamRise
