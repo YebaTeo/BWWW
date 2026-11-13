@@ -3352,7 +3352,7 @@ final class HomeSceneRenderer: NSObject {
         }
 
         // Keep Ngored at the planted hole and seeds; rice grows toward Mipit.
-        let riceGrowth = Self.riceGrowthAmount((p - 0.90) / 0.08)
+        let riceGrowth = Self.riceGrowthAmount((p - 0.888) / 0.112)
         leavesRoot.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
         let harvestCut = smoothstep(0.75, 0.78, fullP)
         setVisibility(leavesRoot, opacity: showsRice ? riceGrowth * (1 - harvestCut) : 0)
@@ -3620,7 +3620,7 @@ final class HomeSceneRenderer: NSObject {
         cameraNode.look(at: SCNVector3(cameraX + targetLookX, targetLookY, 0))
     }
 
-    /// Mirrors the background's five complete day/night cycles
+    /// Mirrors the background's two complete day/night cycles
     /// while the preview moves from Ngored to Mipit.
     private func updateHarvestLighting(progress: CGFloat) {
         let phase = HomeCelestialCycle.phase(progress: progress)

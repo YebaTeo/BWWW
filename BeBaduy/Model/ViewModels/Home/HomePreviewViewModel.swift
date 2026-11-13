@@ -50,7 +50,7 @@ final class HomePreviewViewModel {
             let isConclusionPan = (previousStage == 5 && index == 6) || (previousStage == 6 && index == 5)
             let start = progress
             let destination = GrowthStage.allStages[index].targetProgress
-            let duration: Double = isConclusionPan ? 0.18 : (isHarvestTimeLapse ? 12 : (isLeuitTransition ? 1.35 : (isForestClearing ? 7.2 : 0.23)))
+            let duration: Double = isConclusionPan ? 0.18 : (isHarvestTimeLapse ? 10 : (isLeuitTransition ? 1.35 : (isForestClearing ? 7.2 : 0.23)))
             // Custom scene inputs need actual intermediate state values;
             // withAnimation alone only interpolates animatable view properties.
             transitionTask = Task { @MainActor in
