@@ -9,6 +9,7 @@ final class HomeSceneRenderer: NSObject {
     var rackBalance = 0.0
     var rackTransitionTimeConstant = 0.16
     var rackScale: Float = 0.92
+    var leuitActivity: LeuitActivitySceneState?
     var mipitHarvested: Set<Int> = []
     private var mipitStandingNodes: [SCNNode] = []
     private var mipitSheafNodes: [SCNNode] = []
@@ -64,6 +65,11 @@ final class HomeSceneRenderer: NSObject {
     private var storageRackBundleShadows: [SCNNode] = []
     private let granaryRoot = SCNNode()
     private var granaryMaterials: [SCNMaterial] = []
+    private var granaryPreviewScale: Float = 1
+    private var granaryDoorLocal = SCNVector3(0, 0, 0)
+    private var granaryModelHeight: Float = 1
+    private let leuitLadderRoot = SCNNode()
+    private let leuitCarrySheaf = SCNNode()
     private var hangingBundles: [SCNNode] = []
     private let rackShadowRoot = SCNNode()
     private var rackBundleShadows: [SCNNode] = []
@@ -222,6 +228,7 @@ final class HomeSceneRenderer: NSObject {
         buildLeuitRack()
         storageBuildLeuitRack()
         buildGranaryPreview()
+        buildLeuitActivityProps()
         configureObjectShadows()
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
@@ -1962,6 +1969,11 @@ final class HomeSceneRenderer: NSObject {
         let bounds = granaryRoot.boundingBox
         let modelHeight = max(0.001, bounds.max.y - bounds.min.y)
         let previewScale: Float = 0.45 / modelHeight
+        granaryPreviewScale = previewScale
+        granaryModelHeight = modelHeight
+        granaryDoorLocal = SCNVector3((bounds.min.x + bounds.max.x) * 0.5,
+                                      bounds.min.y + modelHeight * 0.73,
+                                      bounds.max.z - modelHeight * 0.07)
         granaryRoot.scale = SCNVector3(previewScale, previewScale, previewScale)
 
         // Multi-tier ambient occlusion and directional shadow beneath the elevated granary floor
@@ -1992,6 +2004,59 @@ final class HomeSceneRenderer: NSObject {
         granaryRoot.eulerAngles.y = 0.55
         scene.rootNode.addChildNode(granaryRoot)
         setVisibility(granaryRoot, opacity: 0)
+    }
+
+    /// SceneKit taraje leaning toward the upper front door of the Home leuit.
+    private func buildLeuitActivityProps() {
+        let wood = SCNMaterial()
+        wood.lightingModel = .physicallyBased
+        wood.diffuse.contents = UIImage(named: "HumaWoodTexture")
+            ?? UIColor(red: 0.72, green: 0.53, blue: 0.27, alpha: 1)
+        wood.multiply.contents = UIColor(red: 0.89, green: 0.74, blue: 0.47, alpha: 1)
+        wood.roughness.contents = 0.86
+        smoothTextureSampling(wood.diffuse)
+
+        let h = granaryModelHeight
+        let door = granaryDoorLocal
+        let railHalfWidth = h * 0.065
+        let footX = door.x - h * 0.16
+        let footY = door.y - h * 0.66
+        let footZ = door.z + h * 0.53
+        let topZ = door.z + h * 0.04
+        leuitLadderRoot.name = "leuitActivityBambooLadder"
+        for side: Float in [-1, 1] {
+            let rail = branch(
+                from: SIMD3<Float>(footX + side * railHalfWidth, footY, footZ),
+                to: SIMD3<Float>(door.x + side * railHalfWidth, door.y, topZ),
+                radius: h * 0.013,
+                material: wood
+            )
+            leuitLadderRoot.addChildNode(rail)
+        }
+        for rung in 1...6 {
+            let t = Float(rung) / 7
+            let x = footX + (door.x - footX) * t
+            let y = footY + (door.y - footY) * t
+            let z = footZ + (topZ - footZ) * t
+            let step = branch(
+                from: SIMD3<Float>(x - railHalfWidth, y, z),
+                to: SIMD3<Float>(x + railHalfWidth, y, z),
+                radius: h * 0.009,
+                material: wood
+            )
+            leuitLadderRoot.addChildNode(step)
+        }
+        granaryRoot.addChildNode(leuitLadderRoot)
+
+        // Reuse the same bound rice that hangs on the Ngalantai bamboo rack.
+        if storageHangingBundles.count > 1 {
+            leuitCarrySheaf.addChildNode(storageHangingBundles[1].clone())
+        }
+        leuitCarrySheaf.name = "leuitActivityDryingRice"
+        leuitCarrySheaf.scale = SCNVector3(0.65, 0.65, 0.65)
+        granaryRoot.addChildNode(leuitCarrySheaf)
+        leuitLadderRoot.isHidden = true
+        leuitCarrySheaf.isHidden = true
     }
 
     /// Builds the camera-attached high-speed horizontal motion blur streak canopy (Garis-Garis Kecepatan).
@@ -3295,6 +3360,33 @@ final class HomeSceneRenderer: NSObject {
         }
         storageRackTopRoot.eulerAngles.z = Float(rackBalance) * 0.12
         granaryRoot.position = SCNVector3(HomeConclusionPan.distance, soilY, 0.02)
+        let leuitScene = leuitActivity
+        let granaryScale = granaryPreviewScale * (leuitScene == nil ? 1 : 1.04)
+        granaryRoot.scale = SCNVector3(granaryScale, granaryScale, granaryScale)
+        granaryRoot.eulerAngles.y = leuitScene == nil ? 0.55 : 0
+        leuitLadderRoot.isHidden = leuitScene == nil
+        leuitCarrySheaf.isHidden = leuitScene == nil
+        if let leuitScene {
+            let h = granaryModelHeight
+            if leuitScene.ladderPlaced {
+                leuitLadderRoot.position = SCNVector3(0, 0, 0)
+                leuitLadderRoot.eulerAngles.z = 0
+            } else {
+                leuitLadderRoot.position = SCNVector3(
+                    -h * 0.22 + leuitScene.dragX * h * 1.7,
+                    -h * 0.12 - leuitScene.dragY * h * 1.7,
+                    h * 0.18
+                )
+                leuitLadderRoot.eulerAngles.z = -0.28
+            }
+            let climb = min(1, max(0, leuitScene.climbProgress))
+            leuitCarrySheaf.position = SCNVector3(
+                granaryDoorLocal.x - h * 0.34 + climb * h * 0.34,
+                granaryDoorLocal.y - h * 0.58 + climb * h * 0.55,
+                granaryDoorLocal.z + h * (0.46 - climb * 0.39)
+            )
+            leuitCarrySheaf.opacity = leuitScene.entering ? 0 : CGFloat(1 - smoothstep(0.82, 1, climb))
+        }
         setVisibility(granaryRoot, opacity: fullP >= 0.95 ? 1 : 0)
         // Landscape parallax supplies the speed cue without drawn streaks.
         speedLinesRootNode.isHidden = true

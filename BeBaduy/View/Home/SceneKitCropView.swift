@@ -14,6 +14,14 @@ import SwiftUI
 
 // MARK: - Public SwiftUI wrapper
 
+struct LeuitActivitySceneState {
+    var ladderPlaced: Bool
+    var dragX: Float
+    var dragY: Float
+    var climbProgress: Float
+    var entering: Bool
+}
+
 struct SceneKitCropView: UIViewRepresentable {
     let progress: CGFloat
     let isActive: Bool
@@ -24,6 +32,7 @@ struct SceneKitCropView: UIViewRepresentable {
     var animateWhileInactive = false
     var rackTransitionTimeConstant = 0.16
     var rackScale: Float = 0.92
+    var leuitActivity: LeuitActivitySceneState? = nil
     var onFirstFrame: (() -> Void)? = nil
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,6 +51,7 @@ struct SceneKitCropView: UIViewRepresentable {
         context.coordinator.rackBalance = rackBalance
         context.coordinator.rackTransitionTimeConstant = rackTransitionTimeConstant
         context.coordinator.rackScale = rackScale
+        context.coordinator.leuitActivity = leuitActivity
         context.coordinator.setActive(shouldRender, in: view, reduceMotion: reduceMotion)
         context.coordinator.update(progress: progress)
         return view
@@ -54,6 +64,7 @@ struct SceneKitCropView: UIViewRepresentable {
         context.coordinator.rackBalance = rackBalance
         context.coordinator.rackTransitionTimeConstant = rackTransitionTimeConstant
         context.coordinator.rackScale = rackScale
+        context.coordinator.leuitActivity = leuitActivity
         context.coordinator.setActive(shouldRender, in: view, reduceMotion: reduceMotion)
         context.coordinator.update(progress: progress)
     }

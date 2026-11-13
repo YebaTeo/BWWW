@@ -21,6 +21,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     var showsRackPosts = true
     var rackBalance = 0.0
     var rackScale: Float = 0.92
+    var leuitActivity: LeuitActivitySceneState? = nil
     @ViewBuilder let surface: () -> Surface
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
@@ -58,7 +59,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                  rackBalance: rackBalance,
                                  animateWhileInactive: content.id == .ngalantai && flow.screen == .activity,
                                  rackTransitionTimeConstant: content.id == .ngalantai && flow.screen == .activity ? 0.38 : 0.16,
-                                 rackScale: rackScale)
+                                 rackScale: rackScale,
+                                 leuitActivity: flow.screen == .activity ? leuitActivity : nil)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)

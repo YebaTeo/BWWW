@@ -8,6 +8,7 @@ struct NgaleuitkeunPareView: View {
             start: model.start, replay: model.start, demonstrate: model.demonstrate,
             restore: { model.session.restore($0) }, advance: advance,
             showsInitialActivityCard: false,
+            leuitActivity: model.sceneState,
             surface: { NgaleuitkeunPareActivitySurface(model: model) }, activity: { NgaleuitkeunPareActivityView(model: model) },
             description: { NgaleuitkeunPareDescriptionView() })
     }
