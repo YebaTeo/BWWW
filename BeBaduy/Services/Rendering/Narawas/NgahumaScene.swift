@@ -895,17 +895,28 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func revealNgoredRegrowth(duration: TimeInterval = 3.2) {
         for index in 4..<min(7, ngoredWeedRoots.count) {
-            let weed = ngoredWeedRoots[index]
-            weed.isHidden = false
-            weed.opacity = 0
-            weed.scale = SCNVector3(0.18, 0.18, 0.18)
-            let appear = SCNAction.group([
-                .fadeIn(duration: reduceMotion ? 0.05 : duration),
-                .scale(to: 1, duration: reduceMotion ? 0.05 : duration)
-            ])
-            appear.timingMode = .easeInEaseOut
-            weed.runAction(appear, forKey: "weedRegrowth")
+            animateNgoredWeedGrowth(index, duration: duration, key: "weedRegrowth")
         }
+    }
+
+    func animateNgoredInitialWeedGrowth(duration: TimeInterval) {
+        for index in 0..<min(4, ngoredWeedRoots.count) {
+            animateNgoredWeedGrowth(index, duration: duration, key: "weedInitialGrowth")
+        }
+    }
+
+    private func animateNgoredWeedGrowth(_ index: Int, duration: TimeInterval, key: String) {
+        let weed = ngoredWeedRoots[index]
+        weed.removeAction(forKey: key)
+        weed.isHidden = false
+        weed.opacity = 0
+        weed.scale = SCNVector3(0.18, 0.18, 0.18)
+        let appear = SCNAction.group([
+            .fadeIn(duration: reduceMotion ? 0.05 : duration),
+            .scale(to: 1, duration: reduceMotion ? 0.05 : duration)
+        ])
+        appear.timingMode = .easeInEaseOut
+        weed.runAction(appear, forKey: key)
     }
 
     func setNgoredGrowth(_ amount: Float, duration: TimeInterval = 0) {
@@ -1124,6 +1135,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     func growNgoredRice() {
         for plant in ngoredRiceRoots {
             plant.removeAction(forKey: "riceGrowth")
+            plant.removeAction(forKey: "ngoredGrowth")
             plant.isHidden = false
             let duration: TimeInterval = reduceMotion ? 0.05 : 8.0
             let growth = SCNAction.customAction(duration: duration) { node, elapsed in
@@ -1299,7 +1311,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         uprootedNgoredWeeds.removeAll()
         for (index, clump) in ngoredWeedRoots.enumerated() {
             clump.removeAction(forKey: "ngoredStrike")
-            clump.isHidden = false
+            clump.removeAction(forKey: "rainDissolve")
+            clump.removeAction(forKey: "weedRegrowth")
+            clump.removeAction(forKey: "weedInitialGrowth")
+            clump.isHidden = index >= 4
             clump.opacity = 1
             clump.scale = SCNVector3(1, 1, 1)
             clump.eulerAngles = SCNVector3Zero

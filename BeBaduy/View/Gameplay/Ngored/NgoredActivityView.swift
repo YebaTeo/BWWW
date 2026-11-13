@@ -12,7 +12,9 @@ struct NgoredActivityView: View {
         }
         .disabled(model.isDemonstrating)
         .onChange(of: ActivityAudio.shared.enabled) { _, enabled in
-            if enabled && model.step == .rain { ActivityAudio.shared.play(.rain) }
+            if enabled && (model.step == .initialRain || model.step == .rain || model.step == .finalRain) {
+                ActivityAudio.shared.play(.rain)
+            }
         }
     }
 
@@ -20,6 +22,11 @@ struct NgoredActivityView: View {
     private var content: some View {
         VStack(spacing: 12) {
             switch model.step {
+            case .initialRain:
+                Text("Hujan awal membasahi huma")
+                    .font(.system(.title3, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.heading)
+                Text("Padi dan gulma mulai tumbuh di bawah hujan.")
             case .weeding:
                 Text("Pare mulai tumbuh!")
                     .font(.system(.title3, design: .rounded).bold())
@@ -35,10 +42,34 @@ struct NgoredActivityView: View {
                 Text("Hujan telah membasahi huma. Lihatlah semua pare yang ditanam semakin bertumbuh!")
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.heading)
-            case .complete:
-                Text("Hujan telah reda")
+            case .cycles:
+                Text("Pagi dan malam berlalu")
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.heading)
+                Text("Padi tumbuh setengah dan gulma tumbuh kembali.")
+            case .secondWeeding:
+                Text("Gulma tumbuh kembali")
+                    .font(.system(.title3, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.heading)
+                Text("Bersihkan tiga gulma yang tumbuh di antara padi.")
+            case .secondCleared:
+                Text("Hujan kembali turun")
+                    .font(.system(.title3, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.heading)
+                Text("Hujan akan menghanyutkan bekas gulma sebelum padi tumbuh penuh.")
+            case .finalRain:
+                Text("Hujan menghanyutkan bekas gulma…")
+                    .font(.system(.title3, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.heading)
+            case .finalCycles:
+                Text("Padi tumbuh penuh")
+                    .font(.system(.title3, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.heading)
+            case .complete:
+                Text("Pare huma tumbuh sempurna")
+                    .font(.system(.title3, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.heading)
+                Text("Perjalanan menanam dan merawat padi telah selesai.")
             }
         }
     }

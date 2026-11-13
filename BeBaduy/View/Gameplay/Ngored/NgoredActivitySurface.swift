@@ -8,13 +8,17 @@ struct NgoredActivitySurface: View {
     @State private var struckWeed: Int?
 
     private var isWeeding: Bool {
-        model.step == .weeding
+        model.step == .weeding || model.step == .secondWeeding
+    }
+
+    private var currentWeedTargets: Range<Int> {
+        model.step == .secondWeeding ? 4..<7 : 0..<4
     }
 
     private func swipeWeed(along path: [CGPoint], in size: CGSize) {
         guard isWeeding, card.mode == .hidden, !model.isDemonstrating else { return }
         let points = model.scene.projectedNgoredWeedPoints()
-        let range = 0..<4
+        let range = currentWeedTargets
         var closest: (index: Int, distance: CGFloat)?
         for index in range where points.indices.contains(index) && !model.removed.contains(index) {
             let point = points[index]
@@ -50,7 +54,7 @@ struct NgoredActivitySurface: View {
                     .accessibilityHidden(true)
                 TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active)) { _ in
                     let points = model.scene.projectedNgoredWeedPoints()
-                ForEach(0..<4) { index in
+                ForEach(Array(currentWeedTargets), id: \.self) { index in
                         let cut = model.removed.contains(index)
                         let hits = model.strokes[index] ?? 0
                         if isWeeding, !cut, points.indices.contains(index) {
@@ -78,16 +82,11 @@ struct NgoredActivitySurface: View {
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
                 }
-                if model.step == .weeding {
-                    Button { model.remove(8) } label: {
-                        Label("Padi · pertahankan", systemImage: "leaf")
-                            .font(.subheadline.weight(.semibold)).padding(12)
-                            .foregroundStyle(.white).background(.black.opacity(0.7), in: Capsule())
-                    }.accessibilityIdentifier("field.rice")
-                        .position(x: geometry.size.width / 2, y: geometry.size.height * 0.43)
+                if isWeeding {
                     VStack(spacing: 6) {
                         Text("Usap gulma untuk menyapukan kored").font(.headline)
-                        Text("Rumput dicabut: \(model.removed.count)/4").font(.subheadline)
+                        let removedCount = currentWeedTargets.filter { model.removed.contains($0) }.count
+                        Text("Rumput dicabut: \(removedCount)/\(currentWeedTargets.count)").font(.subheadline)
                         if model.session.feedback.hasPrefix("Ini padi") {
                             Text(model.session.feedback).font(.subheadline.bold())
                                 .accessibilityIdentifier("ngored.rice.feedback")
@@ -128,10 +127,10 @@ struct NgoredActivitySurface: View {
             struckWeed = nil
         }
         .onChange(of: model.step) { _, step in
-            if step == .rain { card.dismiss() }
+            if step == .rain || step == .finalRain { card.dismiss() }
         }
         .task(id: model.removed) {
-            if model.step == .cleared {
+            if model.step == .cleared || model.step == .secondCleared {
                 do { try await Task.sleep(for: .seconds(3)) } catch { return }
                 model.observeRain()
             }
