@@ -55,7 +55,18 @@ struct NarawasView: View {
                                 .accessibilityIdentifier("narawas.fire.progress")
                         }
                         card {
-                            if model.stage == .clearing {
+                            if model.stage == .complete {
+                                Text("Lahan sudah siap!").font(.headline).foregroundStyle(orange)
+                                Text("Huma siap memasuki tahap penanaman.")
+                                Button("Lihat hasil") {
+                                    message = .explanation
+                                    model.setVisible(false)
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(orange)
+                                .frame(minHeight: 44)
+                                .accessibilityIdentifier("narawas.activity.result")
+                            } else if model.stage == .clearing {
                                 Text("Arahkan ponselmu ke kiri atau kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!")
                                     .accessibilityIdentifier("narawas.sceneReady")
                             } else if model.ignited.count < NarawasViewModel.treeCount {
@@ -111,12 +122,8 @@ struct NarawasView: View {
             // Present the loading state before the synchronous scene setup.
             do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
             initialized = true
-            if journey.progress.record(for: .narawas).explanationAvailable {
-                message = .explanation
-            } else {
-                model.start()
-                model.setVisible(true)
-            }
+            model.start()
+            model.setVisible(true)
             model.configureLookMotion(reduceMotion: reduceMotion)
             model.scene.muted = !ActivityAudio.shared.enabled
             await model.scene.prepareAssets()
@@ -127,7 +134,6 @@ struct NarawasView: View {
             if stage == .prepared { message = .cleared }
             if stage == .complete {
                 if let outcome = model.session.outcome { journey.record(.narawas, outcome: outcome) }
-                message = .ready
             }
         }
         .onChange(of: message) { _, value in model.setHelpVisible(value != nil) }

@@ -27,6 +27,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     @ViewBuilder let description: () -> Description
     @State private var flow = LessonFlowViewModel()
     @State private var restored = false
+    @State private var replayingCompletedStage = false
     @State private var isToolRevealed = false
     @State private var card = ActivityCardState()
     @AccessibilityFocusState private var cardHeadingFocused: Bool
@@ -41,7 +42,10 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         default: nil
         }
     }
-    private var isResult: Bool { flow.screen == .result || flow.screen == .explanation }
+    private var isResult: Bool {
+        flow.screen == .result || flow.screen == .explanation ||
+        (flow.screen == .activity && session.outcome != nil)
+    }
     private var targetProgress: CGFloat {
         if flow.screen == .activity, let activityProgress { return activityProgress }
         return content.id.progress(isResult: isResult)
@@ -112,14 +116,28 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     case .activity:
                         if usesContextCards {
                             activityOverlay
+                        } else if session.outcome != nil {
+                            VStack {
+                                HStack {
+                                    Button { dismiss() } label: {
+                                        Image(systemName: "chevron.left").frame(width: 44, height: 44)
+                                    }
+                                    .accessibilityLabel("Kembali ke beranda")
+                                    .accessibilityIdentifier("lesson.back")
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 16)
+                                Spacer()
+                                completionCard
+                            }
                         } else {
                             activity().disabled(!session.isActive)
                         }
                     case .result:
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 20) {
-                                Text("\(content.title) selesai!").font(.system(.title2, design: .rounded).bold())
-                                    .foregroundStyle(AppTheme.heading)
+                            VStack(spacing: 16) {
+                                Text("\(content.title) selesai!").font(.headline)
+                                    .foregroundStyle(Color(red: 1, green: 0.65, blue: 0.25))
                                 if session.outcome == .observed {
                                     Text("Demonstrasi selesai.")
                                 } else if content.id != .mipit {
@@ -127,7 +145,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                 }
                                 LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
                                 Button("Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
-                            }.padding(24).activityCardStyle()
+                            }.font(.subheadline).multilineTextAlignment(.center).padding(24).activityCardStyle()
                                 .padding(24)
                         }
                     case .explanation:
@@ -155,11 +173,13 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             guard !restored else { return }
             restored = true
             let record = journey.progress.record(for: content.id)
-            restore(record.outcome)
             flow.restore(completed: record.explanationAvailable)
             if record.explanationAvailable {
-                flow.explain()
+                replayingCompletedStage = true
+                start()
+                flow.beginActivity()
             } else {
+                restore(record.outcome)
                 explore()
             }
         }
@@ -172,7 +192,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         .onChange(of: flow.screen) { _, value in
             if value == .activity && usesContextCards {
                 helpVisibility?(false)
-                if showsInitialActivityCard { card.showInstruction() }
+                if showsInitialActivityCard && !replayingCompletedStage { card.showInstruction() }
                 else { card.dismiss() }
             }
             activityVisibility(value == .activity && scenePhase == .active)
@@ -209,11 +229,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     Image(systemName: "chevron.left").frame(width: 44, height: 44)
                 }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
                 Spacer()
-                if flow.canSkip {
-                    Button("Lewati") { flow.explain() }.frame(minHeight: 44)
-                        .accessibilityIdentifier("lesson.skip")
-                }
-                if card.mode == .hidden {
+                if card.mode == .hidden && session.outcome == nil {
                     Button {
                         setHelpVisible(true)
                         card.showHelp()
@@ -223,7 +239,9 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 }
             }.padding(.horizontal, 16)
             Spacer(minLength: 0)
-            if card.mode != .hidden {
+            if flow.screen == .activity && session.outcome != nil {
+                completionCard
+            } else if card.mode != .hidden {
                 ActivityCardPanel { cardContents }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
@@ -238,10 +256,23 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         }
     }
 
+    private var completionCard: some View {
+        ActivityCardPanel {
+            Text("\(content.title) selesai!")
+                .font(.headline)
+                .foregroundStyle(AppTheme.heading)
+            LessonButton(title: "Lihat hasil", identifier: "lesson.activity.result") {
+                flow.showResult()
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
     private var cardContents: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 16) {
             Text(card.mode == .help ? "Petunjuk" : content.title)
-                .font(.system(.title3, design: .rounded).bold())
+                .font(.headline)
                 .foregroundStyle(AppTheme.heading)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($cardHeadingFocused)
@@ -287,9 +318,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             if flow.screen == .explanation {
                 Button("Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
                     .background(.ultraThinMaterial, in: Capsule()).accessibilityIdentifier("replay")
-            } else if flow.canSkip && (flow.screen == .activity || flow.screen == .equipment) {
-                Button("Lewati") { flow.explain() }.frame(minWidth: 60, minHeight: 44)
-                    .accessibilityIdentifier("lesson.skip")
             } else { Color.clear.frame(width: 60, height: 44) }
         }.padding(.horizontal, 20).padding(.vertical, 8)
     }

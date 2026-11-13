@@ -19,7 +19,7 @@ struct MipitView: View {
             description: { MipitDescriptionView() })
     }
     private func start() {
-        showsHelp = true
+        showsHelp = !journey.progress.record(for: .mipit).explanationAvailable
         model.start()
     }
 }

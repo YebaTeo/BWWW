@@ -60,7 +60,12 @@ import XCTest
         if app.buttons["mipit.card.start"].exists { tap("mipit.card.start") }
     }
     func next() {
-        tap("lesson.result.continue")
+        if app.buttons["narawas.activity.result"].exists {
+            tap("narawas.activity.result")
+        } else {
+            tap("lesson.activity.result")
+            tap("lesson.result.continue")
+        }
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.otherElements["lesson.explanation.card"].exists)
         capture("Explanation-glass-card")
@@ -82,40 +87,27 @@ import XCTest
         XCTAssertFalse(app.buttons["continue"].exists)
         for index in 0..<4 { tap("narawas.ignite.\(index)") }; tap("narawas.finishBurn")
     }
-    func testSixGlassExplanations() {
-        verifyGlassExplanations(largeText: false)
+    func testCompletedStageReopensActivity() {
+        verifyCompletedStageReopensActivity(largeText: false)
     }
 
-    func testSixGlassExplanationsLargeText() {
-        verifyGlassExplanations(largeText: true)
+    func testCompletedStageReopensActivityLargeText() {
+        verifyCompletedStageReopensActivity(largeText: true)
     }
 
-    private func verifyGlassExplanations(largeText: Bool) {
+    private func verifyCompletedStageReopensActivity(largeText: Bool) {
         var arguments = ["--uitest-explanations"]
         if largeText {
             arguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
         prepare(arguments)
-        for index in 0..<6 {
-            XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 15))
-            tap("resume")
-            XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.otherElements["lesson.explanation.card"].exists)
-            if index > 0 { XCTAssertTrue(app.staticTexts["Yang kita pelajari"].exists) }
-            XCTAssertTrue(app.buttons["replay"].isHittable)
-            capture("Glass-explanation-\(index)-large-\(largeText)")
-            if largeText {
-                let scroll = app.scrollViews["lesson.explanation.content.scroll"]
-                XCTAssertTrue(scroll.exists)
-                scroll.swipeUp()
-            }
-            tap("continue")
-            if index < 5 {
-                XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
-            } else {
-                XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
-            }
-        }
+        XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 15))
+        tap("resume")
+        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.scrollViews["lesson.explanation.page"].exists)
+        XCTAssertFalse(app.buttons["replay"].exists)
+        capture("Completed-stage-activity-large-\(largeText)")
+        tap("lesson.back")
     }
 
     private func completeLeuit() {
@@ -123,7 +115,7 @@ import XCTest
         XCTAssertTrue(ladder.waitForExistence(timeout: 5))
         let door = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.53))
         ladder.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.15, thenDragTo: door)
-        XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.buttons["lesson.activity.result"].waitForExistence(timeout: 6))
     }
 
     func testFullSixChapterTouchJourneyAndReplay() {
@@ -141,8 +133,10 @@ import XCTest
         tap("journey.recap"); tap("home")
         XCTAssertEqual(app.staticTexts["home.progress"].label, "6 dari 6 tahap telah dijelajahi")
         app.terminate(); app.launchArguments = ["--uitesting"]; app.launch()
-        tap("resume"); tap("replay")
-        XCTAssertTrue(app.buttons["lesson.skip"].exists)
+        tap("resume")
+        XCTAssertFalse(app.scrollViews["lesson.explanation.page"].exists)
+        XCTAssertFalse(app.buttons["replay"].exists)
+        XCTAssertFalse(app.buttons["lesson.skip"].exists)
         tap("lesson.back")
         XCTAssertEqual(app.staticTexts["home.progress"].label, "6 dari 6 tahap telah dijelajahi")
     }
@@ -156,7 +150,7 @@ import XCTest
         XCTAssertTrue(source.waitForExistence(timeout: 5))
         source.press(forDuration: 0.6, thenDragTo: target)
         pourIntoHole(1); pourIntoHole(2)
-        XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["lesson.activity.result"].waitForExistence(timeout: 5))
         next(); start()
         checkKoredActivity()
         next(); start()
@@ -191,6 +185,7 @@ import XCTest
         tap("resume"); start()
         tap("demonstrate")
         tap("ngalantai.drying.continue")
+        tap("lesson.activity.result")
         tap("lesson.result.continue")
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
         tap("replay")
@@ -229,7 +224,7 @@ import XCTest
         capture("Ngaseuk-peek-\(index)")
         tap("ngaseuk.peek.pour")
         if index == 2 {
-            XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["lesson.activity.result"].waitForExistence(timeout: 5))
         } else {
             XCTAssertTrue(app.staticTexts["Benih sudah masuk"].waitForExistence(timeout: 5))
             tap("ngaseuk.peek.back")
@@ -288,7 +283,7 @@ import XCTest
             if app.buttons["ngored.field.begin"].exists { tap("ngored.field.begin") }
             swipeWeed(index)
         }
-        XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["lesson.activity.result"].waitForExistence(timeout: 30))
     }
 
     func testNarawasStartsFireByTappingClearedLand() {
@@ -335,8 +330,8 @@ import XCTest
         prepare(); intro(); start()
         XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         tap("demonstrate")
-        XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 40))
-        capture("Narawas-observed"); tap("replay")
+        XCTAssertTrue(app.buttons["narawas.activity.result"].waitForExistence(timeout: 40))
+        capture("Narawas-observed"); tap("narawas.activity.result"); tap("replay")
         for index in 0..<4 { tap("narawas.cut.\(index)") }
         for index in 0..<4 { tap("narawas.ignite.\(index)") }; tap("narawas.finishBurn"); next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].exists)

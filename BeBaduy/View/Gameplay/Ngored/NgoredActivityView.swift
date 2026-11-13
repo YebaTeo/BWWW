@@ -20,11 +20,11 @@ struct NgoredActivityView: View {
 
     @ViewBuilder
     private var content: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             switch model.step {
             case .initialRain:
                 Text("Hujan awal membasahi huma")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
                 Text("Padi dan gulma mulai tumbuh di bawah hujan.")
                 if card.mode == .instruction {
@@ -32,7 +32,7 @@ struct NgoredActivityView: View {
                 }
             case .weeding:
                 Text("Pare mulai tumbuh!")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
                 Text("Binih yang kamu tanam mulai tumbuh menjadi tanaman padi. Namun, rumput liar juga ikut tumbuh di sekitarnya.\n\nMari kita mulai bersihkan!\n\nUsap setiap gulma tiga kali untuk menyapukan kored.")
                 if card.mode == .instruction {
@@ -43,34 +43,34 @@ struct NgoredActivityView: View {
                 Text("Berkat bantuanmu membersihkan gulma, pare kini bisa tumbuh lebih baik. Sekarang, kita menunggu hujan datang!")
             case .rain:
                 Text("Hujan telah membasahi huma. Lihatlah semua pare yang ditanam semakin bertumbuh!")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
             case .cycles:
                 Text("Pagi dan malam berlalu")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
                 Text("Padi tumbuh setengah dan gulma tumbuh kembali.")
             case .secondWeeding:
                 Text("Gulma tumbuh kembali")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
                 Text("Bersihkan tiga gulma yang tumbuh di antara padi.")
             case .secondCleared:
                 Text("Hujan kembali turun")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
                 Text("Hujan akan menghanyutkan bekas gulma sebelum padi tumbuh penuh.")
             case .finalRain:
                 Text("Hujan menghanyutkan bekas gulma…")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
             case .finalCycles:
                 Text("Padi tumbuh penuh")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
             case .complete:
                 Text("Pare huma tumbuh sempurna")
-                    .font(.system(.title3, design: .rounded).bold())
+                    .font(.headline)
                     .foregroundStyle(AppTheme.heading)
                 Text("Perjalanan menanam dan merawat padi telah selesai.")
             }

@@ -1,23 +1,13 @@
 import SwiftUI
 
 private struct ActivityCardStyle: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.dynamicTypeSize) private var typeSize
-
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 20)
+        let shape = RoundedRectangle(cornerRadius: 18)
         content
-            .foregroundStyle(AppTheme.cream)
-            .background {
-                if reduceTransparency || contrast == .increased || typeSize.isAccessibilitySize {
-                    shape.fill(Color(red: 0.19, green: 0.13, blue: 0.09))
-                } else {
-                    shape.fill(.regularMaterial)
-                        .overlay(shape.fill(Color.black.opacity(0.30)))
-                }
-            }
-            .overlay(shape.strokeBorder(AppTheme.cream.opacity(0.3)).allowsHitTesting(false))
+            .foregroundStyle(.white)
+            .background(Color(red: 0.36, green: 0.29, blue: 0.23).opacity(0.88), in: shape)
+            .overlay(shape.strokeBorder(Color(red: 0.77, green: 0.65, blue: 0.48), lineWidth: 0.75)
+                .allowsHitTesting(false))
     }
 }
 
@@ -46,10 +36,11 @@ struct ActivityCardPanel<Content: View>: View {
     }
 
     private var contents: some View {
-        VStack(spacing: 8) { content }
+        VStack(spacing: 16) { content }
+            .font(.subheadline)
             .multilineTextAlignment(.center)
             .controlSize(.large)
-            .padding(16)
+            .padding(24)
             .frame(maxWidth: .infinity)
     }
 }

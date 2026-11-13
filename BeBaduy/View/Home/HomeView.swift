@@ -5,7 +5,7 @@ struct HomeView: View {
     let motion: MotionService
     @State private var loadsFirstPreview = false
     @State private var showsJourney = false
-    @State private var playsHarvestTransition = false
+    @State private var pendingTransitionFrom: Int?
     @State private var pendingPhase: PhaseID?
     @State private var model = HomeViewModel()
 
@@ -25,7 +25,7 @@ struct HomeView: View {
                     WelcomeHomeView(
                         journey: journey,
                         onFirstFrame: finishLoadingPreview,
-                        playsHarvestTransition: $playsHarvestTransition,
+                        pendingTransitionFrom: $pendingTransitionFrom,
                         onOpen: { model.open($0, journey: journey) },
                         onJourney: { showsJourney = true },
                         onCompletion: { model.showsCompletion = true },
@@ -64,8 +64,9 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: PhaseID.self) { phase in
                 PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
-                    if journey.progress.record(for: phase).explanationAvailable, phase == .ngored {
-                        playsHarvestTransition = true
+                    if journey.progress.record(for: phase).explanationAvailable,
+                       let stage = GrowthStage.allStages.first(where: { $0.phase == phase }) {
+                        pendingTransitionFrom = stage.id
                     }
                     if journey.continueFrom(phase) != nil { model.path = [] }
                     else if phase == .ngaleuitkeunPare && journey.progress.allComplete {

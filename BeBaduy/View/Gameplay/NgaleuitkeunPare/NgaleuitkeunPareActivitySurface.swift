@@ -40,8 +40,8 @@ struct NgaleuitkeunPareActivitySurface: View {
                         Text("Seret tangga bambu ke pintu leuit.")
                             .font(.headline)
                             .multilineTextAlignment(.center)
-                            .padding(12)
-                            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 14))
+                            .padding(24)
+                            .activityCardStyle()
                             .padding(.top, 76)
                             .allowsHitTesting(false)
                     }

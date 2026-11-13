@@ -4,7 +4,7 @@ import SwiftUI
 struct WelcomeHomeView: View {
     let journey: JourneyViewModel
     var onFirstFrame: (() -> Void)? = nil
-    @Binding var playsHarvestTransition: Bool
+    @Binding var pendingTransitionFrom: Int?
     let onOpen: (PhaseID) -> Void
     let onJourney: () -> Void
     let onCompletion: () -> Void
@@ -91,9 +91,12 @@ struct WelcomeHomeView: View {
         }
         .sensoryFeedback(.selection, trigger: selectedStage)
         .onChange(of: reduceMotion) { _, enabled in if enabled { preview.stop() } }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { preview.stop() } }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { preview.stop() }
+            else if isActive { playPendingStageTransition() }
+        }
         .onAppear {
-            if isActive && playPendingHarvestTransition() {
+            if isActive && playPendingStageTransition() {
                 initializedPreview = true
                 return
             }
@@ -114,7 +117,7 @@ struct WelcomeHomeView: View {
             }
         }
         .onChange(of: journey.progress.currentPhase) { previous, phase in
-            guard !playsHarvestTransition, !preview.isPlayingHarvestTransition else { return }
+            guard pendingTransitionFrom == nil, !preview.isPlayingHarvestTransition else { return }
             if let saved = GrowthStage.allStages.first(where: { $0.phase == phase }) {
                 let shouldGrow = previous == .ngaseuk && phase == .ngored
                 preview.selectStage(saved.id, reduceMotion: reduceMotion || !shouldGrow)
@@ -129,19 +132,22 @@ struct WelcomeHomeView: View {
                 preview.stop()
             } else {
                 openingChapter = false
-                playPendingHarvestTransition()
+                playPendingStageTransition()
             }
         }
     }
 
     @discardableResult
-    private func playPendingHarvestTransition() -> Bool {
-        guard playsHarvestTransition else { return false }
-        playsHarvestTransition = false
-        preview.selectStage(2, reduceMotion: true)
-        displayedStage = 2
-        preview.selectStage(3, reduceMotion: reduceMotion || scenePhase != .active)
-        if !preview.isTransitioning { displayedStage = 3 }
+    private func playPendingStageTransition() -> Bool {
+        guard let from = pendingTransitionFrom,
+              GrowthStage.allStages.indices.contains(from),
+              from + 1 < GrowthStage.allStages.count,
+              scenePhase == .active else { return false }
+        pendingTransitionFrom = nil
+        preview.selectStage(from, reduceMotion: true)
+        displayedStage = from
+        preview.selectStage(from + 1, reduceMotion: reduceMotion)
+        if !preview.isTransitioning { displayedStage = from + 1 }
         return true
     }
 

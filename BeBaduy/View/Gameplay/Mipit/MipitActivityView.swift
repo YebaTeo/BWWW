@@ -25,7 +25,7 @@ struct MipitActivityView: View {
             case .harvesting:
                 if showsHelp {
                     panel {
-                        Text("Panen dengan etem").font(.system(.title3, design: .rounded).bold())
+                        Text("Panen dengan etem").font(.headline)
                             .foregroundStyle(AppTheme.heading)
                         Text("Cubit layar untuk memotong batang pare menggunakan etem.")
                         LessonButton(title: "Mulai", identifier: "mipit.card.start") { showsHelp = false }
@@ -43,7 +43,7 @@ struct MipitActivityView: View {
                         }
                         Text("\(model.harvested.count) / \(MipitViewModel.harvestCount) malai terkumpul")
                     }.accessibilityElement(children: .combine)
-                }.padding(12).background(.black.opacity(0.74), in: RoundedRectangle(cornerRadius: 16))
+                }.font(.subheadline).multilineTextAlignment(.center).padding(24).activityCardStyle()
                 }
             case .harvestSuccess:
                 panel {

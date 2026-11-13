@@ -5,18 +5,15 @@ struct InstructionCard: View {
     let message: String
     var identifier = "activity.instruction"
     let action: () -> Void
-    @ScaledMetric(relativeTo: .title3) private var headingSize = 24.0
-    @ScaledMetric(relativeTo: .body) private var bodySize = 20.0
-
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Text(title)
-                .font(.system(size: headingSize, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.heading)
+                .font(.headline)
+                .foregroundStyle(Color(red: 1, green: 0.65, blue: 0.25))
                 .accessibilityAddTraits(.isHeader)
             Text(message)
-                .font(.system(size: bodySize, design: .rounded))
-                .foregroundStyle(AppTheme.cream)
+                .font(.subheadline)
+                .foregroundStyle(.white)
             LessonButton(title: "Lanjut", identifier: identifier + ".continue", action: action)
         }
         .fixedSize(horizontal: false, vertical: true)

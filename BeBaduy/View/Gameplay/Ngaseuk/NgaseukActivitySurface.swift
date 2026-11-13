@@ -104,8 +104,8 @@ struct NgaseukActivitySurface: View {
                         Text(model.motionActive ? "Gerakkan ponsel ke bawah atau ketuk lubang" : model.session.feedback)
                             .font(.headline)
                         Text("\(model.holes.count) / 3 lubang").font(.subheadline.monospacedDigit())
-                    }.multilineTextAlignment(.center).padding(16)
-                        .foregroundStyle(.white).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
+                    }.font(.subheadline).multilineTextAlignment(.center).padding(24)
+                        .activityCardStyle()
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
                 }
@@ -116,8 +116,8 @@ struct NgaseukActivitySurface: View {
                         Text("\(model.seeds.count) / 3 lubang berisi benih")
                             .font(.subheadline.monospacedDigit())
                     }
-                    .multilineTextAlignment(.center).padding(16)
-                    .foregroundStyle(.white).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
+                    .font(.subheadline).multilineTextAlignment(.center).padding(24)
+                    .activityCardStyle()
                     .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                     .allowsHitTesting(false)
                 }

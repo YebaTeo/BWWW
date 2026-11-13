@@ -91,8 +91,8 @@ struct NgoredActivitySurface: View {
                             Text(model.session.feedback).font(.subheadline.bold())
                                 .accessibilityIdentifier("ngored.rice.feedback")
                         }
-                    }.multilineTextAlignment(.center).padding(16)
-                        .foregroundStyle(.white).background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 20))
+                    }.font(.subheadline).multilineTextAlignment(.center).padding(24)
+                        .activityCardStyle()
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
                 }

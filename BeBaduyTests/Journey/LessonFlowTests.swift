@@ -2,7 +2,7 @@ import XCTest
 @testable import BeBaduy
 
 @MainActor final class LessonFlowTests: XCTestCase {
-    func testFirstVisitCannotSkipAndRequiresResultAcknowledgement() {
+    func testCompletionKeepsActivityVisibleUntilResultIsRequested() {
         let flow = LessonFlowViewModel()
         flow.restore(completed: false)
         flow.explain()
@@ -13,6 +13,8 @@ import XCTest
         flow.explain()
         XCTAssertEqual(flow.screen, .activity)
         flow.completed()
+        XCTAssertEqual(flow.screen, .activity)
+        flow.showResult()
         XCTAssertEqual(flow.screen, .result)
         flow.explain()
         XCTAssertEqual(flow.screen, .explanation)

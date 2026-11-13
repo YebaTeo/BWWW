@@ -48,14 +48,9 @@ struct NgaseukSeedPeekView: View {
                         Text("Kamu juga bisa menggunakan tombol di bawah.").font(.subheadline)
                     }
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .background(.ultraThinMaterial.opacity(0.85), in: RoundedRectangle(cornerRadius: 22))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22)
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                )
+                .font(.subheadline)
+                .padding(24)
+                .activityCardStyle()
                 .padding(.horizontal, 24)
                 .frame(maxHeight: .infinity, alignment: .top)
                 .padding(.top, 65)

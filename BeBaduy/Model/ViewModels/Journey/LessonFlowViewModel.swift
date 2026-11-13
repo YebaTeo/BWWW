@@ -11,6 +11,9 @@ import Observation
     func completed() {
         guard screen == .activity else { return }
         canSkip = true
+    }
+    func showResult() {
+        guard screen == .activity, canSkip else { return }
         screen = .result
     }
     func explain() {

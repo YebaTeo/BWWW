@@ -2,7 +2,7 @@ import SwiftUI
 struct NgaseukActivityView: View {
     let model: NgaseukViewModel
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(spacing: 16) {
             switch model.step {
             case .instructions, .digging:
                 Text("Tusukkan aseuk tiga kali pada setiap titik. Lubang akan membesar sampai siap ditanami.")
