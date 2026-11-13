@@ -1,6 +1,38 @@
 import XCTest
 @testable import BeBaduy
 @MainActor final class ActivityTests: XCTestCase {
+    func testNgoredCyclesPassSecondNightAndCompleteOnceAfterResume() {
+        let scene = NgahumaScene()
+        var completions = 0
+        scene.animateNgoredDayNight(cycles: 3, duration: 12, growthFrom: 0.18, growthTo: 0.5) {
+            completions += 1
+        }
+        scene.advanceNgoredDayNight(by: 7) // Middle of the second night.
+        XCTAssertEqual(completions, 0)
+        scene.setSuspended(true)
+        scene.advanceNgoredDayNight(by: 20)
+        XCTAssertEqual(completions, 0)
+        scene.setSuspended(false)
+        scene.advanceNgoredDayNight(by: 4)
+        XCTAssertEqual(completions, 0)
+        scene.advanceNgoredDayNight(by: 1)
+        XCTAssertEqual(completions, 1)
+        scene.advanceNgoredDayNight(by: 12)
+        XCTAssertEqual(completions, 1)
+    }
+
+    func testNgoredDaytimeCancelsPreviousCycleCompletion() {
+        let scene = NgahumaScene()
+        var completions = 0
+        scene.animateNgoredDayNight(cycles: 3, duration: 12, growthFrom: 0.18, growthTo: 0.5) {
+            completions += 1
+        }
+        scene.advanceNgoredDayNight(by: 7)
+        scene.presentNgoredDaytime()
+        scene.advanceNgoredDayNight(by: 12)
+        XCTAssertEqual(completions, 0)
+    }
+
     func testWeedingFinishesAfterFourWeedsAndRain() {
         let vm = NgoredViewModel(); vm.start()
         vm.remove(8); vm.remove(-1); XCTAssertTrue(vm.removed.isEmpty)

@@ -149,6 +149,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private let frameTarget = FrameTarget()
     private var displayLink: CADisplayLink?
     private var lastFrameTimestamp: CFTimeInterval = 0
+    private var ngoredCycleElapsed: TimeInterval = 0
+    private var ngoredCycleDuration: TimeInterval = 0
+    private var ngoredCycleFrame: ((TimeInterval) -> Void)?
+    private var ngoredCycleCompletion: (() -> Void)?
 
     // MARK: - View Attachment & Lifecycle
 
@@ -951,71 +955,92 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func animateNgoredDayNight(cycles: Int, duration: TimeInterval, growthFrom: Float, growthTo: Float, completion: @escaping () -> Void) {
-        guard cycles > 0 else { completion(); return }
+        ngoredCycleFrame = nil
+        ngoredCycleCompletion = nil
+        guard cycles > 0, duration > 0 else { completion(); return }
+        sunSystemRoot.removeAction(forKey: "ngoredDayHold")
+        ngoredMoonRoot?.removeAction(forKey: "ngoredMoonSet")
+        ngoredCycleElapsed = 0
+        ngoredCycleDuration = duration
+        ngoredCycleCompletion = completion
         let cycleDuration = duration / Double(cycles)
         let moon = ngoredMoonRoot
-        let sequence = SCNAction.sequence((0..<cycles).map { cycle in
-            SCNAction.customAction(duration: cycleDuration) { [weak self] _, elapsed in
-                guard let self else { return }
-                let localProgress = Float(elapsed / CGFloat(cycleDuration))
-                let isDay = localProgress < 0.5
-                let objectProgress = isDay ? localProgress * 2 : (localProgress - 0.5) * 2
-                let arcX = -3.5 + objectProgress * 7
-                // Keep the bodies above the panoramic mountain cylinder while
-                // preserving the distant, behind-the-landscape placement.
-                let arcY = self.soilY + 7.0 + sin(objectProgress * .pi) * 2.8
-                // Place bodies beyond the mountain cylinder so the ridge can
-                // occlude them as in Home's layered sky.
-                let arcZ: Float = -15.5
-                self.sunSystemRoot.position = SCNVector3(arcX, arcY, arcZ)
-                self.sunSystemRoot.look(at: SCNVector3(0, self.soilY, 0))
-                let daylight = isDay ? 1 - abs(objectProgress - 0.5) * 0.32 : 0
-                let nightfall = isDay ? 0 : 1 - abs(objectProgress - 0.5) * 0.32
-                self.sunKeyLight.intensity = CGFloat(4 + 145 * daylight)
-                self.sunKeyLight.color = self.ngoredBlend(
-                    UIColor(red: 0.38, green: 0.47, blue: 0.68, alpha: 1),
-                    UIColor(red: 1.0, green: 0.91, blue: 0.72, alpha: 1),
-                    daylight
-                )
-                moon?.position = SCNVector3(arcX, arcY, -15.2)
-                moon?.look(at: SCNVector3(0, self.soilY, 0))
-                moon?.opacity = CGFloat(isDay ? 0 : 1)
-                self.skyAmbientLight.intensity = CGFloat(8 + 57 * daylight + 5 * nightfall)
-                self.skyAmbientLight.color = self.ngoredBlend(
-                    UIColor(red: 0.30, green: 0.37, blue: 0.56, alpha: 1),
-                    UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1),
-                    daylight
-                )
-                self.sunDiskMaterial?.transparency = CGFloat(0.12 + daylight * 0.88)
-                self.sunHaloMaterial?.transparency = CGFloat(0.06 + daylight * 0.94)
-                let daySky = SIMD3<Float>(0.84, 0.88, 0.92)
-                let nightSky = SIMD3<Float>(0.10, 0.13, 0.24)
-                let skyColor = simd_mix(nightSky, daySky, SIMD3<Float>(repeating: daylight))
-                self.skyDomeMaterial?.multiply.contents = UIColor(
-                    red: CGFloat(skyColor.x), green: CGFloat(skyColor.y),
-                    blue: CGFloat(skyColor.z), alpha: 1)
-                let soilTint = CGFloat(0.22 + daylight * 0.78)
-                let soilColor = UIColor(red: soilTint, green: soilTint * 0.94,
-                                        blue: soilTint * 0.88, alpha: 1)
-                self.groundMaterial?.multiply.contents = soilColor
-                self.mountainLayerMaterial?.multiply.contents = self.ngoredBlend(
-                    UIColor(red: 0.12, green: 0.15, blue: 0.26, alpha: 1),
-                    .white, daylight)
-                self.horizonLayerMaterial?.multiply.contents = self.ngoredBlend(
-                    UIColor(red: 0.16, green: 0.19, blue: 0.25, alpha: 1),
-                    .white, daylight)
-                let overall = (Float(cycle) + localProgress) / Float(cycles)
-                let rawGrowth = growthFrom + (growthTo - growthFrom) * overall
-                for plant in self.ngoredRiceRoots {
-                    self.applyNgoredRiceGrowth(plant, growth: HomeSceneRenderer.riceGrowthAmount(rawGrowth))
-                }
+        // SceneKit action callbacks run during rendering. Keep scene mutations and
+        // the observable gameplay completion on our main-actor display link.
+        ngoredCycleFrame = { [weak self] elapsed in
+            guard let self else { return }
+            let cycle = min(cycles - 1, Int(elapsed / cycleDuration))
+            let localProgress = Float(min(1, (elapsed - Double(cycle) * cycleDuration) / cycleDuration))
+            let isDay = localProgress < 0.5
+            let objectProgress = isDay ? localProgress * 2 : (localProgress - 0.5) * 2
+            let arcX = -3.5 + objectProgress * 7
+            // Keep the bodies above the panoramic mountain cylinder while
+            // preserving the distant, behind-the-landscape placement.
+            let arcY = self.soilY + 7.0 + sin(objectProgress * .pi) * 2.8
+            // Place bodies beyond the mountain cylinder so the ridge can
+            // occlude them as in Home's layered sky.
+            let arcZ: Float = -15.5
+            self.sunSystemRoot.position = SCNVector3(arcX, arcY, arcZ)
+            self.sunSystemRoot.look(at: SCNVector3(0, self.soilY, 0))
+            let daylight = isDay ? 1 - abs(objectProgress - 0.5) * 0.32 : 0
+            let nightfall = isDay ? 0 : 1 - abs(objectProgress - 0.5) * 0.32
+            self.sunKeyLight.intensity = CGFloat(4 + 145 * daylight)
+            self.sunKeyLight.color = self.ngoredBlend(
+                UIColor(red: 0.38, green: 0.47, blue: 0.68, alpha: 1),
+                UIColor(red: 1.0, green: 0.91, blue: 0.72, alpha: 1),
+                daylight
+            )
+            moon?.position = SCNVector3(arcX, arcY, -15.2)
+            moon?.look(at: SCNVector3(0, self.soilY, 0))
+            moon?.opacity = CGFloat(isDay ? 0 : 1)
+            self.skyAmbientLight.intensity = CGFloat(8 + 57 * daylight + 5 * nightfall)
+            self.skyAmbientLight.color = self.ngoredBlend(
+                UIColor(red: 0.30, green: 0.37, blue: 0.56, alpha: 1),
+                UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1),
+                daylight
+            )
+            self.sunDiskMaterial?.transparency = CGFloat(0.12 + daylight * 0.88)
+            self.sunHaloMaterial?.transparency = CGFloat(0.06 + daylight * 0.94)
+            let daySky = SIMD3<Float>(0.84, 0.88, 0.92)
+            let nightSky = SIMD3<Float>(0.10, 0.13, 0.24)
+            let skyColor = simd_mix(nightSky, daySky, SIMD3<Float>(repeating: daylight))
+            self.skyDomeMaterial?.multiply.contents = UIColor(
+                red: CGFloat(skyColor.x), green: CGFloat(skyColor.y),
+                blue: CGFloat(skyColor.z), alpha: 1)
+            let soilTint = CGFloat(0.22 + daylight * 0.78)
+            let soilColor = UIColor(red: soilTint, green: soilTint * 0.94,
+                                    blue: soilTint * 0.88, alpha: 1)
+            self.groundMaterial?.multiply.contents = soilColor
+            self.mountainLayerMaterial?.multiply.contents = self.ngoredBlend(
+                UIColor(red: 0.12, green: 0.15, blue: 0.26, alpha: 1),
+                .white, daylight)
+            self.horizonLayerMaterial?.multiply.contents = self.ngoredBlend(
+                UIColor(red: 0.16, green: 0.19, blue: 0.25, alpha: 1),
+                .white, daylight)
+            let overall = (Float(cycle) + localProgress) / Float(cycles)
+            let rawGrowth = growthFrom + (growthTo - growthFrom) * overall
+            for plant in self.ngoredRiceRoots {
+                self.applyNgoredRiceGrowth(plant, growth: HomeSceneRenderer.riceGrowthAmount(rawGrowth))
             }
-        } + [.run { _ in completion() }])
-        sunSystemRoot.runAction(sequence, forKey: "ngoredDayNight")
+        }
+        ngoredCycleFrame?(0)
+    }
+
+    func advanceNgoredDayNight(by delta: TimeInterval) {
+        guard !suspended, delta.isFinite, delta > 0, let frame = ngoredCycleFrame else { return }
+        ngoredCycleElapsed = min(ngoredCycleDuration, ngoredCycleElapsed + delta)
+        frame(ngoredCycleElapsed)
+        if ngoredCycleElapsed >= ngoredCycleDuration {
+            let completion = ngoredCycleCompletion
+            ngoredCycleFrame = nil
+            ngoredCycleCompletion = nil
+            completion?()
+        }
     }
 
     func presentNgoredDaytime() {
-        sunSystemRoot.removeAction(forKey: "ngoredDayNight")
+        ngoredCycleFrame = nil
+        ngoredCycleCompletion = nil
         let overhead = SCNVector3(0, soilY + 8.0, -15.5)
         let settle = SCNAction.move(to: overhead, duration: reduceMotion ? 0.05 : 1.4)
         settle.timingMode = .easeInEaseOut
@@ -1900,6 +1925,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private func update(_ delta: Double) {
         guard !suspended else { return }
+        advanceNgoredDayNight(by: delta)
         windTime += Float(min(delta, 0.1))
         let now = CACurrentMediaTime()
 
@@ -2283,6 +2309,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func setSuspended(_ value: Bool) {
         suspended = value
+        lastFrameTimestamp = 0
         displayLink?.isPaused = value
         view?.isPlaying = !value
         updateWindState()
@@ -2292,6 +2319,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func stop() {
+        ngoredCycleFrame = nil
+        ngoredCycleCompletion = nil
         displayLink?.invalidate()
         displayLink = nil
         audioPlayer?.stop()
