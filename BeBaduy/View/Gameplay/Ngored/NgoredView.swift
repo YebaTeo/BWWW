@@ -12,7 +12,7 @@ struct NgoredView: View {
         PhaseContainerView(content: PhaseContent.content(for: .ngored), session: model.session, journey: journey,
             start: model.start, replay: model.start, demonstrate: model.demonstrate,
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend, activityVisibility: model.setVisible,
-            showsActiveControls: model.step != .weeding,
+            showsActiveControls: model.step == .cleared || model.step == .secondCleared || model.step == .complete,
             surface: { NgoredActivitySurface(model: model) }, activity: { NgoredActivityView(model: model) },
             description: { NgoredDescriptionView() })
     }

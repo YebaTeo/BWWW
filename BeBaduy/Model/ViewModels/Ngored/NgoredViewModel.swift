@@ -14,6 +14,8 @@ import simd
     private var smoothedHeading: Double = 0
     private var visible = false
     private var initialRainStartedAt = Date()
+    private var initialRainPending = false
+    private var initialRainRunning = false
     private var motionAllowed = true
     private var motionGeneration = 0
 
@@ -86,18 +88,36 @@ import simd
         lastRemoved = nil
         usedDemo = false
         step = .initialRain
+        initialRainPending = false
+        initialRainRunning = false
+        scene.focusNgoredRice()
         scene.presentNgoredDaytime()
-        scene.setNgoredRain(true)
+        scene.setNgoredRain(false)
         scene.restoreNgoredWeeds()
-        scene.animateNgoredInitialWeedGrowth(duration: 5)
+        scene.prepareNgoredInitialGrowth()
         scene.resetNgoredRice()
         scene.setNgoredGrowth(0)
-        scene.setNgoredGrowth(0.18, duration: 5)
         scene.setSuspended(!visible)
         session.start()
         updateLookMotion()
-        if visible { ActivityAudio.shared.play(.rain) }
-        scheduleInitialRain()
+    }
+
+    func beginInitialRainAfterCard() {
+        guard session.isActive, step == .initialRain, !initialRainPending, !initialRainRunning else { return }
+        initialRainPending = true
+        task?.cancel()
+        task = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            guard let self, self.session.isActive, self.step == .initialRain else { return }
+            self.initialRainPending = false
+            self.initialRainRunning = true
+            self.initialRainStartedAt = Date()
+            self.scene.setNgoredRain(true)
+            self.scene.animateNgoredInitialWeedGrowth(duration: 5)
+            self.scene.setNgoredGrowth(0.18, duration: 5)
+            if self.visible { ActivityAudio.shared.play(.rain) }
+            self.scheduleInitialRain()
+        }
     }
 
     private func scheduleInitialRain() {
@@ -117,6 +137,13 @@ import simd
         guard session.isActive else { return }
         switch step {
         case .initialRain:
+            guard initialRainRunning else {
+                scene.setNgoredRain(false)
+                scene.restoreNgoredWeeds()
+                scene.prepareNgoredInitialGrowth()
+                scene.resetNgoredRice()
+                return
+            }
             let remaining = max(0.1, 5 - Date().timeIntervalSince(initialRainStartedAt))
             scene.setNgoredRain(true)
             scene.restoreNgoredWeeds()
@@ -156,8 +183,13 @@ import simd
         guard session.isActive, step == .cleared || step == .secondCleared else { return }
         let secondRound = step == .secondCleared
         step = secondRound ? .finalRain : .rain
-        scene.dissolveUprootedWeedsWithRain()
-        playRain(secondRound: secondRound)
+        task?.cancel()
+        task = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            guard let self, self.session.isActive else { return }
+            self.scene.dissolveUprootedWeedsWithRain()
+            self.playRain(secondRound: secondRound)
+        }
     }
 
     private func playRain(secondRound: Bool) {
@@ -207,7 +239,7 @@ import simd
         if value {
             scene.setSuspended(false)
             updateLookMotion()
-            if (step == .rain || step == .finalRain || step == .initialRain) && session.isActive {
+            if (step == .rain || step == .finalRain || (step == .initialRain && initialRainRunning)) && session.isActive {
                 if step == .initialRain { ActivityAudio.shared.play(.rain) }
                 if step == .initialRain {
                     scheduleInitialRain()
@@ -227,6 +259,7 @@ import simd
         ActivityAudio.shared.stop()
         task?.cancel()
         task = nil
+        initialRainPending = false
         demoTask?.cancel()
         demoTask = nil
         isDemonstrating = false

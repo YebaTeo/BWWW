@@ -1334,9 +1334,6 @@ final class HomeSceneRenderer: NSObject {
     static func makeNgoredTransitionRicePlant() -> SCNNode {
         let root = SCNNode()
         root.name = "homeStyleNgoredRice"
-        let rootSoil = makeRootContactSoil(radius: 0.082, soilY: 0)
-        rootSoil.scale = SCNVector3(0.24, 1, 0.24)
-        root.addChildNode(rootSoil)
         let leaves = SCNNode()
         leaves.name = "homeRiceLeaves"
         let panicles = SCNNode()

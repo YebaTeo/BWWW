@@ -118,7 +118,6 @@ struct NgoredActivitySurface: View {
         .task {
             model.configureLookMotion(reduceMotion: reduceMotion)
             await model.scene.prepareAssets()
-            model.scene.showNgoredField()
         }
         .onChange(of: reduceMotion) { _, value in model.configureLookMotion(reduceMotion: value) }
         .task(id: swingCount) {
@@ -128,6 +127,9 @@ struct NgoredActivitySurface: View {
         }
         .onChange(of: model.step) { _, step in
             if step == .rain || step == .finalRain { card.dismiss() }
+        }
+        .onChange(of: card.mode) { _, mode in
+            if mode == .hidden { model.beginInitialRainAfterCard() }
         }
         .task(id: model.removed) {
             if model.step == .cleared || model.step == .secondCleared {

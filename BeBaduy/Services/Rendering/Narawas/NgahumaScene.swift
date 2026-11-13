@@ -95,6 +95,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var ngoredRainNodes: [SCNNode] = []
     private var ngoredRainRequested = false
     private var ngoredMoonRoot: SCNNode?
+    private var ngoredFieldPresented = false
     private var treeChopStartTimes: [Int: Double] = [:]
     private var treeChopProgress: [Int: Float] = [:]
     private var treeCutStartTimes: [Int: Double] = [:]
@@ -907,6 +908,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    func prepareNgoredInitialGrowth() {
+        for weed in ngoredWeedRoots.prefix(4) {
+            weed.removeAction(forKey: "weedInitialGrowth")
+            weed.isHidden = false
+            weed.opacity = 0
+            weed.scale = SCNVector3(0.18, 0.18, 0.18)
+        }
+    }
+
     private func animateNgoredWeedGrowth(_ index: Int, duration: TimeInterval, key: String) {
         let weed = ngoredWeedRoots[index]
         weed.removeAction(forKey: key)
@@ -931,24 +941,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 let action = SCNAction.customAction(duration: duration) { node, elapsed in
                     let t = min(1, max(0, Float(elapsed / CGFloat(duration))))
                     let value = current + (target - current) * HomeSceneRenderer.riceGrowthAmount(t)
-                    for blade in node.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes ?? [] {
-                        blade.morpher?.setWeight(CGFloat(value), forTargetAt: 0)
-                    }
-                    for panicle in node.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes ?? [] {
-                        panicle.opacity = CGFloat(value)
-                        panicle.scale = SCNVector3(value, value, value)
-                    }
+                    self.applyNgoredRiceGrowth(node, growth: value)
                 }
                 plant.runAction(action, forKey: "ngoredGrowth")
                 continue
             }
-            for blade in plant.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes ?? [] {
-                blade.morpher?.setWeight(CGFloat(target), forTargetAt: 0)
-            }
-            for panicle in plant.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes ?? [] {
-                panicle.opacity = CGFloat(target)
-                panicle.scale = SCNVector3(target, target, target)
-            }
+            applyNgoredRiceGrowth(plant, growth: target)
         }
     }
 
@@ -1008,15 +1006,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                     .white, daylight)
                 let overall = (Float(cycle) + localProgress) / Float(cycles)
                 let rawGrowth = growthFrom + (growthTo - growthFrom) * overall
-                let growth = HomeSceneRenderer.riceGrowthAmount(rawGrowth)
                 for plant in self.ngoredRiceRoots {
-                    for blade in plant.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes ?? [] {
-                        blade.morpher?.setWeight(CGFloat(growth), forTargetAt: 0)
-                    }
-                    for panicle in plant.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes ?? [] {
-                        panicle.opacity = CGFloat(growth)
-                        panicle.scale = SCNVector3(growth, growth, growth)
-                    }
+                    self.applyNgoredRiceGrowth(plant, growth: HomeSceneRenderer.riceGrowthAmount(rawGrowth))
                 }
             }
         } + [.run { _ in completion() }])
@@ -1126,12 +1117,38 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let plant = HomeSceneRenderer.makeNgoredTransitionRicePlant()
             plant.name = "ngoredRice_\(index)"
             plant.position = base
+            let plantingPoint = SCNNode()
+            plantingPoint.name = "ngoredPlantingPoint"
+            plantingPoint.addChildNode(HomeSceneRenderer.makePlantingHoleNode(homePreview: true))
+            let seedOffsets: [(Float, Float)] = [
+                (-0.004, 0.001), (0.004, -0.001),
+                (0.001, 0.004), (0.001, -0.004)
+            ]
+            for (x, z) in seedOffsets {
+                let seed = HomeSceneRenderer.makePlantingSeedNode()
+                seed.position = SCNVector3(x, 0.008, z)
+                seed.scale = SCNVector3(0.72, 0.72, 0.72)
+                plantingPoint.addChildNode(seed)
+            }
+            plant.addChildNode(plantingPoint)
             worldRoot.addChildNode(plant)
-            // Young padi is already visible among the weeds at the start.
             plant.scale = SCNVector3(1, 1, 1)
             plant.isHidden = false
             ngoredRiceRoots.append(plant)
         }
+    }
+
+    private func applyNgoredRiceGrowth(_ plant: SCNNode, growth: Float) {
+        let leaves = plant.childNode(withName: "homeRiceLeaves", recursively: false)
+        leaves?.opacity = CGFloat(min(1, growth * 9))
+        for blade in leaves?.childNodes ?? [] {
+            blade.morpher?.setWeight(CGFloat(growth), forTargetAt: 0)
+        }
+        for panicle in plant.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes ?? [] {
+            panicle.opacity = CGFloat(growth)
+            panicle.scale = SCNVector3(growth, growth, growth)
+        }
+        plant.childNode(withName: "ngoredPlantingPoint", recursively: false)?.opacity = CGFloat(max(0, 1 - growth * 8))
     }
 
     func growNgoredRice() {
@@ -1142,19 +1159,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let duration: TimeInterval = reduceMotion ? 0.05 : 8.0
             let growth = SCNAction.customAction(duration: duration) { node, elapsed in
                 let progress = min(1, max(0, Float(elapsed) / Float(duration)))
-                let riceGrowth = HomeSceneRenderer.riceGrowthAmount(progress)
-                if let leaves = node.childNode(withName: "homeRiceLeaves", recursively: false) {
-                    for blade in leaves.childNodes {
-                        blade.morpher?.setWeight(CGFloat(riceGrowth), forTargetAt: 0)
-                    }
-                }
-                if let panicles = node.childNode(withName: "homeRicePanicles", recursively: false) {
-                    for panicle in panicles.childNodes {
-                        // Home grows the panicle from its rooted base with the leaves.
-                        panicle.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
-                        panicle.opacity = CGFloat(riceGrowth)
-                    }
-                }
+                self.applyNgoredRiceGrowth(node, growth: HomeSceneRenderer.riceGrowthAmount(progress))
             }
             plant.runAction(growth, forKey: "riceGrowth")
         }
@@ -1163,14 +1168,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     func resetNgoredRice() {
         for plant in ngoredRiceRoots {
             plant.removeAction(forKey: "riceGrowth")
+            plant.removeAction(forKey: "ngoredGrowth")
             plant.scale = SCNVector3(1, 1, 1)
-            plant.childNode(withName: "homeRiceLeaves", recursively: false)?.childNodes.forEach {
-                $0.morpher?.setWeight(0, forTargetAt: 0)
-            }
-            plant.childNode(withName: "homeRicePanicles", recursively: false)?.childNodes.forEach {
-                $0.opacity = 0
-                $0.scale = SCNVector3(0, 0, 0)
-            }
+            applyNgoredRiceGrowth(plant, growth: 0)
             plant.isHidden = false
         }
     }
@@ -1811,6 +1811,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         motionReference = motionOrientation
     }
 
+    func focusNgoredRice() {
+        // The first rice clump is 45° to the right of the default forward view.
+        motionOrientation = simd_quatf(angle: -.pi / 4, axis: [0, 1, 0])
+        motionReference = motionOrientation
+        updatePreviewCamera(fixedPosition: true)
+    }
+
     func applyMotionLook(_ relative: simd_quatf, fixedPosition: Bool = false) {
         guard !suspended else { return }
         let combined = simd_normalize(motionReference * relative)
@@ -1830,7 +1837,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func updatePreviewCamera(fixedPosition: Bool = false) {
-        cameraNode.simdOrientation = motionOrientation * simd_quatf(angle: -0.14, axis: [1, 0, 0])
+        let downwardPitch: Float = ngoredFieldPresented ? -0.25 : -0.14
+        cameraNode.simdOrientation = motionOrientation * simd_quatf(angle: downwardPitch, axis: [1, 0, 0])
 
         let forward = motionOrientation.act(SIMD3<Float>(0, 0, -1))
         let parallaxOffset = SIMD3<Float>(-forward.x * 0.14, 0, -forward.z * 0.10)
@@ -2228,6 +2236,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     /// Presents the pre-burn field as an open Ngored AR space.
     func showNgoredField() {
+        if !ngoredFieldPresented { focusNgoredRice() }
+        ngoredFieldPresented = true
+        updatePreviewCamera(fixedPosition: true)
         fireRoot.isHidden = true
         fireRoot.opacity = 0
         ashRoot.isHidden = true

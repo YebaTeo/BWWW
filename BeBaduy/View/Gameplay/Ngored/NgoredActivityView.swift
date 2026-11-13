@@ -27,6 +27,9 @@ struct NgoredActivityView: View {
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.heading)
                 Text("Padi dan gulma mulai tumbuh di bawah hujan.")
+                if card.mode == .instruction {
+                    LessonButton(title: "Lihat pertumbuhan", identifier: "ngored.growth.begin") { card.dismiss() }
+                }
             case .weeding:
                 Text("Pare mulai tumbuh!")
                     .font(.system(.title3, design: .rounded).bold())
