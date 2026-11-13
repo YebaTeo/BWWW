@@ -98,13 +98,13 @@ struct NgoredActivitySurface: View {
                 }
                 if let struckWeed, !reduceMotion {
                     TimelineView(.animation(minimumInterval: 1.0 / 60, paused: scenePhase != .active)) { _ in
-                        let roots = model.scene.projectedNgoredWeedPoints(height: 0)
-                        if roots.indices.contains(struckWeed), roots[struckWeed].x >= 0 {
-                            let root = roots[struckWeed]
-                            KoredTool(swingCount: swingCount)
-                                .frame(width: 210, height: 240)
+                        let targets = model.scene.projectedNgoredWeedPoints()
+                        if targets.indices.contains(struckWeed), targets[struckWeed].x >= 0 {
+                            let target = targets[struckWeed]
+                            KoredTool(swingCount: swingCount, bladeCentered: true)
+                                .frame(width: 300, height: 300)
                                 .scaleEffect(x: 1, y: -1)
-                                .position(x: root.x + 32, y: root.y - 20)
+                                .position(x: target.x, y: target.y - 24)
                         }
                     }
                     .allowsHitTesting(false)

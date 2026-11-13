@@ -141,7 +141,7 @@ import simd
         guard !removed.contains(target) else { return }
         strokes[target, default: 0] += 1
         let uprooted = strokes[target] == 3
-        scene.animateNgoredWeedStrike(target, uprooted: uprooted)
+        scene.animateNgoredWeedStrike(target, stroke: strokes[target] ?? 0, uprooted: uprooted)
         ActivityAudio.shared.play(.weed)
         session.feedback = "Gulma \(target + 1): \(strokes[target] ?? 0)/3 sapuan."
         guard strokes[target] == 3 else { return }

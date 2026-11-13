@@ -46,7 +46,7 @@ final class HomePreviewViewModel {
             isTransitioning = false
         } else {
             isTransitioning = true
-            // Allow time for one day/night cycle while the rice matures.
+            // Preserve the full home time-lapse as the rice matures toward harvest.
             let isHarvestTimeLapse = (previousStage == 2 && index == 3) || (previousStage == 3 && index == 2)
             let isForestClearing = (previousStage == 0 && index == 1) || (previousStage == 1 && index == 0)
             let isLeuitTransition = (previousStage <= 4 && index >= 5) || (previousStage >= 5 && index <= 4) || (previousStage == 5 && index == 6) || (previousStage == 6 && index == 5)
@@ -55,7 +55,7 @@ final class HomePreviewViewModel {
             if isPlantingGrowth { plantingGrowth = 0 }
             let start = progress
             let destination = GrowthStage.allStages[index].targetProgress
-            let duration: Double = isPlantingGrowth ? 4.5 : isConclusionPan ? 0.18 : (isHarvestTimeLapse ? 15 : (isLeuitTransition ? 1.35 : (isForestClearing ? 7.2 : 0.23)))
+            let duration: Double = isPlantingGrowth ? 4.5 : isConclusionPan ? 0.18 : (isHarvestTimeLapse ? 27 : (isLeuitTransition ? 1.35 : (isForestClearing ? 7.2 : 0.23)))
             // Custom scene inputs need actual intermediate state values;
             // withAnimation alone only interpolates animatable view properties.
             transitionTask = Task { @MainActor in

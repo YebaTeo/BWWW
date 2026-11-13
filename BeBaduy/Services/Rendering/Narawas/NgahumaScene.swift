@@ -89,6 +89,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var treeEntries: [TreeEntry] = []
     private var ngoredWeedRoots: [SCNNode] = []
     private var ngoredWeedRestPositions: [SCNVector3] = []
+    private var ngoredWeedFragments: [Int: [SCNNode]] = [:]
     private var uprootedNgoredWeeds = Set<Int>()
     private var ngoredRiceRoots: [SCNNode] = []
     private var ngoredRainNodes: [SCNNode] = []
@@ -868,6 +869,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func buildNgoredWeeds(using materials: NgahumaMaterials) {
+        ngoredWeedFragments.removeAll()
         ngoredWeedRoots.removeAll()
         ngoredWeedRestPositions.removeAll()
         for index in 0..<7 {
@@ -1259,7 +1261,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    func animateNgoredWeedStrike(_ index: Int, uprooted: Bool) {
+    func animateNgoredWeedStrike(_ index: Int, stroke: Int, uprooted: Bool) {
         guard ngoredWeedRoots.indices.contains(index) else { return }
         let clump = ngoredWeedRoots[index]
         let position = clump.presentation.position
@@ -1270,6 +1272,45 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let rest = ngoredWeedRestPositions[index]
         let right = cameraNode.simdWorldTransform.columns.0
         let pushed = SCNVector3(rest.x + right.x * 0.07, rest.y + 0.012, rest.z + right.z * 0.07)
+
+        // The first two sweeps pull individual blades from this exact clump.
+        // The remaining rooted blades leave together on the third sweep.
+        if stroke == 1 || stroke == 2 {
+            let firstBlade = (stroke - 1) * 2
+            for bladeIndex in firstBlade..<min(firstBlade + 2, clump.childNodes.count) {
+                let blade = clump.childNodes[bladeIndex]
+                let worldTransform = blade.presentation.simdWorldTransform
+                let fragment = blade.clone()
+                fragment.removeAllActions()
+                fragment.name = "ngoredWeedFragment_\(index)_\(stroke)_\(bladeIndex)"
+                worldRoot.addChildNode(fragment)
+                fragment.simdWorldTransform = worldTransform
+                blade.isHidden = true
+                ngoredWeedFragments[index, default: []].append(fragment)
+
+                let spread = Float(bladeIndex % 2 == 0 ? 1 : -1) * 0.045
+                let landed = SCNVector3(
+                    rest.x + right.x * (0.14 + spread),
+                    rest.y + 0.012,
+                    rest.z + right.z * (0.14 + spread)
+                )
+                if reduceMotion {
+                    fragment.position = landed
+                    fragment.eulerAngles.z += 0.8
+                } else {
+                    let lift = SCNAction.move(to: SCNVector3(fragment.position.x,
+                                                              fragment.position.y + 0.12,
+                                                              fragment.position.z), duration: 0.16)
+                    lift.timingMode = .easeOut
+                    let fall = SCNAction.group([
+                        .move(to: landed, duration: 0.30),
+                        .rotateBy(x: 0.55, y: 0.12, z: 0.85, duration: 0.30)
+                    ])
+                    fall.timingMode = .easeIn
+                    fragment.runAction(.sequence([lift, fall]), forKey: "weedFragmentFall")
+                }
+            }
+        }
 
         if reduceMotion {
             if uprooted {
@@ -1309,6 +1350,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func restoreNgoredWeeds() {
         uprootedNgoredWeeds.removeAll()
+        for fragment in ngoredWeedFragments.values.flatMap({ $0 }) {
+            fragment.removeAllActions()
+            fragment.removeFromParentNode()
+        }
+        ngoredWeedFragments.removeAll()
         for (index, clump) in ngoredWeedRoots.enumerated() {
             clump.removeAction(forKey: "ngoredStrike")
             clump.removeAction(forKey: "rainDissolve")
@@ -1319,6 +1365,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             clump.scale = SCNVector3(1, 1, 1)
             clump.eulerAngles = SCNVector3Zero
             clump.position = ngoredWeedRestPositions[index]
+            clump.childNodes.forEach { $0.isHidden = false }
         }
     }
 
@@ -1328,6 +1375,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let fade = SCNAction.fadeOut(duration: reduceMotion ? 0.08 : 1.4)
             let hide = SCNAction.run { node in node.isHidden = true }
             clump.runAction(.sequence([.wait(duration: Double(index) * 0.28), fade, hide]), forKey: "rainDissolve")
+        }
+        for (index, fragments) in ngoredWeedFragments {
+            for fragment in fragments {
+                fragment.removeAction(forKey: "weedFragmentFall")
+                let fade = SCNAction.fadeOut(duration: reduceMotion ? 0.08 : 1.4)
+                fragment.runAction(.sequence([
+                    .wait(duration: Double(index % 4) * 0.2), fade, .removeFromParentNode()
+                ]), forKey: "rainDissolve")
+            }
         }
         uprootedNgoredWeeds.removeAll()
     }

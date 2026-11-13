@@ -122,7 +122,7 @@ struct WelcomeHomeView: View {
         .onChange(of: journey.progress.currentPhase) { previous, phase in
             guard !playsHarvestTransition, !preview.isPlayingHarvestTransition else { return }
             if let saved = GrowthStage.allStages.first(where: { $0.phase == phase }) {
-                let shouldGrow = previous == .ngaseuk && phase == .ngored && displayedStage == 1
+                let shouldGrow = previous == .ngaseuk && phase == .ngored
                 preview.selectStage(saved.id, reduceMotion: reduceMotion || !shouldGrow)
                 if !preview.isTransitioning { displayedStage = saved.id }
             }

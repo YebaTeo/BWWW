@@ -4,16 +4,14 @@ import simd
 
 /// 3D Traditional Baduy "Kored" (Curved Hand Weeding Hoe).
 ///
-/// Crafted in SceneKit with:
-/// - Hand-turned ergonomic hardwood handle (gagang kai)
-/// - Forged iron neck collar (leher beusi)
-/// - Angled crescent steel blade (bilah waja melengkung) with razor cutting edge
-/// - PBR metallic reflection and realistic directional lighting
+/// Loads the supplied kored2.usdz model into a lit SceneKit scene and keeps
+/// the existing tap/drag swing motion on its normalized model root.
 struct Kored3DView: View {
     var isDragging = false
     var swingCount = 0
+    var bladeCentered = false
     var body: some View {
-        KoredSceneView(isDragging: isDragging, swingCount: swingCount)
+        KoredSceneView(isDragging: isDragging, swingCount: swingCount, bladeCentered: bladeCentered)
             .accessibilityHidden(true)
     }
 }
@@ -21,8 +19,9 @@ struct Kored3DView: View {
 private struct KoredSceneView: UIViewRepresentable {
     let isDragging: Bool
     let swingCount: Int
+    let bladeCentered: Bool
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(bladeCentered: bladeCentered)
     }
 
     func makeUIView(context: Context) -> SCNView {
@@ -33,6 +32,8 @@ private struct KoredSceneView: UIViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
+        view.isPlaying = true
+        view.rendersContinuously = true
 
         context.coordinator.setupScene(in: view)
         return view
@@ -47,25 +48,36 @@ private struct KoredSceneView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject {
+        private let bladeCentered: Bool
         private weak var scnView: SCNView?
         private var tool: SCNNode?
         private var dragging = false
         private var lastSwingCount = 0
 
+        init(bladeCentered: Bool) {
+            self.bladeCentered = bladeCentered
+        }
+
         func update(isDragging value: Bool, swingCount: Int) {
             guard let tool else { return }
             if swingCount != lastSwingCount {
                 lastSwingCount = swingCount
-                let dip = SCNAction.rotateTo(x: 0.82, y: -0.78, z: -0.16, duration: 0.11, usesShortestUnitArc: true)
+                let dip = SCNAction.rotateTo(x: 0.82, y: bladeCentered ? .pi - 0.78 : -0.78,
+                                             z: -0.16, duration: 0.11, usesShortestUnitArc: true)
                 dip.timingMode = .easeIn
-                let recover = SCNAction.rotateTo(x: 0.24, y: -0.32, z: -0.42, duration: 0.22, usesShortestUnitArc: true)
+                let contact = SCNAction.move(to: SCNVector3(0, 0, 0), duration: 0.11)
+                contact.timingMode = .easeIn
+                let recover = SCNAction.rotateTo(x: 0.24, y: bladeCentered ? .pi - 0.32 : -0.32,
+                                                 z: -0.42, duration: 0.22, usesShortestUnitArc: true)
                 recover.timingMode = .easeOut
-                tool.runAction(.sequence([dip, recover]), forKey: "koredSwing")
+                let lift = SCNAction.move(to: SCNVector3(0, bladeCentered ? -0.08 : 0, 0), duration: 0.22)
+                lift.timingMode = .easeOut
+                tool.runAction(.sequence([.group([dip, contact]), .group([recover, lift])]), forKey: "koredSwing")
             }
             guard value != dragging else { return }
             dragging = value
             let rotation = SCNAction.rotateTo(x: value ? 0.45 : 0.24,
-                                              y: value ? -0.65 : -0.32,
+                                              y: bladeCentered ? .pi - (value ? 0.65 : 0.32) : (value ? -0.65 : -0.32),
                                               z: -0.42, duration: 0.16, usesShortestUnitArc: true)
             rotation.timingMode = .easeOut
             tool.runAction(rotation, forKey: "workingTilt")
@@ -92,8 +104,8 @@ private struct KoredSceneView: UIViewRepresentable {
             cameraNode.camera = camera
             // Center the framing on the full haft, whose top now rises above
             // the blade root. Keeping the old low look-at point cropped it.
-            cameraNode.position = SCNVector3(0, 0.42, 1.45)
-            cameraNode.look(at: SCNVector3(0, 0.42, 0))
+            cameraNode.position = SCNVector3(0, 0, bladeCentered ? 2.15 : 1.55)
+            cameraNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(cameraNode)
 
             // 2. Sunlight & Metallic Rim
@@ -125,110 +137,59 @@ private struct KoredSceneView: UIViewRepresentable {
             rimNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(rimNode)
 
-            // 3. Build the 3D Kored Model
-            let koredRoot = SCNNode()
-            koredRoot.name = "koredRoot"
-            // Set natural angled slashing orientation
-            koredRoot.eulerAngles = SCNVector3(0.24, -0.32, -0.42)
-
-            // Hardwood Handle Material
-            let woodMat = SCNMaterial()
-            woodMat.lightingModel = .physicallyBased
-            woodMat.diffuse.contents = UIImage(named: "HumaWoodTexture")
-                ?? UIColor(red: 0.72, green: 0.50, blue: 0.28, alpha: 1)
-            woodMat.multiply.contents = UIColor(red: 1.0, green: 0.90, blue: 0.60, alpha: 1)
-            woodMat.diffuse.contentsTransform = SCNMatrix4MakeScale(1, 3.5, 1)
-            woodMat.diffuse.wrapT = .repeat
-            woodMat.diffuse.maxAnisotropy = 8
-            woodMat.roughness.contents = 0.58
-            woodMat.metalness.contents = 0.04
-
-            // Forged Iron Neck Material
-            let ironMat = SCNMaterial()
-            ironMat.lightingModel = .physicallyBased
-            ironMat.diffuse.contents = UIColor(red: 0.22, green: 0.22, blue: 0.24, alpha: 1)
-            ironMat.roughness.contents = 0.52
-            ironMat.metalness.contents = 0.78
-
-            // Forged Steel Blade Material
-            let bladeMat = SCNMaterial()
-            bladeMat.lightingModel = .physicallyBased
-            bladeMat.diffuse.contents = UIColor(red: 0.30, green: 0.32, blue: 0.33, alpha: 1)
-            bladeMat.roughness.contents = 0.52
-            bladeMat.metalness.contents = 0.72
-
-            // ── A. Ergonomic Hardwood Handle ─────────────────────────────
-            // Longer, tapered wooden haft to match the supplied hoe reference.
-            let handleGeo = SCNCapsule(capRadius: 0.021, height: 0.92)
-            handleGeo.radialSegmentCount = 32
-            handleGeo.materials = [woodMat]
-            let handleNode = SCNNode(geometry: handleGeo)
-            handleNode.position = SCNVector3(0.04, 0.44, 0)
-            handleNode.eulerAngles.z = 0.22
-            koredRoot.addChildNode(handleNode)
-
-            // ── B. Forged Iron Ferrule & Neck ────────────────────────────
-            let ferruleGeo = SCNCylinder(radius: 0.025, height: 0.028)
-            ferruleGeo.radialSegmentCount = 32
-            ferruleGeo.materials = [ironMat]
-            let ferruleNode = SCNNode(geometry: ferruleGeo)
-            ferruleNode.position = SCNVector3(0, -0.44, 0)
-            handleNode.addChildNode(ferruleNode)
-
-            // A continuous bent shank joins the socket to the blade.
-            let socket = handleNode.convertPosition(SCNVector3(0, -0.44, 0), to: koredRoot)
-            let points: [SIMD3<Float>] = [
-                SIMD3(socket.x, socket.y, socket.z),
-                SIMD3(0.025, -0.045, 0), SIMD3(-0.025, -0.075, 0.012),
-                SIMD3(-0.075, -0.10, 0.012)
-            ]
-            for index in 0..<(points.count - 1) {
-                let start = points[index]
-                let end = points[index + 1]
-                let shaft = SCNCylinder(radius: 0.010, height: CGFloat(simd_length(end - start)))
-                shaft.radialSegmentCount = 20
-                shaft.materials = [ironMat]
-                let segment = SCNNode(geometry: shaft)
-                segment.simdPosition = (start + end) * 0.5
-                segment.simdOrientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: simd_normalize(end - start))
-                koredRoot.addChildNode(segment)
-                let joint = SCNSphere(radius: 0.010)
-                joint.materials = [ironMat]
-                let jointNode = SCNNode(geometry: joint)
-                jointNode.simdPosition = end
-                koredRoot.addChildNode(jointNode)
+            // 3. Load the supplied USDZ kored and fit it to the hand-sized viewport.
+            let modelURL = Bundle.main.url(forResource: "kored2", withExtension: "usdz")
+                ?? Bundle.main.url(forResource: "kored2", withExtension: "usdz", subdirectory: "Asset/Ngored")
+            guard let modelURL,
+                  let sourceScene = try? SCNScene(url: modelURL, options: nil) else {
+                assertionFailure("Could not load Asset/Ngored/kored2.usdz")
+                return
             }
 
-            // Curved forged blade: rounded shoulders, broad cutting belly,
-            // extruded side walls and a bevel that catches the warm field light.
-            let outline = UIBezierPath()
-            outline.move(to: CGPoint(x: -0.050, y: 0.035))
-            outline.addQuadCurve(to: CGPoint(x: 0.050, y: 0.035), controlPoint: CGPoint(x: 0, y: 0.044))
-            outline.addQuadCurve(to: CGPoint(x: 0.100, y: -0.035), controlPoint: CGPoint(x: 0.090, y: 0.010))
-            outline.addQuadCurve(to: CGPoint(x: -0.100, y: -0.035), controlPoint: CGPoint(x: 0, y: -0.068))
-            outline.addQuadCurve(to: CGPoint(x: -0.050, y: 0.035), controlPoint: CGPoint(x: -0.090, y: 0.010))
-            outline.close()
-            let bladeGeo = SCNShape(path: outline, extrusionDepth: 0.012)
-            bladeGeo.chamferRadius = 0.003
-            bladeGeo.materials = [bladeMat]
-            let edgeMat = SCNMaterial()
-            edgeMat.lightingModel = .physicallyBased
-            edgeMat.diffuse.contents = UIColor(red: 0.57, green: 0.59, blue: 0.57, alpha: 1)
-            edgeMat.metalness.contents = 0.8
-            edgeMat.roughness.contents = 0.35
-            bladeGeo.materials = [bladeMat, bladeMat, ironMat, edgeMat, edgeMat]
-            let bladeNode = SCNNode(geometry: bladeGeo)
-            bladeNode.position = SCNVector3(-0.11, -0.17, 0)
-            bladeNode.eulerAngles = SCNVector3(-0.15, 0.40, 0.35)
-            koredRoot.addChildNode(bladeNode)
-            tool = koredRoot
+            let importedModel = sourceScene.rootNode.clone()
+            importedModel.enumerateChildNodes { node, _ in
+                if node.camera != nil || node.light != nil {
+                    node.removeFromParentNode()
+                }
+            }
 
+            let bounds = importedModel.boundingBox
+            let width = bounds.max.x - bounds.min.x
+            let height = bounds.max.y - bounds.min.y
+            let depth = bounds.max.z - bounds.min.z
+            let longestSide = max(width, max(height, depth))
+            guard longestSide > 0.0001 else {
+                assertionFailure("The supplied kored USDZ has empty geometry")
+                return
+            }
+
+            let fitScale: Float = 1.0 / longestSide
+            // The imported model's iron head is at its right, lower end.
+            // Put that edge at the SceneKit origin for field strikes.
+            let center = SCNVector3(
+                bladeCentered ? bounds.max.x - width * 0.07 : (bounds.min.x + bounds.max.x) * 0.5,
+                bladeCentered ? bounds.min.y + height * 0.10 : (bounds.min.y + bounds.max.y) * 0.5,
+                (bounds.min.z + bounds.max.z) * 0.5
+            )
+            importedModel.scale = SCNVector3(fitScale, fitScale, fitScale)
+            importedModel.position = SCNVector3(-center.x * fitScale,
+                                                -center.y * fitScale,
+                                                -center.z * fitScale)
+
+            let koredRoot = SCNNode()
+            koredRoot.name = "koredRoot"
+            koredRoot.eulerAngles = SCNVector3(0.24, bladeCentered ? .pi - 0.32 : -0.32, -0.42)
+            koredRoot.position.y = bladeCentered ? -0.08 : 0
+            koredRoot.addChildNode(importedModel)
             scene.rootNode.addChildNode(koredRoot)
+            tool = koredRoot
         }
 
         func cleanup() {
             tool?.removeAllActions()
             tool = nil
+            scnView?.isPlaying = false
+            scnView?.rendersContinuously = false
             scnView?.scene = nil
             scnView = nil
         }
