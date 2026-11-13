@@ -3,31 +3,70 @@ import SwiftUI
 struct HomeView: View {
     let journey: JourneyViewModel
     let motion: MotionService
+    @State private var loadsFirstPreview = false
     @State private var showsJourney = false
+    @State private var playsHarvestTransition = false
     @State private var pendingPhase: PhaseID?
     @State private var model = HomeViewModel()
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private func finishLoadingPreview() {
+        guard loadsFirstPreview else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+            loadsFirstPreview = false
+        }
+    }
+
     var body: some View {
         NavigationStack(path: $model.path) {
-            Group {
+            ZStack {
                 if journey.progress.introductionSeen {
                     WelcomeHomeView(
                         journey: journey,
+                        onFirstFrame: finishLoadingPreview,
+                        playsHarvestTransition: $playsHarvestTransition,
                         onOpen: { model.open($0, journey: journey) },
                         onJourney: { showsJourney = true },
                         onCompletion: { model.showsCompletion = true },
                         isActive: model.path.isEmpty && !showsJourney && !model.showsCompletion
                     )
+                    .accessibilityHidden(loadsFirstPreview)
+                    .allowsHitTesting(!loadsFirstPreview)
                 } else {
                     IntroductionView {
-                        journey.finishIntroduction()
-                        journey.open(.narawas)
+                        loadsFirstPreview = true
                     }
+                    .accessibilityHidden(loadsFirstPreview)
+                    .allowsHitTesting(!loadsFirstPreview)
                 }
+                if loadsFirstPreview {
+                    ZStack {
+                        LessonBackdrop(asset: "OnboardingNgahuma")
+                        Color.black.opacity(0.35).ignoresSafeArea()
+                        ProgressView("Menyiapkan perjalanan…")
+                            .tint(.white)
+                            .foregroundStyle(.white)
+                            .padding(24)
+                            .background(.black.opacity(0.68), in: RoundedRectangle(cornerRadius: 20))
+                            .accessibilityIdentifier("onboarding.loading")
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .task(id: loadsFirstPreview) {
+                guard loadsFirstPreview, !journey.progress.introductionSeen else { return }
+                // Give the loading view a frame before starting scene construction.
+                do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
+                journey.finishIntroduction()
+                journey.open(.narawas)
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: PhaseID.self) { phase in
                 PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
+                    if journey.progress.record(for: phase).explanationAvailable, phase == .ngored {
+                        playsHarvestTransition = true
+                    }
                     if journey.continueFrom(phase) != nil { model.path = [] }
                     else if phase == .ngaleuitkeunPare && journey.progress.allComplete {
                         journey.finishJourney(); model.path = []; model.showsCompletion = true

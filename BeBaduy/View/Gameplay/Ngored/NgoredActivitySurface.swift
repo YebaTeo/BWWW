@@ -4,60 +4,43 @@ struct NgoredActivitySurface: View {
     @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isHoldingKored = false
-    @State private var holdTask: Task<Void, Never>?
-    @State private var koredSwingCount = 0
-    private func spot(_ index: Int, _ size: CGSize) -> CGPoint {
-        CGPoint(x: size.width * (0.17 + CGFloat(index % 4) * 0.22),
-                y: size.height * (index < 4 ? 0.57 : 0.72))
+    @State private var swingCount = 0
+    @State private var struckWeed: Int?
+
+    private var isWeeding: Bool {
+        model.step == .weeding
     }
 
-    private func cutAtKoredTip(in size: CGSize) {
-        guard model.step == .weeding || model.step == .secondWeeding else { return }
+    private func swipeWeed(along path: [CGPoint], in size: CGSize) {
+        guard isWeeding, card.mode == .hidden, !model.isDemonstrating else { return }
         let points = model.scene.projectedNgoredWeedPoints()
-        let range = model.step == .secondWeeding ? 4..<7 : 0..<4
-        let koredCenterY = size.height * 0.33 + (size.height * 0.66 + 16) / 2
-        let tip = CGPoint(x: size.width - 110, y: koredCenterY - size.height * 0.24)
-        koredSwingCount &+= 1
-        func distance(_ point: CGPoint) -> CGFloat {
-            hypot(point.x - tip.x, point.y - tip.y)
-        }
-        guard let target = range
-            .filter({ !model.removed.contains($0) && points.indices.contains($0) })
-            .min(by: { distance(points[$0]) < distance(points[$1]) }),
-              distance(points[target]) < 108 else {
-            model.session.feedback = "Arahkan mata kored ke gulma, lalu tap atau tahan."
-            return
-        }
-        model.remove(target)
-    }
-
-    private func beginKoredHold(in size: CGSize) {
-        guard !isHoldingKored else { return }
-        isHoldingKored = true
-        holdTask?.cancel()
-        holdTask = Task { @MainActor in
-            while !Task.isCancelled && isHoldingKored {
-                cutAtKoredTip(in: size)
-                do { try await Task.sleep(for: .milliseconds(560)) } catch { return }
+        let range = 0..<4
+        var closest: (index: Int, distance: CGFloat)?
+        for index in range where points.indices.contains(index) && !model.removed.contains(index) {
+            let point = points[index]
+            guard CGRect(origin: .zero, size: size).contains(point) else { continue }
+            // Include the leaves above the projected root when testing a swipe.
+            let center = CGPoint(x: point.x, y: point.y - 24)
+            for (start, end) in zip(path, path.dropFirst()) {
+                let dx = end.x - start.x
+                let dy = end.y - start.y
+                let lengthSquared = dx * dx + dy * dy
+                guard lengthSquared > 0 else { continue }
+                let t = min(1, max(0, ((center.x - start.x) * dx + (center.y - start.y) * dy) / lengthSquared))
+                let distance = hypot(center.x - start.x - t * dx, center.y - start.y - t * dy)
+                if distance < (closest?.distance ?? 42) { closest = (index, distance) }
             }
         }
+        if let closest { strike(closest.index) }
     }
 
-    private func endKoredHold() {
-        isHoldingKored = false
-        holdTask?.cancel()
-        holdTask = nil
+    private func strike(_ index: Int) {
+        guard isWeeding, !model.removed.contains(index), !model.isDemonstrating else { return }
+        struckWeed = index
+        swingCount += 1
+        model.remove(index)
     }
 
-    private func shouldDismissCard(for step: NgoredViewModel.Step) -> Bool {
-        switch step {
-        case .rain, .cycles, .finalRain, .finalCycles, .secondWeeding:
-            true
-        case .initialRain, .weeding, .cleared, .secondCleared, .complete:
-            false
-        }
-    }
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -67,11 +50,10 @@ struct NgoredActivitySurface: View {
                     .accessibilityHidden(true)
                 TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active)) { _ in
                     let points = model.scene.projectedNgoredWeedPoints()
-                ForEach(0..<7) { index in
-                        let activeRange = model.step == .secondWeeding ? 4..<7 : 0..<4
+                ForEach(0..<4) { index in
                         let cut = model.removed.contains(index)
                         let hits = model.strokes[index] ?? 0
-                        if activeRange.contains(index), !cut, points.indices.contains(index) {
+                        if isWeeding, !cut, points.indices.contains(index) {
                             let pt = points[index]
                             if pt.x > 0 && pt.y > 0 && pt.x < geometry.size.width && pt.y < geometry.size.height {
                                 Text("\(hits)/3")
@@ -83,16 +65,20 @@ struct NgoredActivitySurface: View {
                                     .accessibilityLabel("Gulma \(index + 1)")
                                     .accessibilityValue("\(hits) dari 3 sapuan")
                                     .accessibilityIdentifier("field.weed.\(index)")
-                                    .accessibilityAction(named: "Sapukan kored") { model.remove(index) }
+                                    .accessibilityAction(named: "Sapukan kored") { strike(index) }
                                     .position(pt)
+                                    .allowsHitTesting(false)
                             }
                         }
                     }
                 }
-                if model.step == .weeding || model.step == .secondWeeding {
-                    let roundCount = model.step == .secondWeeding
-                        ? (4..<7).filter { model.removed.contains($0) }.count
-                        : (0..<4).filter { model.removed.contains($0) }.count
+                if isWeeding && card.mode == .hidden {
+                    KoredDragHandle { start, end in
+                        swipeWeed(along: [start, end], in: geometry.size)
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+                if model.step == .weeding {
                     Button { model.remove(8) } label: {
                         Label("Padi · pertahankan", systemImage: "leaf")
                             .font(.subheadline.weight(.semibold)).padding(12)
@@ -100,8 +86,8 @@ struct NgoredActivitySurface: View {
                     }.accessibilityIdentifier("field.rice")
                         .position(x: geometry.size.width / 2, y: geometry.size.height * 0.43)
                     VStack(spacing: 6) {
-                        Text("Pegang dan geser kored").font(.headline)
-                        Text("Tiga sapuan ke bawah per gulma · \(roundCount)/\(model.step == .secondWeeding ? 3 : 4) bersih").font(.subheadline)
+                        Text("Usap gulma untuk menyapukan kored").font(.headline)
+                        Text("Rumput dicabut: \(model.removed.count)/4").font(.subheadline)
                         if model.session.feedback.hasPrefix("Ini padi") {
                             Text(model.session.feedback).font(.subheadline.bold())
                                 .accessibilityIdentifier("ngored.rice.feedback")
@@ -111,40 +97,23 @@ struct NgoredActivitySurface: View {
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
                 }
-                if (model.step == .weeding || model.step == .secondWeeding), card.mode == .hidden {
-                    ZStack {
-                        KoredTool(isDragging: isHoldingKored, swingCount: koredSwingCount)
-                            // The render surface includes space for the entire swing;
-                            // the enclosing frame still anchors input at the right edge.
-                            .frame(width: geometry.size.width, height: geometry.size.height * 0.66)
-                            .scaleEffect(x: 1, y: -1)
-                            .allowsHitTesting(false)
-                        Circle()
-                            .stroke(.white.opacity(isHoldingKored ? 0.78 : 0.32), lineWidth: isHoldingKored ? 2 : 1)
-                            .frame(width: isHoldingKored ? 34 : 26, height: isHoldingKored ? 34 : 26)
-                            .shadow(color: .white.opacity(isHoldingKored ? 0.5 : 0.15), radius: isHoldingKored ? 8 : 3)
-                            .offset(x: -28, y: -geometry.size.height * 0.24)
+                if let struckWeed, !reduceMotion {
+                    TimelineView(.animation(minimumInterval: 1.0 / 60, paused: scenePhase != .active)) { _ in
+                        let roots = model.scene.projectedNgoredWeedPoints(height: 0)
+                        if roots.indices.contains(struckWeed), roots[struckWeed].x >= 0 {
+                            let root = roots[struckWeed]
+                            KoredTool(swingCount: swingCount)
+                                .frame(width: 210, height: 240)
+                                .scaleEffect(x: 1, y: -1)
+                                .position(x: root.x + 32, y: root.y - 20)
+                        }
                     }
-                    .frame(width: 164, height: geometry.size.height * 0.66 + 16)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        guard !model.isDemonstrating else { return }
-                        cutAtKoredTip(in: geometry.size)
-                    }
-                    .onLongPressGesture(minimumDuration: 0.35, pressing: { pressing in
-                        if !pressing { endKoredHold() }
-                    }, perform: {
-                        guard !model.isDemonstrating else { return }
-                        beginKoredHold(in: geometry.size)
-                    })
-                    .position(x: geometry.size.width - 82,
-                              y: geometry.size.height * 0.33 + (geometry.size.height * 0.66 + 16) / 2)
-                    .accessibilityElement()
-                    .accessibilityLabel("Kored")
-                    .accessibilityHint("Tap atau tahan untuk memotong gulma yang berada di ujung mata kored")
-                    .accessibilityIdentifier("field.kored")
+                    .allowsHitTesting(false)
                 }
-            }.contentShape(Rectangle()).coordinateSpace(name: "ngored.field").disabled(model.isDemonstrating)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .contentShape(Rectangle())
+            .disabled(model.isDemonstrating)
 
         }
         .task {
@@ -153,18 +122,18 @@ struct NgoredActivitySurface: View {
             model.scene.showNgoredField()
         }
         .onChange(of: reduceMotion) { _, value in model.configureLookMotion(reduceMotion: value) }
-        .onChange(of: scenePhase) { _, value in model.setVisible(value == .active) }
-        .onChange(of: card.mode) { _, mode in
-            if mode != .hidden { endKoredHold() }
+        .task(id: swingCount) {
+            guard struckWeed != nil else { return }
+            do { try await Task.sleep(for: .milliseconds(550)) } catch { return }
+            struckWeed = nil
         }
-        .onDisappear { endKoredHold() }
         .onChange(of: model.step) { _, step in
-            if shouldDismissCard(for: step) { card.dismiss() }
+            if step == .rain { card.dismiss() }
         }
         .task(id: model.removed) {
-            if model.step == .cleared || model.step == .secondCleared {
-                do { try await Task.sleep(for: .milliseconds(900)) } catch { return }
-                card.showInstruction()
+            if model.step == .cleared {
+                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                model.observeRain()
             }
         }
     }

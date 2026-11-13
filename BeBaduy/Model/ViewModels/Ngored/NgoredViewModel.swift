@@ -1,10 +1,14 @@
 import Observation
 import Foundation
+import simd
 @Observable @MainActor final class NgoredViewModel {
-    enum Step { case initialRain, weeding, cleared, rain, cycles, secondWeeding, secondCleared, finalRain, finalCycles, complete }
+    enum Step { case weeding, cleared, rain, complete }
     let scene = NgahumaScene()
     private let motion: (any MotionProviding)?
     private var lookMotion = NarawasLookMotion()
+    private var lastLookTime: Double?
+    private var heading: Double = 0
+    private var smoothedHeading: Double = 0
     private var visible = false
     private var motionAllowed = true
     private var motionGeneration = 0
@@ -26,13 +30,36 @@ import Foundation
         motionGeneration += 1
         motion?.stop()
         lookMotion.reset()
+        lastLookTime = nil
+        heading = 0
+        smoothedHeading = 0
         guard visible, motionAllowed, session.isActive, let motion, motion.available else { return }
         scene.beginMotionLook()
         let generation = motionGeneration
         motion.start { [weak self] sample in
             guard let self, self.motionGeneration == generation, let sample else { return }
-            if let rotation = self.lookMotion.consume(sample) { self.scene.applyMotionLook(rotation) }
+            if let rotation = self.horizontalLook(sample) { self.scene.applyMotionLook(rotation, fixedPosition: true) }
         }
+    }
+
+    private func horizontalLook(_ sample: MotionSample) -> simd_quatf? {
+        guard let rate = sample.rotationRate, let gravity = sample.gravity else {
+            return lookMotion.consume(sample)
+        }
+        let magnitude = simd_length(gravity)
+        // Project the gyro onto world up so turning works at any held tilt.
+        let yawRate = -simd_dot(rate, gravity) / magnitude
+        guard magnitude > 0.5, yawRate.isFinite, sample.time.isFinite else { return nil }
+        guard let previous = lastLookTime else {
+            lastLookTime = sample.time
+            return nil
+        }
+        guard sample.time > previous else { return nil }
+        lastLookTime = sample.time
+        let elapsed = min(0.1, sample.time - previous)
+        if abs(yawRate) > 0.02 { heading += yawRate * elapsed }
+        smoothedHeading += (heading - smoothedHeading) * (1 - exp(-elapsed / 0.06))
+        return simd_quatf(angle: Float(smoothedHeading), axis: [0, 1, 0])
     }
 
     var session = PhaseSessionState()
@@ -44,54 +71,24 @@ import Foundation
     private var usedDemo = false
     @ObservationIgnored private var task: Task<Void, Never>?
     func start() {
-        start(skipInitialRain: false)
-    }
-
-    func start(skipInitialRain: Bool) {
-        suspend(); removed = []; strokes = [:]; lastRemoved = nil; usedDemo = false
-        scene.restoreNgoredWeeds(); scene.resetNgoredRice(); scene.setNgoredGrowth(0)
-        scene.setSuspended(!visible); session.start(); updateLookMotion()
-        if skipInitialRain {
-            scene.setNgoredRain(false)
-            step = .weeding
-        } else {
-            step = .initialRain
-            scene.setNgoredRain(true)
-            scheduleInitialRain()
-        }
-    }
-
-    func advanceToSecondWeedingForTesting() {
-        task?.cancel()
+        suspend()
+        removed = []
+        strokes = [:]
+        lastRemoved = nil
+        usedDemo = false
+        step = .weeding
         scene.setNgoredRain(false)
-        scene.presentNgoredDaytime()
-        removed.formUnion(0..<4)
-        step = .secondWeeding
+        scene.restoreNgoredWeeds()
+        scene.resetNgoredRice()
+        scene.setNgoredGrowth(0.18)
+        scene.setSuspended(!visible)
+        session.start()
+        updateLookMotion()
     }
 
-    func completeForTesting() {
-        task?.cancel()
-        scene.setNgoredRain(false)
-        ActivityAudio.shared.stop()
-        step = .complete
-        session.finish(usedDemo ? .observed : .performed)
-    }
-
-    private func scheduleInitialRain() {
-        task?.cancel()
-        task = Task { [weak self] in
-            guard let self else { return }
-            do { try await Task.sleep(for: .seconds(5)) } catch { return }
-            guard !Task.isCancelled, self.session.isActive else { return }
-            self.scene.setNgoredRain(false); ActivityAudio.shared.stop()
-            self.scene.setNgoredGrowth(0.18, duration: 3); self.step = .weeding
-        }
-    }
     func remove(_ target: Int) {
-        guard session.isActive, step == .weeding || step == .secondWeeding else { return }
-        let secondRound = step == .secondWeeding
-        let targets = secondRound ? 4..<7 : 0..<4
-        guard targets.contains(target) else { session.feedback = "Ini padi. Bersihkan gulma di sekitarnya."; return }
+        guard session.isActive, step == .weeding else { return }
+        guard (0..<4).contains(target) else { session.feedback = "Ini padi. Bersihkan gulma di sekitarnya."; return }
         guard !removed.contains(target) else { return }
         strokes[target, default: 0] += 1
         let uprooted = strokes[target] == 3
@@ -102,80 +99,73 @@ import Foundation
         removed.insert(target)
         lastRemoved = target
         session.feedback = "\(removed.count) dari 4 gulma disingkirkan."
-        let roundDone = secondRound
-            ? (4..<7).filter { removed.contains($0) }.count == 3
-            : (0..<4).filter { removed.contains($0) }.count == 4
-        if roundDone { step = secondRound ? .secondCleared : .cleared }
+        if removed.count == 4 { step = .cleared }
     }
+
     func observeRain() {
-        guard session.isActive, step == .cleared || step == .secondCleared else { return }
-        let secondRound = step == .secondCleared
-        step = secondRound ? .finalRain : .rain
-        scene.setNgoredRain(true); scene.dissolveUprootedWeedsWithRain(); ActivityAudio.shared.play(.rain)
+        guard session.isActive, step == .cleared else { return }
+        step = .rain
+        scene.dissolveUprootedWeedsWithRain()
+        if visible { playRain() }
+    }
+
+    private func playRain() {
         task?.cancel()
+        scene.setNgoredRain(true)
+        ActivityAudio.shared.play(.rain)
         task = Task { [weak self] in
-            guard let self else { return }
             do { try await Task.sleep(for: .seconds(4)) } catch { return }
-            guard !Task.isCancelled, self.session.isActive else { return }
-            self.scene.setNgoredRain(false); ActivityAudio.shared.stop()
-            self.step = secondRound ? .finalCycles : .cycles
-            if !secondRound {
-                self.scene.revealNgoredRegrowth(duration: 28)
-            }
-            let cycleCount = secondRound ? 4 : 3
-            self.scene.animateNgoredDayNight(cycles: cycleCount, duration: Double(cycleCount) * 4,
-                growthFrom: secondRound ? 0.5 : 0.18, growthTo: secondRound ? 1 : 0.5) { [weak self] in
-                guard let self, self.session.isActive else { return }
-                if secondRound {
-                    self.step = .complete
-                    self.session.finish(self.usedDemo ? .observed : .performed)
-                } else {
-                    self.scene.presentNgoredDaytime()
-                    self.removed.formUnion(0..<4)
-                    self.step = .secondWeeding
-                }
-            }
+            self?.finishRain()
         }
     }
+
     func finishRain() {
-        if step == .rain || step == .finalRain || step == .cleared || step == .secondCleared {
-            completeForTesting()
+        guard session.isActive, step == .rain else { return }
+        task?.cancel()
+        task = nil
+        scene.setNgoredRain(false)
+        ActivityAudio.shared.stop()
+        step = .complete
+        session.finish(usedDemo ? .observed : .performed)
+    }
+
+    func setVisible(_ value: Bool) {
+        guard visible != value else { return }
+        visible = value
+        if value {
+            scene.setSuspended(false)
+            updateLookMotion()
+            if step == .rain && session.isActive { playRain() }
         } else {
-            observeRain()
+            suspend()
         }
     }
-    func setVisible(_ value: Bool) { visible = value; scene.setSuspended(!value); updateLookMotion(); if value && (step == .rain || step == .finalRain || step == .initialRain) { ActivityAudio.shared.play(.rain) } else if !value { suspend() } }
-    func suspend() { motionGeneration += 1; motion?.stop(); scene.setSuspended(true); ActivityAudio.shared.stop(); task?.cancel(); task = nil; isDemonstrating = false }
+
+    func suspend() {
+        motionGeneration += 1
+        motion?.stop()
+        scene.setSuspended(true)
+        ActivityAudio.shared.stop()
+        task?.cancel()
+        task = nil
+        isDemonstrating = false
+    }
+
     func demonstrate() {
-        guard session.isActive else { return }
-        suspend(); scene.setSuspended(!visible); usedDemo = true; isDemonstrating = true
+        guard session.isActive, step == .weeding || step == .cleared, !isDemonstrating else { return }
+        usedDemo = true
+        isDemonstrating = true
         task = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(6)) } catch { return }
-            guard !Task.isCancelled, let self else { return }
-            self.scene.setNgoredRain(false)
-            self.scene.setNgoredGrowth(0.18, duration: 3)
-            self.step = .weeding
             for index in 0..<4 {
-                for _ in 0..<3 {
+                while let self, self.step == .weeding, !self.removed.contains(index) {
                     do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
                     guard !Task.isCancelled else { return }
                     self.remove(index)
                 }
             }
-            do { try await Task.sleep(for: .seconds(1)) } catch { return }
-            guard !Task.isCancelled else { return }; self.observeRain()
-            do { try await Task.sleep(for: .seconds(38)) } catch { return }
-            guard !Task.isCancelled else { return }
-            for index in 4..<7 {
-                for _ in 0..<3 {
-                    do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-                    guard !Task.isCancelled else { return }; self.remove(index)
-                }
-            }
-            do { try await Task.sleep(for: .seconds(1)) } catch { return }
-            guard !Task.isCancelled else { return }; self.observeRain()
-            do { try await Task.sleep(for: .seconds(38)) } catch { return }
-            guard !Task.isCancelled else { return }; self.isDemonstrating = false
+            guard let self, !Task.isCancelled else { return }
+            self.isDemonstrating = false
+            self.observeRain()
         }
     }
 }

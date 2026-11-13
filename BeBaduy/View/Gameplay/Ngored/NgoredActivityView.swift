@@ -12,7 +12,7 @@ struct NgoredActivityView: View {
         }
         .disabled(model.isDemonstrating)
         .onChange(of: ActivityAudio.shared.enabled) { _, enabled in
-            if enabled && (model.step == .rain || model.step == .finalRain || model.step == .initialRain) { ActivityAudio.shared.play(.rain) }
+            if enabled && model.step == .rain { ActivityAudio.shared.play(.rain) }
         }
     }
 
@@ -20,59 +20,23 @@ struct NgoredActivityView: View {
     private var content: some View {
         VStack(spacing: 12) {
             switch model.step {
-            case .initialRain:
-                Text("Hujan awal membasahi huma")
-                    .font(.system(.title3, design: .rounded).bold())
-                    .foregroundStyle(AppTheme.heading)
-                Text("Padi dan gulma mulai tumbuh di bawah hujan.")
             case .weeding:
-                Text("Singkirkan gulma, pertahankan padi")
+                Text("Pare mulai tumbuh!")
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.heading)
-                Text("Pegang kored di lahan. Sapukan ke bawah tiga kali pada setiap gulma, lalu angkat sebelum sapuan berikutnya.")
+                Text("Binih yang kamu tanam mulai tumbuh menjadi tanaman padi. Namun, rumput liar juga ikut tumbuh di sekitarnya.\n\nMari kita mulai bersihkan!\n\nUsap setiap gulma tiga kali untuk menyapukan kored.")
                 if card.mode == .instruction {
                     LessonButton(title: "Coba di lahan", identifier: "ngored.field.begin") { card.dismiss() }
-                } else {
-                Text("Kored adalah alat seperti cangkul kecil untuk membersihkan gulma di sekitar padi. Jika lebih nyaman, gunakan tombol di bawah untuk satu sapuan.").font(.subheadline)
-                Text("Singkirkan empat gulma di sekitar padi.").font(.footnote)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
-                    ForEach(0..<4) { index in
-                        ActivityChoice(title: "Gulma \(index + 1) · \(model.strokes[index] ?? 0)/3", symbol: "leaf.fill", done: model.removed.contains(index), identifier: "weed_\(index)") { model.remove(index) }
-                    }
-                }
                 }
             case .cleared:
-                InstructionCard(title: "Hujan menghanyutkan bekas kored", message: "Hujan membasahi lahan. Setelah reda, empat siklus pagi dan malam berlalu; padi tumbuh setengah dan gulma tumbuh kembali.", identifier: "ngored.rain.first", action: model.observeRain)
+                Text("Hebat!").font(.headline).foregroundStyle(AppTheme.heading)
+                Text("Berkat bantuanmu membersihkan gulma, pare kini bisa tumbuh lebih baik. Sekarang, kita menunggu hujan datang!")
             case .rain:
-                Text("Hujan membasuh sisa gulma…")
-                    .font(.system(.title3, design: .rounded).bold())
-                    .foregroundStyle(AppTheme.heading)
-            case .cycles:
-                Text("Siklus pagi dan malam berlangsung…")
-                    .font(.system(.title3, design: .rounded).bold())
-                    .foregroundStyle(AppTheme.heading)
-            case .secondWeeding:
-                Text("Padi tumbuh setengah; gulma tumbuh kembali")
-                    .font(.system(.title3, design: .rounded).bold())
-                    .foregroundStyle(AppTheme.heading)
-                Text("Potong tiga gulma yang tumbuh di antara padi.")
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
-                    ForEach(4..<7) { index in
-                        ActivityChoice(title: "Gulma \(index - 3) · \(model.strokes[index] ?? 0)/3", symbol: "leaf.fill", done: model.removed.contains(index), identifier: "weed_\(index)") { model.remove(index) }
-                    }
-                }
-            case .secondCleared:
-                InstructionCard(title: "Hujan kembali turun", message: "Hujan menghanyutkan bekas gulma. Setelah reda, siklus malam dan pagi berlanjut sampai padi tumbuh penuh.", identifier: "ngored.rain.final", action: model.observeRain)
-            case .finalRain:
-                Text("Hujan menghanyutkan bekas gulma…")
-                    .font(.system(.title3, design: .rounded).bold())
-                    .foregroundStyle(AppTheme.heading)
-            case .finalCycles:
-                Text("Malam dan pagi berlalu; padi tumbuh penuh…")
+                Text("Hujan telah membasahi huma. Lihatlah semua pare yang ditanam semakin bertumbuh!")
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.heading)
             case .complete:
-                Text("Padi tumbuh penuh")
+                Text("Hujan telah reda")
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.heading)
             }

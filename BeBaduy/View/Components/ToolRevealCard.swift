@@ -122,7 +122,7 @@ private struct ToolRevealPreview<Artwork: View>: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                Text("Buka kartu untuk mendapat alat baru!")
+                Text("Ada alat apa di balik kartu ini?\n\nKetuk untuk melihatnya!")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(AppTheme.cream)
                     .opacity(isRevealed ? 0 : 1)
@@ -150,19 +150,19 @@ private struct ToolRevealPreview<Artwork: View>: View {
 }
 
 #Preview("Tool reveal · Aseuk") {
-    ToolRevealPreview(title: "Aseuk", description: "Gunakan aseuk untuk membuat lubang tempat menanam benih padi.") {
+    ToolRevealPreview(title: "Aseuk", description: "Tongkat kayu yang digunakan untuk membuat lubang tanam.") {
         AseukTool().frame(width: 34)
     }
 }
 
 #Preview("Tool reveal · Kored") {
-    ToolRevealPreview(title: "Kored", description: "Gunakan kored untuk membersihkan gulma dan menggemburkan tanah.") {
+    ToolRevealPreview(title: "Kored", description: "Cangkul kecil bermata miring untuk membersihkan gulma dan menggemburkan tanah.") {
         KoredTool().frame(width: 150, height: 120)
     }
 }
 
 #Preview("Tool reveal · Etem (Mipit)") {
-    ToolRevealPreview(title: "Etem", description: "Gunakan etem untuk memotong malai padi bersama tangkainya.") {
+    ToolRevealPreview(title: "Etem", description: "Alat kecil untuk mipit (mencubit batang padi) saat panen dengan gerakan seperti memetik.") {
         Image("mipit_etem")
             .resizable()
             .scaledToFit()

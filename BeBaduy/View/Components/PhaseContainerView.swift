@@ -34,9 +34,9 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     @Environment(\.dismiss) private var dismiss
     private var equipment: (title: String, description: String)? {
         switch content.id {
-        case .ngaseuk: ("Aseuk", "Gunakan aseuk untuk membuat lubang tempat menanam benih padi.")
-        case .ngored: ("Kored", "Gunakan kored untuk membersihkan gulma dan menggemburkan tanah.")
-        case .mipit: ("Etem / ani-ani", "Gunakan etem untuk memotong malai padi bersama tangkainya.")
+        case .ngaseuk: ("Aseuk", "Tongkat kayu yang digunakan untuk membuat lubang tanam.")
+        case .ngored: ("Kored", "Cangkul kecil bermata miring untuk membersihkan gulma dan menggemburkan tanah.")
+        case .mipit: ("Etem", "Alat kecil untuk mipit (mencubit batang padi) saat panen dengan gerakan seperti memetik.")
         default: nil
         }
     }
@@ -90,7 +90,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         if let equipment {
                             ScrollView {
                                 VStack(spacing: 22) {
-                                    Text(isToolRevealed ? "Ketuk kartu untuk menutupnya." : "Buka kartu untuk mendapat alat baru!")
+                                    Text(isToolRevealed ? "Ketuk kartu untuk menutupnya." : "Ada alat apa di balik kartu ini?\n\nKetuk untuk melihatnya!")
                                         .multilineTextAlignment(.center)
                                         .foregroundStyle(AppTheme.cream)
                                     ToolRevealCard(title: equipment.title, description: equipment.description,
@@ -124,7 +124,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                     Text(content.result)
                                 }
                                 LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
-                                Button(content.id == .mipit ? "Ulang" : "Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
+                                Button("Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
                             }.padding(24).activityCardStyle()
                                 .padding(24)
                         }
@@ -140,7 +140,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                             .padding(.vertical, 24)
                             .frame(minHeight: max(0, geometry.size.height - 180))
                         }.accessibilityIdentifier("lesson.explanation.page")
-                        LessonButton(title: content.id.next == nil ? "Selesaikan perjalanan" : (content.id == .mipit ? "Lanjut ke tahap berikutnya" : "Lanjut ke tahapan berikutnya"), identifier: "continue", action: advance)
+                        LessonButton(title: "Ayo lanjut!", identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
                     }
                 }
@@ -283,7 +283,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             Text("\(content.id.index + 1) / \(PhaseID.allCases.count)").font(.caption.monospacedDigit())
             Spacer()
             if flow.screen == .explanation {
-                Button(content.id == .mipit ? "Ulang" : "Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
+                Button("Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
                     .background(.ultraThinMaterial, in: Capsule()).accessibilityIdentifier("replay")
             } else if flow.canSkip && (flow.screen == .activity || flow.screen == .equipment) {
                 Button("Lewati") { flow.explain() }.frame(minWidth: 60, minHeight: 44)

@@ -7,7 +7,7 @@ struct NgaseukActivityView: View {
             case .instructions, .digging:
                 Text("Tusukkan aseuk tiga kali pada setiap titik. Lubang akan membesar sampai siap ditanami.")
             case .holesReady:
-                InstructionCard(title: "Tanah berhasil dilubangi", message: "Seret benih ke lubang. Di tampilan dekat, arahkan ke pusat lubang lalu lepaskan untuk menanam 4 benih sekaligus. Kamu juga bisa menuang dengan tombol.", identifier: "ngaseuk.seeds", action: model.proceed)
+                InstructionCard(title: "Keren!", message: "Nah, sekarang waktunya menabur binih ke setiap lubang agar pare huma bisa mulai tumbuh\n\nSeret benih ke lubang, lalu lepaskan di pusat lubang untuk menanam.", identifier: "ngaseuk.seeds", action: model.proceed)
             case .seeding:
                 Text("Seret benih dari wadah ke lubang, lalu arahkan ke pusat lubang di tampilan dekat dan lepaskan untuk menanam 4 benih sekaligus.")
                 Text("\(model.seeds.count) / 3 lubang berisi benih").font(.headline)

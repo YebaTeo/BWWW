@@ -2,6 +2,7 @@ import SwiftUI
 struct CompletionView: View {
     let journey: JourneyViewModel
     let goHome: () -> Void
+    @State private var showsRecap = false
     @State private var model = CompletionViewModel()
     var body: some View {
         ZStack {
@@ -10,11 +11,22 @@ struct CompletionView: View {
             ScrollView {
             VStack(spacing: 24) {
                 Spacer()
-                Text("Siklus berladang sudah selesai.").font(.largeTitle.bold())
-                    .accessibilityAddTraits(.isHeader).accessibilityIdentifier("journey.completed")
-                Text(model.message).font(.title3).lineSpacing(4)
-                Spacer()
-                LessonButton(title: "Jelajah ulang", identifier: "home", action: goHome)
+                if showsRecap {
+                    Text("Yuk, pilih tahapan yang ingin kamu pelajari lagi!")
+                        .font(.largeTitle.bold())
+                        .accessibilityAddTraits(.isHeader)
+                    JourneyView(journey: journey, showsRecap: true) { phase in
+                        journey.open(phase)
+                        goHome()
+                    }
+                    LessonButton(title: "Kembali ke halaman utama", identifier: "home", action: goHome)
+                } else {
+                    Text(model.title).font(.largeTitle.bold())
+                        .accessibilityAddTraits(.isHeader).accessibilityIdentifier("journey.completed")
+                    Text(model.message).font(.title3).lineSpacing(4)
+                    Spacer()
+                    LessonButton(title: "Lihat kembali semua tahapan", identifier: "journey.recap") { showsRecap = true }
+                }
             }.multilineTextAlignment(.center).foregroundStyle(.white)
                 .padding(28).frame(maxWidth: 560)
                 .frame(minHeight: geometry.size.height).frame(maxWidth: .infinity)

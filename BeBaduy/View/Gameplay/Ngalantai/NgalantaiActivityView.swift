@@ -24,13 +24,13 @@ struct NgalantaiActivityView: View {
             case .awaitingLandscape:
                 panel {
                     Image(systemName: "iphone.landscape").font(.title)
-                    Text("Putar ponsel ke posisi mendatar.").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
-                    Text("Jika layar tidak berputar, periksa kunci rotasi atau lihat demonstrasi.")
+                    Text("Layar harus dalam mode lanskap.").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
+                    Text("Putar ponselmu untuk memulai. Jika layar tidak berputar, periksa kunci rotasi atau lihat demonstrasi.")
                 }
             case .balanceInstructions:
                 panel {
-                    Text("Jaga keseimbangan bambu").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
-                    Text("Miringkan ponsel perlahan ke kiri atau kanan. Tahan bambu tetap rata selama tiga detik.")
+                    Text("Jaga keseimbangan Lantaian bambu!").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
+                    Text("Miringkan ponselmu ke kiri dan kanan agar pocong tidak terjatuh. Tahan bambu tetap rata selama tiga detik.")
                     LessonButton(title: "Mulai", identifier: "ngalantai.balance.continue", action: model.beginBalance)
                 }
             case .balancing:
@@ -57,7 +57,7 @@ struct NgalantaiActivityView: View {
                 panel { Text("Tegakkan ponsel untuk melihat padi dijemur.").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading) }
             case .drying:
                 panel {
-                    Text("Padi dijemur").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
+                    Text("Bagus!\n\nSekarang kita jemur pocong hingga kering.").font(.system(.title3, design: .rounded).bold()).foregroundStyle(AppTheme.heading)
                     LessonButton(title: "Lihat hasil", identifier: "ngalantai.drying.continue", action: model.finishDrying)
                 }
             case .complete:

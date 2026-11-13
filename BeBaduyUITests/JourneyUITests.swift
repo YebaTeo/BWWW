@@ -34,7 +34,15 @@ import XCTest
         let detail = XCTAttachment(string: app.debugDescription); detail.lifetime = .keepAlways; add(detail)
         XCTFail("Button unavailable: \(id)", file: file, line: line)
     }
-    func intro() { tap("intro.continue"); tap("intro.continue") }
+    func intro() {
+        let story = app.scrollViews["intro.story"]
+        XCTAssertTrue(app.staticTexts["Selamat Datang!"].waitForExistence(timeout: 10))
+        story.swipeUp()
+        XCTAssertTrue(app.staticTexts["Pikukuh"].isHittable)
+        story.swipeUp()
+        XCTAssertTrue(app.buttons["intro.continue"].waitForExistence(timeout: 5))
+        app.buttons["intro.continue"].tap()
+    }
     func start() {
         let inActivity = app.buttons["mipit.card.start"].exists ||
             app.buttons["lesson.equipment.reveal"].exists ||
@@ -125,13 +133,12 @@ import XCTest
         tap("ngaseuk.seeds.continue")
         for index in 0..<3 { tap("seed_\(index)") }
         next(); start()
-        for index in 0..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
-        tap("ngored.rain.continue"); capture("Ngored-rain"); tap("ngored.finishRain")
+        checkKoredActivity()
         next(); start()
         completeMipit(); next(); start()
         completeLeuit(); next()
         XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
-        tap("home")
+        tap("journey.recap"); tap("home")
         XCTAssertEqual(app.staticTexts["home.progress"].label, "6 dari 6 tahap telah dijelajahi")
         app.terminate(); app.launchArguments = ["--uitesting"]; app.launch()
         tap("resume"); tap("replay")
@@ -151,9 +158,8 @@ import XCTest
         pourIntoHole(1); pourIntoHole(2)
         XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 5))
         next(); start()
-        for index in 0..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
-        tap("ngored.rain.continue"); capture("Rain-fullscreen")
-        tap("ngored.finishRain"); next(); start()
+        checkKoredActivity()
+        next(); start()
         completeMipit()
         next(); start()
         completeLeuit(); next()
@@ -251,45 +257,38 @@ import XCTest
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
 
-    func testKoredDraggingAndThreeStrokes() {
+    func testKoredSwipesAndThreeStrokes() {
         prepare(["--uitest-ngored"]); tap("resume")
-        checkKoredActivity()
+        start()
+        let weed = app.descendants(matching: .any)["field.weed.0"].firstMatch
+        XCTAssertTrue(weed.waitForExistence(timeout: 15))
+        if app.buttons["ngored.field.begin"].exists { tap("ngored.field.begin") }
+        XCTAssertFalse(app.buttons["weed_0"].exists)
+        swipeWeed(0)
+    }
+
+    private func swipeWeed(_ index: Int) {
+        let weed = app.descendants(matching: .any)["field.weed.\(index)"].firstMatch
+        XCTAssertTrue(weed.waitForExistence(timeout: 30))
+        for stroke in 1...3 {
+            let frame = weed.frame
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: frame.midX - 28, dy: frame.midY))
+            let end = origin.withOffset(CGVector(dx: frame.midX + 28, dy: frame.midY))
+            start.press(forDuration: 0.05, thenDragTo: end)
+            if stroke < 3 {
+                XCTAssertEqual(weed.value as? String, "\(stroke) dari 3 sapuan")
+            }
+        }
+        XCTAssertTrue(weed.waitForNonExistence(timeout: 5))
     }
 
     private func checkKoredActivity() {
-        start(); tap("ngored.field.begin")
-        XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
-        capture("Ngored-kored-field")
-        tap("field.rice")
-        XCTAssertTrue(app.staticTexts["ngored.rice.feedback"].exists)
-        XCTAssertTrue(app.buttons["activity.help"].exists, "Help disappeared after rice")
-        let weed = app.descendants(matching: .any)["field.weed.0"].firstMatch
-        weed.tap()
-        XCTAssertTrue(app.buttons["activity.help"].exists, "Help disappeared after weed")
-        XCTAssertEqual(weed.value as? String, "0 dari 3 sapuan")
-        let tool = app.descendants(matching: .any)["field.kored"].firstMatch
-        XCTAssertTrue(tool.waitForExistence(timeout: 5))
-        for stroke in 1...3 {
-            let previousY = tool.frame.midY
-            let origin = tool.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: 36)), withVelocity: .slow, thenHoldForDuration: 0.1)
-            XCTAssertGreaterThan(tool.frame.midY, previousY + 20)
-            let expected = stroke == 3 ? "Bersih" : "\(stroke) dari 3 sapuan"
-            let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: weed)
-            XCTAssertEqual(XCTWaiter.wait(for: [applied], timeout: 5), .completed)
-            if stroke < 3 {
-                let lifted = tool.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-                lifted.press(forDuration: 0.05, thenDragTo: lifted.withOffset(CGVector(dx: 0, dy: -36)), withVelocity: .slow, thenHoldForDuration: 0.1)
-                XCTAssertEqual(weed.value as? String, expected)
-            }
+        for index in 0..<4 {
+            if app.buttons["ngored.field.begin"].exists { tap("ngored.field.begin") }
+            swipeWeed(index)
         }
-        capture("Ngored-three-kored-strokes")
-        for index in 1..<8 { for _ in 0..<3 { tap("weed_\(index)") } }
-        XCTAssertTrue(app.buttons["ngored.rain.continue"].waitForExistence(timeout: 5))
-        tap("ngored.rain.continue")
-        capture("Ngored-time-passing-rain")
-        tap("ngored.finishRain"); next()
-        XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 30))
     }
 
     func testNarawasStartsFireByTappingClearedLand() {

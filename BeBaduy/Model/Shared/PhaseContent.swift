@@ -19,10 +19,10 @@ struct PhaseContent: Identifiable, Sendable {
                 id: .narawas,
                 title: "Narawas",
                 subtitle: "Menyiapkan lahan",
-                introduction: "Kenali persiapan lahan huma, dari menebas tumbuhan hingga perubahan lahan setelah pembakaran.",
-                instruction: "Ketuk \(NarawasPlot.count) pohon contoh, lalu ketuk setiap petak untuk menyalakan api virtual.",
-                explanation: "Bab persiapan ini merangkum penebasan dan pembakaran. Pembakaran hasil tebasan dikenal sebagai ngahuru; kegiatan ini mengikuti pengetahuan dan aturan adat. Enam pohon pada layar adalah alat bantu belajar, bukan jumlah atau petunjuk praktik di lapangan.",
-                result: "Api telah mereda dan lahan berubah.",
+                introduction: "Kami menebang pohon di lahan yang telah dipilih secara adat untuk mulai ditanami pare huma (padi ladang).",
+                instruction: "Usap \(NarawasPlot.count) pohon contoh, lalu ketuk setiap petak untuk menyalakan api virtual.",
+                explanation: "Kami memanfaatkan abu sisa pembakaran rumput dan daun kering untuk menyuburkan tanah.\n\nJadi, sisa tanaman yang sudah tidak digunakan masih punya manfaat, lho!",
+                result: "Lahan sudah siap!\n\nKini, huma lebih siap untuk memasuki tahap penanaman!",
                 timeCue: nil,
                 sourceIDs: ["S1", "S5"]
             )
@@ -31,10 +31,10 @@ struct PhaseContent: Identifiable, Sendable {
                 id: .ngaseuk,
                 title: "Ngaseuk",
                 subtitle: "Membuka tempat untuk benih",
-                introduction: "Kenali aseuk, tongkat untuk membuat lubang tanam.",
+                introduction: "Setelah lahan siap, kami melubangi tanah untuk menanam binih pare (benih padi) yang telah diberkati secara adat.",
                 instruction: "Tusukkan aseuk tiga kali pada setiap titik untuk memperbesar tiga lubang, lalu masukkan benih.",
-                explanation: "Aseuk membuat lubang tanpa membajak tanah. Penempatan benih dilakukan setelah lubang tersedia. Kegiatan menanam melibatkan kerja bersama; pertumbuhan tetap membutuhkan waktu, hujan, dan perawatan.",
-                result: "Tiga lubang berisi benih.",
+                explanation: "Proses ngaseuk dilakukan secara gotong-royong dalam keluarga.\n\nPara Bapa (bapak) Ngaseuk dan para Ambu (ibu) akan memasukkan beberapa butir binih ke dalam lubang.\n\nSeru, ya, kalau pekerjaan dilakukan bersama-sama!",
+                result: "Benih sudah tertanam!\n\nSekarang, kita tinggal menunggu benih-benih ini tumbuh menjadi tanaman padi.",
                 timeCue: nil,
                 sourceIDs: ["S1", "S2"]
             )
@@ -43,10 +43,10 @@ struct PhaseContent: Identifiable, Sendable {
                 id: .ngored,
                 title: "Ngored",
                 subtitle: "Merawat padi muda",
-                introduction: "Padi muda tumbuh bersama tumbuhan lain.",
-                instruction: "Gunakan kored untuk membersihkan delapan gulma contoh di sekitar padi.",
-                explanation: "Ngored menggunakan kored untuk membersihkan gulma di sekitar padi. Penyiangan mengurangi persaingan tumbuhan lain dengan padi dan dilakukan berulang selama pertumbuhan. Padi huma mengandalkan air hujan. Waktu berladang mengikuti musim serta pengetahuan dan kalender adat.",
-                result: "Gulma berkurang; padi muda tetap tumbuh.",
+                introduction: "Selama pare tumbuh, kami membersihkan lahan dari rumput liar agar padi dapat tumbuh dengan baik.",
+                instruction: "Gunakan kored untuk membersihkan empat gulma contoh di sekitar padi.",
+                explanation: "Di Baduy, kami tidak membuat saluran irigasi karena kami percaya hal itu dapat melukai tanah.\n\nOleh karena itu, kami menanam saat musim hujan (September - November) di lahan miring. Huma yang berada di lahan miring membantu air hujan mengalir secara alami.",
+                result: "Hujan telah membasahi huma. Lihatlah semua pare yang ditanam semakin bertumbuh!",
                 timeCue: nil,
                 sourceIDs: ["S1", "S2"]
             )
@@ -55,10 +55,10 @@ struct PhaseContent: Identifiable, Sendable {
                 id: .mipit,
                 title: "Mipit",
                 subtitle: "Memanen padi",
-                introduction: "Padi menguning setelah melewati masa pertumbuhan.",
+                introduction: "Setelah dirawat hingga menguning, tibalah waktunya kami memanen pare huma.",
                 instruction: "Cubit padi dengan dua jari untuk memanen.",
-                explanation: "Etem atau ani-ani digunakan untuk memanen malai bersama tangkainya.",
-                result: "Padi berhasil dipanen!",
+                explanation: "Saat mipit, kami mengumpulkan batang pare dalam satu kepalan tangan yang disebut emeul.\n\nSetiap enam emeul akan disatukan menjadi satu pocong yang beratnya 3 kg.\n\nBegitulah cara kami mengukur hasil panen!",
+                result: "Akhirnya, proses panen sudah selesai!",
                 timeCue: nil,
                 sourceIDs: ["S1", "S2"]
             )
@@ -67,22 +67,22 @@ struct PhaseContent: Identifiable, Sendable {
                 id: .ngalantai,
                 title: "Ngalantai",
                 subtitle: "Mengeringkan padi",
-                introduction: "Ikatan padi yang telah dipanen disiapkan untuk dikeringkan.",
+                introduction: "Kemudian, pare hasil panen dijemur di bawah sinar matahari agar kering sebelum disimpan.",
                 instruction: "Putar ponsel, lalu jaga bambu tetap rata selama tiga detik.",
-                explanation: "Padi dikeringkan sebelum disimpan di leuit. Latihan keseimbangan membantu mengenali ikatan padi dan bambu penjemur.",
-                result: "Padi siap dikeringkan di rak bambu.",
+                explanation: "Pare huma yang sudah dipocong kemudian digantungkan di Lantaian bambu untuk dikeringkan selama beberapa hari.\n\nIni adalah rahasia pare Baduy bisa tahan hingga ratusan tahun.",
+                result: "Bagus!\n\nSekarang kita jemur pocong hingga kering.",
                 timeCue: nil,
                 sourceIDs: ["S1", "S2"]
             )
         case .ngaleuitkeunPare:
             PhaseContent(
                 id: .ngaleuitkeunPare,
-                title: "Leuit",
+                title: "Ngaleuitkeun",
                 subtitle: "Menyimpan hasil panen",
-                introduction: "Padi yang telah kering dibawa ke tempat penyimpanan.",
+                introduction: "Kami menyimpan hasil panen ke dalam leuit (lumbung) untuk kebutuhan di masa mendatang.",
                 instruction: "Seret tangga bambu (taraje) ke pintu, lalu perhatikan cara masuk ke leuit.",
-                explanation: "Leuit dibangun tinggi di atas tiang panggung dengan piringan kayu penahan tikus (gelebeg). Tangga bambu (taraje) dipasang hanya saat memasukkan padi dan langsung disingkirkan agar hama tidak dapat naik. Padi disimpan bersama tangkainya (pocong pare) sebagai cadangan pangan bertahun-tahun.",
-                result: "Padi tersimpan aman di dalam leuit.",
+                explanation: "Menurut Pikukuh Baduy (hukum adat), pare huma yang disimpan di Leuit tidak boleh dijual atau ditukar.\n\nPare ini hanya boleh disimpan untuk keluarga dan kebutuhan adat.",
+                result: "Keren!\n\nKita sudah menyimpan hasil Ngahuma kali ini.\n\nUlangi lagi semua tahapan untuk memenuhi leuit ini.",
                 timeCue: nil,
                 sourceIDs: ["S3"]
             )

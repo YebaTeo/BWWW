@@ -24,6 +24,7 @@ struct SceneKitCropView: UIViewRepresentable {
     var animateWhileInactive = false
     var rackTransitionTimeConstant = 0.16
     var rackScale: Float = 0.92
+    var onFirstFrame: (() -> Void)? = nil
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -34,6 +35,7 @@ struct SceneKitCropView: UIViewRepresentable {
             SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
         ])
         context.coordinator.install(in: view)
+        if let onFirstFrame { context.coordinator.notifyAfterFirstFrame(in: view, action: onFirstFrame) }
         context.coordinator.showsRice = showsRice
         context.coordinator.mipitHarvested = mipitHarvested
         context.coordinator.showsRackPosts = showsRackPosts

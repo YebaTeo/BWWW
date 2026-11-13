@@ -130,6 +130,31 @@ final class HomeSceneRenderer: NSObject {
     }
     private let frameTarget = FrameTarget()
 
+    private var firstFrameObserver: FirstFrameObserver?
+
+    func notifyAfterFirstFrame(in view: SCNView, action: @escaping @MainActor () -> Void) {
+        let observer = FirstFrameObserver { [weak self, weak view] in
+            guard let self, let view, self.firstFrameObserver != nil else { return }
+            view.delegate = nil
+            self.firstFrameObserver = nil
+            action()
+        }
+        firstFrameObserver = observer
+        view.delegate = observer
+    }
+
+    private final class FirstFrameObserver: NSObject, SCNSceneRendererDelegate, Sendable {
+        let action: @MainActor @Sendable () -> Void
+
+        init(action: @escaping @MainActor @Sendable () -> Void) {
+            self.action = action
+        }
+
+        nonisolated func renderer(_ renderer: any SCNSceneRenderer, didRenderScene scene: SCNScene, atTime time: TimeInterval) {
+            Task { @MainActor in action() }
+        }
+    }
+
     func setActive(_ active: Bool, in view: SCNView, reduceMotion: Bool) {
         displayLink?.isPaused = !active
         view.isPlaying = active
@@ -137,6 +162,7 @@ final class HomeSceneRenderer: NSObject {
     }
 
     func stopUpdates() {
+        firstFrameObserver = nil
         displayLink?.invalidate()
         displayLink = nil
     }
@@ -191,6 +217,7 @@ final class HomeSceneRenderer: NSObject {
         buildAsh()           // Post-burn clods
         buildPlantingStage() // Stage 2
         buildRicePlant()     // Stage 3 + 4
+        buildYoungWeeds()
         buildMipitHarvestTargets()
         buildLeuitRack()
         storageBuildLeuitRack()
@@ -441,6 +468,7 @@ final class HomeSceneRenderer: NSObject {
     // All rooted objects share this surface, including their contact shadows.
     private let soilY: Float = 0.038
     private let riceSoilRoot = SCNNode()
+    private let youngWeedsRoot = SCNNode()
 
     private func addTexturedTree(index: Int, x: Float, z: Float,
                                  yaw: Float, scale: Float) {
@@ -1262,6 +1290,44 @@ final class HomeSceneRenderer: NSObject {
                 phase: Float(index) * 0.47
             )
             panicleMaterials.append(mat)
+        }
+    }
+
+    private func buildYoungWeeds() {
+        scene.rootNode.addChildNode(youngWeedsRoot)
+        let shadowMaterial = SCNMaterial()
+        shadowMaterial.lightingModel = .constant
+        shadowMaterial.diffuse.contents = UIColor(red: 0.09, green: 0.06, blue: 0.04, alpha: 0.44)
+        shadowMaterial.isDoubleSided = true
+        shadowMaterial.writesToDepthBuffer = false
+        shadowMaterial.shaderModifiers = [.fragment: """
+        #pragma transparent
+        #pragma body
+        float radius = length((_surface.diffuseTexcoord - float2(0.5)) * 2.0);
+        _output.color.a *= 1.0 - smoothstep(0.1, 1.0, radius);
+        """]
+        let shadowPlane = SCNPlane(width: 0.10, height: 0.075)
+        shadowPlane.materials = [shadowMaterial]
+
+        for index in 0..<4 {
+            let clump = SCNNode()
+            clump.position = SCNVector3(Float(index) * 0.17 - 0.25, soilY, index.isMultiple(of: 2) ? -0.10 : 0.12)
+            youngWeedsRoot.addChildNode(clump)
+
+            // Keep the soft shadow at the root, independent of the low sun angle.
+            let shadow = SCNNode(geometry: shadowPlane)
+            shadow.eulerAngles.x = -.pi / 2
+            shadow.position.y = 0.0015
+            clump.addChildNode(shadow)
+            for blade in 0..<7 {
+                _ = addBlade(to: clump, base: SCNVector3(0, 0, 0),
+                             height: 0.12 + Float(blade % 3) * 0.025,
+                             width: 0.023, yaw: Float(blade) * 2.3999,
+                             mass: 0.18, response: 0.9,
+                             tint: UIColor(red: 0.34, green: 0.50, blue: 0.17, alpha: 1),
+                             phase: Float(index + blade) * 0.31)
+            }
+            clump.childNodes.forEach { $0.castsShadow = false }
         }
     }
 
@@ -3146,7 +3212,7 @@ final class HomeSceneRenderer: NSObject {
         // ── 5. Dibble holes appear at NGORED (p 0.82 → 0.89) ──────────
         // NGASEUK stays plain; the holes are revealed as NGORED begins.
         let plantingIn  = smoothstep(0.82, 0.89, p)
-        let plantingOut = 1 - smoothstep(0.90, 0.98, p)
+        let plantingOut = 1 - smoothstep(0.86, 0.89, p)
         setVisibility(plantingRoot, opacity: plantingIn * plantingOut)
 
         // ── 6. Seeds appear with the holes during NGORED ───────────────
@@ -3160,16 +3226,24 @@ final class HomeSceneRenderer: NSObject {
             seedNode.isHidden = seedT < 0.005
         }
 
-        // ── 7. Rice blades emerge after NGORED (p 0.90 → 0.98) ────────
+        // Young leaves emerge before Ngored, then mature on the way to Mipit.
         // Scale from the planting point so the rice visibly grows out of
         // the hole instead of simply fading in at full size.
-        let riceGrowth = Self.riceGrowthAmount((p - 0.90) / 0.08)
+        let youngGrowth = smoothstep(0.84, 0.888, p)
+        let matureGrowth = Self.riceGrowthAmount((p - 0.888) / 0.092)
+        let riceGrowth = youngGrowth * 0.30 + matureGrowth * 0.70
+        let weedGrowth = smoothstep(0.85, 0.888, p)
+        for clump in youngWeedsRoot.childNodes {
+            let scale = max(0.001, weedGrowth)
+            clump.scale = SCNVector3(scale, scale, scale)
+        }
+        setVisibility(youngWeedsRoot, opacity: showsRice ? weedGrowth * (1 - smoothstep(0.89, 0.94, p)) : 0)
         leavesRoot.scale = SCNVector3(riceGrowth, riceGrowth, riceGrowth)
         let harvestCut = smoothstep(0.75, 0.78, fullP)
         setVisibility(leavesRoot, opacity: showsRice ? riceGrowth * (1 - harvestCut) : 0)
 
-        // ── 8. Panicles – Tumbuh bersamaan dengan tanaman padi (p 0.90 → 0.98)
-        let panicleGrowth = riceGrowth
+        // Panicles emerge as the young rice matures.
+        let panicleGrowth = matureGrowth
         paniclesRoot.scale = SCNVector3(panicleGrowth, panicleGrowth, panicleGrowth)
         setVisibility(paniclesRoot, opacity: showsRice ? panicleGrowth * (1 - harvestCut) : 0)
 

@@ -35,7 +35,7 @@ struct NarawasView: View {
                             .accessibilityLabel("Progres pembakaran")
                     }
                     Spacer()
-                    if model.scene.loadingAssets {
+                    if model.scene.loadingAssets || !initialized {
                         ProgressView("Menyiapkan lahan…")
                     } else if let error = model.scene.assetError {
                         card {
@@ -44,7 +44,7 @@ struct NarawasView: View {
                         }
                     } else {
                         if model.stage == .clearing {
-                            Text("Berhasil dibersihkan: \(model.collected.count)/\(NarawasViewModel.treeCount)")
+                            Text("Berhasil ditebang: \(model.collected.count)/\(NarawasViewModel.treeCount)")
                                 .font(.caption).padding(.horizontal, 14).padding(.vertical, 7)
                                 .background(Color.brown.opacity(0.85), in: Capsule())
                                 .accessibilityIdentifier("narawas.progress")
@@ -56,13 +56,13 @@ struct NarawasView: View {
                         }
                         card {
                             if model.stage == .clearing {
-                                Text("Coba arahkan ponselmu ke kiri dan kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!")
+                                Text("Arahkan ponselmu ke kiri atau kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!")
                                     .accessibilityIdentifier("narawas.sceneReady")
                             } else if model.ignited.count < NarawasViewModel.treeCount {
-                                Text("Yuk, arahkan ponsel ke kiri atau kanan dan ketuk setiap pangkal pohon untuk menyalakan api.")
+                                Text("Arahkan ponsel ke sekeliling dan tap setiap pangkal pohon untuk menyalakan api.")
                                     .accessibilityIdentifier("narawas.sceneReady")
                             } else {
-                                Text("Semua titik api sudah menyala! Amati sisa tebasan terbakar menjadi abu penyubur tanah.")
+                                Text("Arahkan ponselmu ke kiri atau kanan agar kita bisa memantau api hingga mereda.")
                                     .accessibilityIdentifier("narawas.sceneReady")
                                 Button("Tampilkan kondisi setelah api reda", action: model.finishBurn)
                                     .font(.subheadline.weight(.semibold))
@@ -89,7 +89,7 @@ struct NarawasView: View {
                             .font(.caption).padding(.horizontal, 16).frame(minHeight: 44)
                             .background(orange.opacity(0.25), in: Capsule())
                             .accessibilityIdentifier("replay")
-                    } else if message == nil && !model.scene.loadingAssets && model.scene.assetError == nil {
+                    } else if message == nil && initialized && !model.scene.loadingAssets && model.scene.assetError == nil {
                         Button(action: model.recenterLook) {
                             Label("Pusatkan", systemImage: "scope")
                                 .font(.caption.weight(.medium))
@@ -108,6 +108,8 @@ struct NarawasView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             guard !initialized else { return }
+            // Present the loading state before the synchronous scene setup.
+            do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
             initialized = true
             if journey.progress.record(for: .narawas).explanationAvailable {
                 message = .explanation
@@ -141,8 +143,7 @@ struct NarawasView: View {
                     ScrollView {
                         HumaGlassCard {
                             VStack(spacing: 24) {
-                                Text("Kami memanfaatkan abu dari pembakaran rumput dan daun kering untuk menyuburkan tanah.")
-                                Text("Jadi, sisa tanaman yang sudah tidak digunakan masih punya manfaat, lho!")
+                                Text(PhaseContent.content(for: .narawas).explanation)
                             }
                         }
                         .frame(width: min(330, max(1, geometry.size.width - 48)),
@@ -154,7 +155,7 @@ struct NarawasView: View {
                         .frame(minHeight: max(0, geometry.size.height - 140))
                     }
                     .accessibilityIdentifier("lesson.explanation.page")
-                    LessonButton(title: "Lanjut ke tahap berikutnya", identifier: "continue", action: advance)
+                    LessonButton(title: "Ayo lanjut!", identifier: "continue", action: advance)
                         .padding(.horizontal, 24).padding(.vertical, 16)
                 }
                 .padding(.top, 44)
@@ -172,12 +173,13 @@ struct NarawasView: View {
                     Spacer()
                     card {
                         if current == .cleared {
-                            Text("Kerja bagus!").font(.headline).foregroundStyle(orange)
+                            Text("Mantap!").font(.headline).foregroundStyle(orange)
                             Text("Sekarang sinar matahari bisa memberi energi ke huma (ladang) yang baru dibuka.")
                         } else if current == .burnIntro {
-                            Text("Nah, selanjutnya kita akan Ngahuru (membakar sisa rumput dan daun kering).")
+                            Text("Setelah pohon ditebang, masih ada rumput dan daun kering yang tersisa. Saatnya kita Ngahuru (membakar sisa rumput dan daun kering)!")
                         } else {
-                            Text("Lahan sudah siap ditanam!").font(.headline).foregroundStyle(orange)
+                            Text("Lahan sudah siap!").font(.headline).foregroundStyle(orange)
+                            Text("Kini, huma lebih siap untuk memasuki tahap penanaman!")
                         }
                     }
                     Text("Tap layar untuk lanjutkan.").font(.caption).italic().foregroundStyle(.white.opacity(0.65))

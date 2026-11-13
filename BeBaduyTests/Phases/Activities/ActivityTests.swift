@@ -1,8 +1,8 @@
 import XCTest
 @testable import BeBaduy
 @MainActor final class ActivityTests: XCTestCase {
-    func testWeedingRequiresEightUniqueWeedsAndRain() {
-        let vm = NgoredViewModel(); vm.start(skipInitialRain: true)
+    func testWeedingFinishesAfterFourWeedsAndRain() {
+        let vm = NgoredViewModel(); vm.start()
         vm.remove(8); vm.remove(-1); XCTAssertTrue(vm.removed.isEmpty)
         for i in 0..<4 {
             vm.remove(i); vm.remove(i)
@@ -12,18 +12,13 @@ import XCTest
         }
         XCTAssertEqual(vm.removed.count, 4)
         XCTAssertEqual(vm.step, .cleared)
-        vm.advanceToSecondWeedingForTesting()
-        XCTAssertEqual(vm.step, .secondWeeding)
-        for i in 4..<7 {
-            vm.remove(i); vm.remove(i)
-            XCTAssertFalse(vm.removed.contains(i))
-            vm.remove(i); vm.remove(i)
-            XCTAssertEqual(vm.strokes[i], 3)
-        }
-        XCTAssertEqual(vm.step, .secondCleared)
+        vm.finishRain()
+        XCTAssertEqual(vm.step, .cleared)
         XCTAssertNil(vm.session.outcome)
         vm.observeRain()
+        XCTAssertEqual(vm.step, .rain)
         vm.finishRain()
+        XCTAssertEqual(vm.step, .complete)
         XCTAssertEqual(vm.session.outcome, .performed)
     }
     func testKoredRequiresNewDownstrokeAndContact() {

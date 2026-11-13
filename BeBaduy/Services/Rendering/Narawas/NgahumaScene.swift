@@ -1067,7 +1067,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    func projectedNgoredWeedPoints() -> [CGPoint] {
+    func projectedNgoredWeedPoints(height: Float = 0.08) -> [CGPoint] {
         guard let view else { return [] }
         let camPos = simd_make_float3(cameraNode.simdWorldTransform.columns.3)
         let camForward = -simd_make_float3(cameraNode.simdWorldTransform.columns.2)
@@ -1075,7 +1075,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let viewH = Float(view.bounds.height)
 
         return ngoredWeedRoots.map { node in
-            let world = node.convertPosition(SCNVector3(0, 0.08, 0), to: nil)
+            let world = node.convertPosition(SCNVector3(0, height, 0), to: nil)
             let worldPos = simd_make_float3(Float(world.x), Float(world.y), Float(world.z))
             let toNode = worldPos - camPos
             let forwardDot = simd_dot(simd_normalize(camForward), simd_normalize(toNode))
@@ -1740,7 +1740,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         motionReference = motionOrientation
     }
 
-    func applyMotionLook(_ relative: simd_quatf) {
+    func applyMotionLook(_ relative: simd_quatf, fixedPosition: Bool = false) {
         guard !suspended else { return }
         let combined = simd_normalize(motionReference * relative)
         let yawVector = SIMD4<Float>(0, combined.imag.y, 0, combined.real)
@@ -1748,7 +1748,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         motionOrientation = yawLength > 0.0001
             ? simd_quatf(vector: yawVector / yawLength)
             : simd_quatf(angle: 0, axis: [0, 1, 0])
-        updatePreviewCamera()
+        updatePreviewCamera(fixedPosition: fixedPosition)
     }
 
     func recenterLook() {
@@ -1758,12 +1758,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         feedback.impactOccurred(intensity: 0.45)
     }
 
-    private func updatePreviewCamera() {
+    private func updatePreviewCamera(fixedPosition: Bool = false) {
         cameraNode.simdOrientation = motionOrientation * simd_quatf(angle: -0.14, axis: [1, 0, 0])
 
         let forward = motionOrientation.act(SIMD3<Float>(0, 0, -1))
         let parallaxOffset = SIMD3<Float>(-forward.x * 0.14, 0, -forward.z * 0.10)
-        cameraNode.simdPosition = SIMD3<Float>(0, 0.54, 0) + parallaxOffset
+        cameraNode.simdPosition = SIMD3<Float>(0, 0.54, 0) + (fixedPosition ? .zero : parallaxOffset)
     }
 
     // MARK: - Burning & Frame Update Loop

@@ -4,8 +4,7 @@ import XCTest
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress"]
         app.launch()
-        XCTAssertTrue(app.buttons["intro.continue"].waitForExistence(timeout: 10))
-        app.buttons["intro.continue"].tap(); app.buttons["intro.continue"].tap()
+        finishOnboarding(in: app)
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
         let scene = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
         scene.press(forDuration: 0.05, thenDragTo: scene.withOffset(CGVector(dx: 0, dy: -140)))
@@ -22,11 +21,10 @@ import XCTest
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress"]
         app.launch()
-        app.buttons["intro.continue"].tap()
-        app.buttons["intro.continue"].tap()
+        finishOnboarding(in: app)
 
         XCTAssertTrue(app.buttons["home.stage.0"].waitForExistence(timeout: 15))
-        for (index, title) in ["NARAWAS", "NGASEUK", "NGORED", "MIPIT", "NGALANTAI", "LEUIT"].enumerated() {
+        for (index, title) in ["NARAWAS", "NGASEUK", "NGORED", "MIPIT", "NGALANTAI", "NGALEUITKEUN"].enumerated() {
             app.buttons["home.stage.\(index)"].tap()
             waitForPreviewTitle(title, in: app)
             if index == 3 {
@@ -62,6 +60,33 @@ import XCTest
         XCTAssertTrue(app.buttons["resume"].isHittable)
         app.buttons["resume"].tap()
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
+    }
+
+    func testOnboardingSwipesAndPersistsCompletion() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--reset-progress"]
+        app.launch()
+
+        finishOnboarding(in: app)
+        XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 15))
+
+        app.terminate()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.scrollViews["intro.story"].exists)
+    }
+
+    private func finishOnboarding(in app: XCUIApplication) {
+        let story = app.scrollViews["intro.story"]
+        XCTAssertTrue(app.staticTexts["Selamat Datang!"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["intro.continue"].isHittable)
+        story.swipeUp()
+        XCTAssertTrue(app.staticTexts["Pikukuh"].isHittable)
+        XCTAssertFalse(app.buttons["intro.continue"].isHittable)
+        story.swipeUp()
+        XCTAssertTrue(app.buttons["intro.continue"].waitForExistence(timeout: 5))
+        app.buttons["intro.continue"].tap()
     }
 
     private func waitForPreviewTitle(_ title: String, in app: XCUIApplication,

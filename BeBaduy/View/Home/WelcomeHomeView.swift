@@ -3,6 +3,8 @@ import SwiftUI
 /// Full-screen stage preview with a minimal title, narrative, and primary action.
 struct WelcomeHomeView: View {
     let journey: JourneyViewModel
+    var onFirstFrame: (() -> Void)? = nil
+    @Binding var playsHarvestTransition: Bool
     let onOpen: (PhaseID) -> Void
     let onJourney: () -> Void
     let onCompletion: () -> Void
@@ -28,13 +30,19 @@ struct WelcomeHomeView: View {
             ZStack {
                 CinematicAtmosphereView(progress: progress, isActive: isActive)
                     .accessibilityHidden(true)
-                SceneKitCropView(progress: progress, isActive: isActive)
+                SceneKitCropView(progress: progress, isActive: isActive, onFirstFrame: onFirstFrame)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
+                if let growth = preview.plantingGrowth {
+                    PlantingGrowthRain(progress: growth)
+                        .ignoresSafeArea()
+                        .accessibilityHidden(true)
+                        .allowsHitTesting(false)
+                }
                 CinematicSpeedLinesOverlay(
                     progress: progress,
-                    isScrolling: preview.isTransitioning && (
+                    isScrolling: preview.isTransitioning && preview.plantingGrowth == nil && (
                         (displayedStage < 5 && selectedStage < 5) ||
                         (displayedStage == 5 && selectedStage == 6) ||
                         (displayedStage == 6 && selectedStage == 5)
@@ -91,6 +99,10 @@ struct WelcomeHomeView: View {
         .onChange(of: reduceMotion) { _, enabled in if enabled { preview.stop() } }
         .onChange(of: scenePhase) { _, phase in if phase != .active { preview.stop() } }
         .onAppear {
+            if isActive && playPendingHarvestTransition() {
+                initializedPreview = true
+                return
+            }
             guard !initializedPreview else { return }
             initializedPreview = true
             #if DEBUG
@@ -107,10 +119,12 @@ struct WelcomeHomeView: View {
                 displayedStage = stage.id
             }
         }
-        .onChange(of: journey.progress.currentPhase) { _, phase in
+        .onChange(of: journey.progress.currentPhase) { previous, phase in
+            guard !playsHarvestTransition, !preview.isPlayingHarvestTransition else { return }
             if let saved = GrowthStage.allStages.first(where: { $0.phase == phase }) {
-                preview.selectStage(saved.id, reduceMotion: true)
-                displayedStage = saved.id
+                let shouldGrow = previous == .ngaseuk && phase == .ngored && displayedStage == 1
+                preview.selectStage(saved.id, reduceMotion: reduceMotion || !shouldGrow)
+                if !preview.isTransitioning { displayedStage = saved.id }
             }
         }
         .onDisappear {
@@ -121,8 +135,20 @@ struct WelcomeHomeView: View {
                 preview.stop()
             } else {
                 openingChapter = false
+                playPendingHarvestTransition()
             }
         }
+    }
+
+    @discardableResult
+    private func playPendingHarvestTransition() -> Bool {
+        guard playsHarvestTransition else { return false }
+        playsHarvestTransition = false
+        preview.selectStage(2, reduceMotion: true)
+        displayedStage = 2
+        preview.selectStage(3, reduceMotion: reduceMotion || scenePhase != .active)
+        if !preview.isTransitioning { displayedStage = 3 }
+        return true
     }
 
     private var stageCard: some View {
@@ -154,7 +180,7 @@ struct WelcomeHomeView: View {
 
     private var actions: some View {
         Button(action: openSelectedChapter) {
-            Text(stage.isConclusion ? "Lihat Rangkuman" : "Mulai Tahapan")
+            Text(stage.isConclusion ? "Lihat Rangkuman" : "Ikut \(PhaseContent.content(for: stage.phase).title)")
                 .font(.body)
                 .foregroundStyle(ivory)
                 .padding(.horizontal, 28)
@@ -250,6 +276,26 @@ private struct CinematicSpeedLinesOverlay: View {
             .allowsHitTesting(false)
             .opacity(velocity)
             .blendMode(.screen)
+        }
+    }
+}
+
+private struct PlantingGrowthRain: View {
+    let progress: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            let rain = min(1, progress * 8, max(0, (0.76 - progress) * 5))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.blue.opacity(0.13 * rain)))
+            var streaks = Path()
+            for index in 0..<100 {
+                let x = CGFloat((index * 47) % 101) / 101 * size.width
+                let offset = CGFloat((index * 37) % 103) / 103
+                let y = (offset + progress * 5).truncatingRemainder(dividingBy: 1) * size.height
+                streaks.move(to: CGPoint(x: x, y: y))
+                streaks.addLine(to: CGPoint(x: x - 5, y: y + 19))
+            }
+            context.stroke(streaks, with: .color(.white.opacity(0.48 * rain)), lineWidth: 1)
         }
     }
 }

@@ -27,14 +27,14 @@ struct MipitActivityView: View {
                     panel {
                         Text("Panen dengan etem").font(.system(.title3, design: .rounded).bold())
                             .foregroundStyle(AppTheme.heading)
-                        Text("Cubit padi dengan dua jari untuk memotong batangnya.")
+                        Text("Cubit layar untuk memotong batang pare menggunakan etem.")
                         LessonButton(title: "Mulai", identifier: "mipit.card.start") { showsHelp = false }
                         Button("Lihat demonstrasi") { showsHelp = false; model.demonstrate() }
                             .frame(minHeight: 44).accessibilityIdentifier("demonstrate")
                     }
                 } else {
                 VStack(spacing: 8) {
-                    Text("Cubit padi dengan dua jari untuk memanen.").font(.subheadline)
+                    Text("Cubit layar untuk memotong batang pare menggunakan etem.").font(.subheadline)
                     HStack {
                         ForEach(0..<MipitViewModel.harvestCount, id: \.self) { index in
                             if model.harvested.contains(index) {
@@ -47,7 +47,7 @@ struct MipitActivityView: View {
                 }
             case .harvestSuccess:
                 panel {
-                    Text("Padi berhasil dipanen!").font(.headline)
+                    Text("Akhirnya, proses panen sudah selesai!").font(.headline)
                     LessonButton(title: "Lihat hasil", identifier: "mipit.rotate", action: model.finishHarvest)
                 }
             }

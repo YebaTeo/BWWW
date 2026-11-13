@@ -22,7 +22,8 @@ import CoreMotion
                 // and positive (> 0) when accelerating UPWARD.
                 let downward = (acceleration.x * gravity.x + acceleration.y * gravity.y + acceleration.z * gravity.z) / magnitude
                 let q = data.attitude.quaternion
-                return MotionSample(time: data.timestamp, verticalAcceleration: -downward, roll: data.attitude.roll, gravity: SIMD3(gravity.x, gravity.y, gravity.z), attitude: SIMD4(q.x, q.y, q.z, q.w))
+                let rate = data.rotationRate
+                return MotionSample(time: data.timestamp, verticalAcceleration: -downward, roll: data.attitude.roll, gravity: SIMD3(gravity.x, gravity.y, gravity.z), rotationRate: SIMD3(rate.x, rate.y, rate.z), attitude: SIMD4(q.x, q.y, q.z, q.w))
             }
             let failed = error != nil || sample == nil
             Task { @MainActor [weak self] in

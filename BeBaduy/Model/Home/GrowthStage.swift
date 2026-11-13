@@ -35,7 +35,7 @@ struct GrowthStage: Identifiable, Equatable {
             name: "NARAWAS",
             subtitle: "Pemilihan & Penyiapan Lahan",
             culturalContext: "Tradisi Awal Ngahuma",
-            narrative: "Lahan huma di lereng Kanekes masih dipenuhi semak dan rumput liar. Tetua adat menentukan hari baik untuk membersihkan lahan sebelum benih ditanam.",
+            narrative: PhaseContent.content(for: .narawas).introduction,
             targetProgress: 0.0,
             leafColor: Color(red: 0.52, green: 0.58, blue: 0.28)
         ),
@@ -46,7 +46,7 @@ struct GrowthStage: Identifiable, Equatable {
             name: "NGASEUK",
             subtitle: "Menanam Benih Bersama",
             culturalContext: "Gotong Royong Masyarakat Baduy",
-            narrative: "Lahan telah bersih dan subur. Kaum pria membuat lubang tanah dengan tongkat kayu (aseuk), lalu kaum wanita memasukkan butir benih padi huma.",
+            narrative: PhaseContent.content(for: .ngaseuk).introduction,
             targetProgress: 0.333,
             leafColor: Color(red: 0.44, green: 0.76, blue: 0.22)
         ),
@@ -57,7 +57,7 @@ struct GrowthStage: Identifiable, Equatable {
             name: "NGORED",
             subtitle: "Penyortiran Gulma & Pertumbuhan",
             culturalContext: "Perawatan Tanaman Suci",
-            narrative: "Dengan kored (alat seperti cangkul kecil), rumput liar disiangi teliti agar tidak mengganggu padi. Rumpun padi huma tumbuh subur dan rimbun menghijau.",
+            narrative: PhaseContent.content(for: .ngored).introduction,
             targetProgress: 0.666,
             leafColor: Color(red: 0.24, green: 0.56, blue: 0.16)
         ),
@@ -68,7 +68,7 @@ struct GrowthStage: Identifiable, Equatable {
             name: "MIPIT",
             subtitle: "Panen Padi Keemasan",
             culturalContext: "Puncak Rasa Syukur Kanekes",
-            narrative: "Bulir padi telah menguning keemasan dan merunduk sarat kemakmuran. Panen dilakukan dengan ketam (ani-ani) sebagai penghormatan kepada Dewi Sri.",
+            narrative: PhaseContent.content(for: .mipit).introduction,
             targetProgress: 0.75,
             leafColor: Color(red: 0.94, green: 0.76, blue: 0.20)
         ),
@@ -79,7 +79,7 @@ struct GrowthStage: Identifiable, Equatable {
             name: "NGALANTAI",
             subtitle: "Mengeringkan padi",
             culturalContext: "Menyiapkan hasil panen",
-            narrative: "Satu ikat padi hasil panen dijemur di bawah terik matahari hingga kering sebelum disimpan di leuit.",
+            narrative: PhaseContent.content(for: .ngalantai).introduction,
             targetProgress: 0.90,
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         ),
@@ -87,10 +87,10 @@ struct GrowthStage: Identifiable, Equatable {
             id: 5,
             phase: .ngaleuitkeunPare,
             code: "LEUIT",
-            name: "LEUIT",
+            name: "NGALEUITKEUN",
             subtitle: "Menyimpan hasil panen",
             culturalContext: "Lumbung padi",
-            narrative: "Padi yang sudah kering disimpan bersama tangkainya di leuit sebagai cadangan pangan.",
+            narrative: PhaseContent.content(for: .ngaleuitkeunPare).introduction,
             targetProgress: 0.95,
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         ),
