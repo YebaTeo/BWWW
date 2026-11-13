@@ -44,10 +44,37 @@ import Foundation
     private var usedDemo = false
     @ObservationIgnored private var task: Task<Void, Never>?
     func start() {
-        suspend(); removed = []; strokes = [:]; lastRemoved = nil; step = .initialRain; usedDemo = false
-        scene.setNgoredRain(true); scene.restoreNgoredWeeds(); scene.resetNgoredRice(); scene.setNgoredGrowth(0)
+        start(skipInitialRain: false)
+    }
+
+    func start(skipInitialRain: Bool) {
+        suspend(); removed = []; strokes = [:]; lastRemoved = nil; usedDemo = false
+        scene.restoreNgoredWeeds(); scene.resetNgoredRice(); scene.setNgoredGrowth(0)
         scene.setSuspended(!visible); session.start(); updateLookMotion()
-        scheduleInitialRain()
+        if skipInitialRain {
+            scene.setNgoredRain(false)
+            step = .weeding
+        } else {
+            step = .initialRain
+            scene.setNgoredRain(true)
+            scheduleInitialRain()
+        }
+    }
+
+    func advanceToSecondWeedingForTesting() {
+        task?.cancel()
+        scene.setNgoredRain(false)
+        scene.presentNgoredDaytime()
+        removed.formUnion(0..<4)
+        step = .secondWeeding
+    }
+
+    func completeForTesting() {
+        task?.cancel()
+        scene.setNgoredRain(false)
+        ActivityAudio.shared.stop()
+        step = .complete
+        session.finish(usedDemo ? .observed : .performed)
     }
 
     private func scheduleInitialRain() {
@@ -110,7 +137,13 @@ import Foundation
             }
         }
     }
-    func finishRain() { observeRain() }
+    func finishRain() {
+        if step == .rain || step == .finalRain || step == .cleared || step == .secondCleared {
+            completeForTesting()
+        } else {
+            observeRain()
+        }
+    }
     func setVisible(_ value: Bool) { visible = value; scene.setSuspended(!value); updateLookMotion(); if value && (step == .rain || step == .finalRain || step == .initialRain) { ActivityAudio.shared.play(.rain) } else if !value { suspend() } }
     func suspend() { motionGeneration += 1; motion?.stop(); scene.setSuspended(true); ActivityAudio.shared.stop(); task?.cancel(); task = nil; isDemonstrating = false }
     func demonstrate() {

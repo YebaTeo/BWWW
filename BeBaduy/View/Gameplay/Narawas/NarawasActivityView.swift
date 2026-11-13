@@ -10,7 +10,7 @@ struct NarawasActivityView: View {
         VStack(alignment: .leading, spacing: 16) {
             if card.mode == .help { motionLayout {
                 Button(action: model.toggleLookMotion) {
-                    Text(model.motionEnabled ? "Geser saja" : "Gerakan ponsel")
+                    Text(model.motionEnabled ? "Jeda gerakan" : "Gerakan ponsel")
                         .fixedSize(horizontal: false, vertical: true)
                 }
                     .frame(minHeight: 44).accessibilityIdentifier("narawas.motion")
@@ -28,8 +28,8 @@ struct NarawasActivityView: View {
             case .entering: Text("Lingkungan virtual tanpa kamera")
             case .clearing:
                 Text(model.motionActive
-                     ? "Ketuk pohon untuk menebang. Gerakkan ponsel perlahan untuk melihat sekeliling."
-                     : "Ketuk pohon untuk menebang. Geser di lahan untuk melihat sekeliling.")
+                     ? "Ketuk pohon untuk menebang. Arahkan ponsel ke kiri atau kanan."
+                     : "Ketuk pohon untuk menebang.")
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("narawas.sceneReady")
                 Text("\(model.collected.count) / \(NarawasViewModel.treeCount) pohon").accessibilityIdentifier("narawas.progress")
@@ -42,7 +42,7 @@ struct NarawasActivityView: View {
                 }
             case .prepared, .burning:
                 Text("Ketuk setiap lahan untuk menyalakan api virtual").font(.headline)
-                Text("Api hanya menyala pada lahan yang kamu ketuk. Geser untuk menemukan lahan lainnya, atau gunakan tombol di bawah.")
+                Text("Api hanya menyala pada lahan yang kamu ketuk. Arahkan ponsel ke kiri atau kanan, atau gunakan tombol di bawah.")
                 Text("\(model.ignited.count) / \(NarawasViewModel.treeCount) lahan dinyalakan")
                     .accessibilityIdentifier("narawas.fire.progress")
                 if card.mode == .instruction && model.ignited.count < NarawasViewModel.treeCount {

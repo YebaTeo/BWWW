@@ -126,17 +126,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private var tap: UITapGestureRecognizer?
     private var pan: UIPanGestureRecognizer?
-    private var lookPan: UIPanGestureRecognizer?
-    private var lastLookPanPoint: CGPoint = .zero
     private var swipeAnchorPoint: CGPoint = .zero
     private var lastSwipePoint: CGPoint = .zero
     private var lastSlashDirection: CGVector = .zero
     private var slashedInCurrentStroke = false
     private(set) var motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var motionReference = simd_quatf(angle: 0, axis: [0, 1, 0])
-    private var yaw: Float = 0
-    private var pitch: Float = -0.14
-    private var motionPitch: Float = 0
     private let feedback = UIImpactFeedbackGenerator(style: .medium)
 
     private let soilY: Float = 0.038
@@ -168,11 +163,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         pan.delegate = self
         view.addGestureRecognizer(pan)
         self.pan = pan
-        let lookPan = UIPanGestureRecognizer(target: self, action: #selector(adjustCameraLook(_:)))
-        lookPan.delegate = self
-        view.addGestureRecognizer(lookPan)
-        self.lookPan = lookPan
-
         startDisplayLink()
         if materials != nil {
             reset()
@@ -1653,26 +1643,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        if gestureRecognizer === lookPan { return true }
         guard gestureRecognizer is UIPanGestureRecognizer else { return true }
         return stage == .clearing
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        gestureRecognizer === lookPan || otherGestureRecognizer === lookPan
-    }
-
-    @objc private func adjustCameraLook(_ gesture: UIPanGestureRecognizer) {
-        guard gesture === lookPan, !suspended, let view else { return }
-        let point = gesture.location(in: view)
-        if gesture.state == .began { lastLookPanPoint = point; return }
-        guard gesture.state == .changed else { return }
-        let delta = CGPoint(x: point.x - lastLookPanPoint.x, y: point.y - lastLookPanPoint.y)
-        lastLookPanPoint = point
-        yaw -= Float(delta.x) * 0.004
-        // Finger-up should tilt the view toward the sky, finger-down toward the soil.
-        pitch = min(1.12, max(-0.78, pitch - Float(delta.y) * 0.006))
-        updatePreviewCamera()
     }
 
     @objc private func swipedToCut(_ gesture: UIPanGestureRecognizer) {
@@ -1771,8 +1743,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     func applyMotionLook(_ relative: simd_quatf) {
         guard !suspended else { return }
         let combined = simd_normalize(motionReference * relative)
-        let forward = combined.act(SIMD3<Float>(0, 0, -1))
-        motionPitch = min(0.85, max(-0.85, asin(min(1, max(-1, forward.y)))))
         let yawVector = SIMD4<Float>(0, combined.imag.y, 0, combined.real)
         let yawLength = simd_length(yawVector)
         motionOrientation = yawLength > 0.0001
@@ -1782,9 +1752,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func recenterLook() {
-        yaw = 0
-        pitch = -0.14
-        motionPitch = 0
         motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
         motionReference = motionOrientation
         updatePreviewCamera()
@@ -1792,13 +1759,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func updatePreviewCamera() {
-        let horizontalOrientation = simd_normalize(
-            simd_quatf(angle: yaw, axis: [0, 1, 0]) * motionOrientation
-        )
-        let combinedOrientation = horizontalOrientation * simd_quatf(angle: pitch + motionPitch, axis: [1, 0, 0])
-        cameraNode.simdOrientation = combinedOrientation
+        cameraNode.simdOrientation = motionOrientation * simd_quatf(angle: -0.14, axis: [1, 0, 0])
 
-        let forward = horizontalOrientation.act(SIMD3<Float>(0, 0, -1))
+        let forward = motionOrientation.act(SIMD3<Float>(0, 0, -1))
         let parallaxOffset = SIMD3<Float>(-forward.x * 0.14, 0, -forward.z * 0.10)
         cameraNode.simdPosition = SIMD3<Float>(0, 0.54, 0) + parallaxOffset
     }

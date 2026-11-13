@@ -59,7 +59,7 @@ struct NarawasView: View {
                                 Text("Coba arahkan ponselmu ke kiri dan kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!")
                                     .accessibilityIdentifier("narawas.sceneReady")
                             } else if model.ignited.count < NarawasViewModel.treeCount {
-                                Text("Yuk, arahkan ponsel ke sekeliling dan ketuk setiap pangkal pohon untuk menyalakan api.")
+                                Text("Yuk, arahkan ponsel ke kiri atau kanan dan ketuk setiap pangkal pohon untuk menyalakan api.")
                                     .accessibilityIdentifier("narawas.sceneReady")
                             } else {
                                 Text("Semua titik api sudah menyala! Amati sisa tebasan terbakar menjadi abu penyubur tanah.")

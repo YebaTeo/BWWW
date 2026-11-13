@@ -9,14 +9,17 @@ import CoreMotion
         stop()
         guard available else { handler(nil); return }
         let token = generation
-        manager.deviceMotionUpdateInterval = 1.0 / 40
+        manager.deviceMotionUpdateInterval = 1.0 / 60
         manager.startDeviceMotionUpdates(to: .main) { [weak self] data, error in
             let sample = data.flatMap { data -> MotionSample? in
                 let gravity = data.gravity
                 let magnitude = (gravity.x * gravity.x + gravity.y * gravity.y + gravity.z * gravity.z).squareRoot()
                 guard magnitude > 0.5 else { return nil }
                 let acceleration = data.userAcceleration
-                // Project onto gravity, so a downward gesture works in any comfortable phone angle.
+                // Project onto gravity (`gravity` points toward Earth's center, so `userAcceleration · gravity > 0`
+                // when accelerating downward and `< 0` when accelerating upward).
+                // Negate `downward` so `verticalAcceleration` is negative (< 0) when accelerating DOWNWARD
+                // and positive (> 0) when accelerating UPWARD.
                 let downward = (acceleration.x * gravity.x + acceleration.y * gravity.y + acceleration.z * gravity.z) / magnitude
                 let q = data.attitude.quaternion
                 return MotionSample(time: data.timestamp, verticalAcceleration: -downward, roll: data.attitude.roll, gravity: SIMD3(gravity.x, gravity.y, gravity.z), attitude: SIMD4(q.x, q.y, q.z, q.w))

@@ -227,13 +227,16 @@ import Observation
                 signal = matchSignal * 0.92
 
             case .dig:
-                // Aseuk wooden pole thumping into warm huma soil + earthen crunch
-                let thumpEnv = exp(-t * 18.0)
-                let crunchEnv = exp(-t * 14.0)
-                let poleFreq = 110.0 * exp(-t * 8.0) + 46.0
-                let poleThump = sin(2.0 * .pi * poleFreq * t) * thumpEnv * 0.68
-                let soilCrunch = (lowpass * 0.65 + bandpass * 0.45) * crunchEnv * 0.52
-                signal = (poleThump + soilCrunch) * 0.76
+                // Heavy Aseuk bamboo pole stabbing deep into huma soil (deep sub-thud + earthen crunch)
+                let thumpEnv = exp(-t * 16.0)
+                let crunchEnv = exp(-t * 12.0)
+                let poleFreq = 68.0 * exp(-t * 9.5) + 34.0
+                let poleThump = (
+                    sin(2.0 * .pi * poleFreq * t) * 0.76
+                    + sin(2.0 * .pi * (poleFreq * 1.65) * t) * 0.34 * exp(-t * 22.0)
+                ) * thumpEnv
+                let soilCrunch = (subLow2 * 1.65 + warmLow * 0.72 + bandpass * 0.28) * crunchEnv * 0.58
+                signal = (poleThump + soilCrunch) * 0.88
 
             case .seed:
                 // Cascading dry rice grains (gabah) pattering into the soil hole

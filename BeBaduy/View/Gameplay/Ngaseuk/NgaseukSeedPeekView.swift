@@ -69,7 +69,7 @@ struct NgaseukSeedPeekView: View {
                             .disabled(isPourSequenceActive)
                     }
                     if !dragActive && !isPourSequenceActive {
-                        Button(filled ? "Pilih lubang berikutnya" : "Kembali ke lahan", action: model.closePeek)
+                        Button(filled ? "Pilih lubang berikutnya" : "Kembali ke lahan", action: { model.closePeek() })
                             .font(.headline)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 14)

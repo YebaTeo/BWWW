@@ -9,11 +9,11 @@ import Foundation
     func start(handler: @escaping @MainActor (MotionSample?) -> Void) {
         stop()
         task = Task {
-            for stroke in 0..<3 {
-                do { try await Task.sleep(for: .seconds(1)) } catch { return }
-                let time = Double(stroke)
+            for stroke in 0..<9 {
+                do { try await Task.sleep(for: .milliseconds(650)) } catch { return }
+                let time = Double(stroke) * 1.1
                 handler(.init(time: time, verticalAcceleration: 0))
-                handler(.init(time: time + 0.1, verticalAcceleration: -0.5))
+                handler(.init(time: time + 0.1, verticalAcceleration: -0.90))
                 guard !Task.isCancelled else { return }
             }
         }

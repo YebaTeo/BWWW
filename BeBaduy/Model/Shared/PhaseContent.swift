@@ -80,9 +80,9 @@ struct PhaseContent: Identifiable, Sendable {
                 title: "Leuit",
                 subtitle: "Menyimpan hasil panen",
                 introduction: "Padi yang telah kering dibawa ke tempat penyimpanan.",
-                instruction: "Seret ikatan ke tiga leuit contoh, lalu lihat bagian dalamnya.",
-                explanation: "Leuit menyimpan padi sebagai cadangan pangan rumah tangga dan untuk keperluan adat. Padi disimpan bersama tangkainya. Tiga bangunan dan posisi ikatan pada aktivitas hanyalah alat bantu belajar.",
-                result: "Padi tersimpan di leuit.",
+                instruction: "Seret tangga bambu (taraje) ke pintu, lalu perhatikan cara masuk ke leuit.",
+                explanation: "Leuit dibangun tinggi di atas tiang panggung dengan piringan kayu penahan tikus (gelebeg). Tangga bambu (taraje) dipasang hanya saat memasukkan padi dan langsung disingkirkan agar hama tidak dapat naik. Padi disimpan bersama tangkainya (pocong pare) sebagai cadangan pangan bertahun-tahun.",
+                result: "Padi tersimpan aman di dalam leuit.",
                 timeCue: nil,
                 sourceIDs: ["S3"]
             )

@@ -78,13 +78,16 @@ struct NgaseukActivitySurface: View {
                         .allowsHitTesting(false)
                         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)
 
+                    // While idle, the stick follows the phone live (down = dips, up = lifts).
+                    let follow: CGFloat = isStroking ? 0 : CGFloat(-model.toolFollow) * 28
                     AseukTool(autoRotate: isStroking && !reduceMotion, rotationSpeed: 4.5,
                               pitch: 0, yaw: 0, roll: 0)
                         .frame(width: 110, height: toolHeight)
                         // Align the rendered 3D tip precisely so that at maximum stroke it stops inside the hole cavity
-                        .position(x: point.x, y: point.y - toolHeight * 0.50 + toolDepth)
+                        .position(x: point.x, y: point.y - toolHeight * 0.50 + toolDepth + follow)
                         .allowsHitTesting(false)
                         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toolTarget)
+                        .animation(.interactiveSpring(response: 0.08, dampingFraction: 0.9), value: follow)
 
                     if isSoilDisplacing {
                         SoilStrikeSplashEffect()
@@ -105,6 +108,18 @@ struct NgaseukActivitySurface: View {
                         .foregroundStyle(.white).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
+                }
+                if model.step == .seeding && model.peekTarget == nil && !model.isDraggingSeed {
+                    VStack(spacing: 6) {
+                        Text("Goyangkan ponsel perlahan atau seret wadah benih ke lubang")
+                            .font(.headline)
+                        Text("\(model.seeds.count) / 3 lubang berisi benih")
+                            .font(.subheadline.monospacedDigit())
+                    }
+                    .multilineTextAlignment(.center).padding(16)
+                    .foregroundStyle(.white).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
+                    .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
+                    .allowsHitTesting(false)
                 }
                 if model.step == .seeding && (
                     model.isDraggingSeed ||
@@ -236,23 +251,19 @@ struct NgaseukActivitySurface: View {
         }
         let index = model.lastDug
         workingTarget = index
+        // Start the strike from wherever the live-follow stick currently is, so there is no jump.
+        toolDepth = -65 + CGFloat(-model.toolFollow) * 28
         isStroking = true
-        toolDepth = -65
         if !reduceMotion {
-            // Windup: slight backward raise
-            withAnimation(.easeOut(duration: 0.12)) { toolDepth = -88 }
-            do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
-
-            // Powerful downward strike into the hole cavity (stops strictly inside hole)
-            withAnimation(.easeIn(duration: 0.16)) { toolDepth = 2 }
-            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+            // Immediate downward strike into the hole cavity (55ms, synced with audio + 3-pulse haptics)
+            withAnimation(.easeIn(duration: 0.055)) { toolDepth = 2 }
+            do { try await Task.sleep(for: .milliseconds(55)) } catch { return }
         } else {
             toolDepth = 2
         }
 
         // Impact moment: soil heaves upward around the piercing tip inside the hole
         isSoilDisplacing = true
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         withAnimation(.easeOut(duration: 0.22)) { visibleDigCounts[index] = count }
 
         if !reduceMotion {

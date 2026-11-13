@@ -2,17 +2,29 @@ import XCTest
 @testable import BeBaduy
 @MainActor final class ActivityTests: XCTestCase {
     func testWeedingRequiresEightUniqueWeedsAndRain() {
-        let vm = NgoredViewModel(); vm.start()
+        let vm = NgoredViewModel(); vm.start(skipInitialRain: true)
         vm.remove(8); vm.remove(-1); XCTAssertTrue(vm.removed.isEmpty)
-        for i in 0..<8 {
+        for i in 0..<4 {
             vm.remove(i); vm.remove(i)
             XCTAssertFalse(vm.removed.contains(i))
             vm.remove(i); vm.remove(i)
             XCTAssertEqual(vm.strokes[i], 3)
         }
-        XCTAssertEqual(vm.removed.count, 8); XCTAssertNil(vm.session.outcome)
-        vm.finishRain(); XCTAssertNil(vm.session.outcome)
-        vm.observeRain(); vm.finishRain(); XCTAssertEqual(vm.session.outcome, .performed)
+        XCTAssertEqual(vm.removed.count, 4)
+        XCTAssertEqual(vm.step, .cleared)
+        vm.advanceToSecondWeedingForTesting()
+        XCTAssertEqual(vm.step, .secondWeeding)
+        for i in 4..<7 {
+            vm.remove(i); vm.remove(i)
+            XCTAssertFalse(vm.removed.contains(i))
+            vm.remove(i); vm.remove(i)
+            XCTAssertEqual(vm.strokes[i], 3)
+        }
+        XCTAssertEqual(vm.step, .secondCleared)
+        XCTAssertNil(vm.session.outcome)
+        vm.observeRain()
+        vm.finishRain()
+        XCTAssertEqual(vm.session.outcome, .performed)
     }
     func testKoredRequiresNewDownstrokeAndContact() {
         var tracker = KoredStrokeTracker()
@@ -104,13 +116,21 @@ import XCTest
         }
     }
 
-    func testLeuitUniqueBundlesAndInteriorGate() {
-        let vm = NgaleuitkeunPareViewModel(); vm.start()
-        XCTAssertFalse(vm.drop(-1, at: 0)); XCTAssertTrue(vm.drop(2, at: 0))
-        XCTAssertFalse(vm.drop(2, at: 1)); XCTAssertFalse(vm.drop(1, at: 0))
-        XCTAssertTrue(vm.drop(0, at: 1)); XCTAssertTrue(vm.drop(1, at: 2))
+    func testLeuitCompletesOnlyAfterLadderPlacement() {
+        let vm = NgaleuitkeunPareViewModel()
+        vm.start()
+        vm.finish()
         XCTAssertNil(vm.session.outcome)
-        vm.finish(); XCTAssertNil(vm.session.outcome)
-        vm.inspectInterior(); vm.finish(); XCTAssertEqual(vm.session.outcome, .performed)
+        vm.placeLadder()
+        XCTAssertTrue(vm.isLadderPlaced)
+        XCTAssertNil(vm.session.outcome)
+        vm.finish()
+        XCTAssertEqual(vm.session.outcome, .performed)
+
+        vm.start()
+        XCTAssertFalse(vm.isLadderPlaced)
+        vm.demonstrate()
+        vm.finish()
+        XCTAssertEqual(vm.session.outcome, .observed)
     }
 }

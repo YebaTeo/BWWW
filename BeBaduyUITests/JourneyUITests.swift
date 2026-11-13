@@ -36,7 +36,15 @@ import XCTest
     }
     func intro() { tap("intro.continue"); tap("intro.continue") }
     func start() {
-        if app.buttons["resume"].exists { tap("resume") }
+        let inActivity = app.buttons["mipit.card.start"].exists ||
+            app.buttons["lesson.equipment.reveal"].exists ||
+            app.buttons["lesson.begin"].exists ||
+            app.buttons["ngalantai.card.start"].exists ||
+            app.buttons["leuit.card.start"].exists ||
+            app.buttons["ngaseuk.card.start"].exists ||
+            app.buttons["ngored.card.start"].exists
+
+        if !inActivity && app.buttons["resume"].exists { tap("resume") }
         if app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 2) {
             tap("lesson.equipment.reveal")
             tap("lesson.begin")
@@ -102,6 +110,14 @@ import XCTest
         }
     }
 
+    private func completeLeuit() {
+        let ladder = app.descendants(matching: .any)["field.ladder"].firstMatch
+        XCTAssertTrue(ladder.waitForExistence(timeout: 5))
+        let door = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.53))
+        ladder.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.15, thenDragTo: door)
+        XCTAssertTrue(app.buttons["lesson.result.continue"].waitForExistence(timeout: 6))
+    }
+
     func testFullSixChapterTouchJourneyAndReplay() {
         prepare(["--uitest-ngaseuk-motion"]); intro(); completeNarawas(); next()
         start(); waitForNgaseukHoles()
@@ -113,9 +129,7 @@ import XCTest
         tap("ngored.rain.continue"); capture("Ngored-rain"); tap("ngored.finishRain")
         next(); start()
         completeMipit(); next(); start()
-        for index in 0..<3 { tap("bundle_\(index)"); tap("space_\(index)") }
-        XCTAssertFalse(app.buttons["lesson.result.continue"].exists)
-        tap("leuit.inspect"); capture("Leuit-interior"); tap("leuit.interior.continue"); next()
+        completeLeuit(); next()
         XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
         tap("home")
         XCTAssertEqual(app.staticTexts["home.progress"].label, "6 dari 6 tahap telah dijelajahi")
@@ -142,12 +156,7 @@ import XCTest
         tap("ngored.finishRain"); next(); start()
         completeMipit()
         next(); start()
-        tap("activity.card.start")
-        for index in 0..<3 {
-            tap("field.bundle.\(index)"); tap("field.leuit.\(index)")
-        }
-        tap("leuit.inspect"); capture("Leuit-fullscreen")
-        tap("leuit.interior.continue"); next()
+        completeLeuit(); next()
         XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
     }
     func testMipitLandscapeAndDemonstration() {

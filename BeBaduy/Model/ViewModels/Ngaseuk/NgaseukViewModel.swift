@@ -27,6 +27,7 @@ import UIKit
             guard session.isActive, !motionActive, !isDemonstrating else { return }
             if step == .instructions { startTutorial() }
             else if peekTarget != nil { startPourMotion() }
+            else if step == .seeding { startFieldPourMotion() }
             else if step == .digging { startMotion() }
         } else {
             cancelTutorial()
@@ -57,6 +58,14 @@ import UIKit
 
     private var motionGeneration = 0
     @ObservationIgnored private var pourTask: Task<Void, Never>?
+    @ObservationIgnored private var impactHapticTask: Task<Void, Never>?
+    @ObservationIgnored private let heavyImpact = UIImpactFeedbackGenerator(style: .heavy)
+    @ObservationIgnored private let rigidImpact = UIImpactFeedbackGenerator(style: .rigid)
+    /// Live, smoothed vertical acceleration (-1...1) so the aseuk visibly follows the phone
+    /// before a strike is recognised. Negative = moving down, positive = lifting up.
+    private(set) var toolFollow: Double = 0
+    /// The next empty hole a field shake will pour into (holes are filled left to right).
+    var nextSeedTarget: Int? { (0..<3).first { holes.contains($0) && !seeds.contains($0) } }
     private var usedDemo = false
     private let motion: any MotionProviding
     private var detector = NgaseukMotionDetector()
@@ -66,7 +75,10 @@ import UIKit
     func proceed() {
         guard session.isActive else { return }
         if step == .instructions { step = .digging }
-        else if step == .holesReady { step = .seeding }
+        else if step == .holesReady {
+            step = .seeding
+            if !isDemonstrating { startFieldPourMotion() }
+        }
     }
     func dig(_ target: Int) {
         guard session.isActive, step == .digging, target == selectedTarget, (0..<3).contains(target),
@@ -74,30 +86,58 @@ import UIKit
         let count = digCounts[target, default: 0] + 1
         digCounts[target] = count
         lastDug = target
-        ActivityAudio.shared.play(.dig)
-        if !isDemonstrating { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+        triggerStrikeAudioAndHaptics(includeHaptics: !isDemonstrating)
         if count == 3 { holes.insert(target) }
         // Keep the aseuk on this same spot until all three strikes are done.
         selectedTarget = count < 3 ? target : ((0..<3).first { !holes.contains($0) } ?? target)
         session.feedback = count == 3 ? "Lubang \(target + 1) siap." : "Perlebar lubang \(target + 1): tusukan \(count) dari 3."
         if holes.count == 3 { pauseMotion(); step = .holesReady }
     }
+
+    /// Sound + a 3-pulse ground-impact haptic, timed to the moment the aseuk tip hits the soil
+    /// (matches the 55ms strike animation in `NgaseukActivitySurface.showStroke`).
+    private func triggerStrikeAudioAndHaptics(includeHaptics: Bool) {
+        if includeHaptics { heavyImpact.prepare(); rigidImpact.prepare() }
+        impactHapticTask?.cancel()
+        impactHapticTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(55)) } catch { return }
+            guard let self, !Task.isCancelled else { return }
+            ActivityAudio.shared.play(.dig)
+            guard includeHaptics else { return }
+            // Pulse 1: heavy ground impact as the bamboo tip slams into the soil
+            self.heavyImpact.impactOccurred(intensity: 1.0)
+            self.rigidImpact.prepare()
+            // Pulse 2: crisp soil-crust crunch
+            do { try await Task.sleep(for: .milliseconds(45)) } catch { return }
+            guard !Task.isCancelled else { return }
+            self.rigidImpact.impactOccurred(intensity: 0.95)
+            self.heavyImpact.prepare()
+            // Pulse 3: deep earth compression thud
+            do { try await Task.sleep(for: .milliseconds(55)) } catch { return }
+            guard !Task.isCancelled else { return }
+            self.heavyImpact.impactOccurred(intensity: 0.80)
+        }
+    }
     @discardableResult func seed(_ target: Int) -> Bool {
         guard session.isActive, step == .seeding, holes.contains(target), seeds.insert(target).inserted else { return false }
         ActivityAudio.shared.play(.seed)
         session.feedback = "\(seeds.count) dari 3 lubang berisi benih."
-        if seeds.count == 3 { session.finish(usedDemo ? .observed : .performed) }
+        if seeds.count == 3 {
+            pauseMotion()
+            session.finish(usedDemo ? .observed : .performed)
+        }
         return true
     }
     func peek(_ target: Int) {
         guard session.isActive, step == .seeding, holes.contains(target), !isDemonstrating,
               !isBasketEntering, !isBasketTilting, !isPouring else { return }
-        closePeek()
+        closePeek(resumeFieldMotion: false)
         peekTarget = target
         if !seeds.contains(target) { startPourMotion() }
     }
     func beginSeedDrag() {
         guard session.isActive, step == .seeding, !isDemonstrating else { return }
+        pauseMotion()
         isDraggingSeed = true
         isSeedInPlantingRange = false
         peekTarget = nil
@@ -120,17 +160,38 @@ import UIKit
         isSeedInPlantingRange = false
         guard shouldPlant, target != nil else {
             peekTarget = nil
+            if seeds.count < 3 { startFieldPourMotion() }
             return false
         }
         pourSeeds(returnToField: true)
         return isBasketEntering
     }
-    func closePeek() {
+    func closePeek(resumeFieldMotion: Bool = true) {
         pauseMotion()
         pourTask?.cancel(); pourTask = nil; isBasketEntering = false; isPouring = false; peekTarget = nil
         isBasketTilting = false
         isDraggingSeed = false
         isSeedInPlantingRange = false
+        if resumeFieldMotion && session.isActive && step == .seeding && seeds.count < 3 && !isDemonstrating {
+            startFieldPourMotion()
+        }
+    }
+    func startFieldPourMotion() {
+        guard session.isActive, step == .seeding, peekTarget == nil, let target = nextSeedTarget,
+              !isDraggingSeed, !isBasketEntering, !isBasketTilting, !isPouring, !isDemonstrating else { return }
+        pauseMotion()
+        guard motion.available else { return }
+        pourDetector.reset(); motionActive = true
+        let generation = motionGeneration
+        motion.start { [weak self] sample in
+            guard let self, self.motionActive, self.motionGeneration == generation,
+                  self.peekTarget == nil, self.nextSeedTarget == target else { return }
+            guard let sample else { self.pauseMotion(); return }
+            if self.pourDetector.consume(sample) {
+                self.peekTarget = target
+                self.pourSeeds(returnToField: true)
+            }
+        }
     }
     func startPourMotion() {
         guard session.isActive, step == .seeding, let target = peekTarget,
@@ -176,6 +237,7 @@ import UIKit
                 guard !Task.isCancelled, self.peekTarget == target else { return }
                 self.isBasketTilting = false
                 self.peekTarget = nil
+                if self.seeds.count < 3 { self.startFieldPourMotion() }
             } else {
                 self.isBasketTilting = false
             }
@@ -186,16 +248,25 @@ import UIKit
         guard session.isActive, step == .digging, !isDemonstrating, !motionActive else { return }
         guard motion.available else { session.feedback = "Sensor gerak tidak tersedia. Buka Petunjuk untuk melihat demonstrasi."; return }
         session.feedback = ""
+        heavyImpact.prepare()
+        rigidImpact.prepare()
         detector.reset(); motionActive = true
         let generation = motionGeneration
         motion.start { [weak self] sample in
             guard let self, self.motionActive, self.motionGeneration == generation else { return }
             guard let sample else { self.pauseMotion(); self.session.feedback = "Sensor gerak terputus. Buka lalu tutup Petunjuk untuk mencoba lagi."; return }
+            self.updateToolFollow(sample.verticalAcceleration)
             if self.detector.consume(sample) { self.dig(self.selectedTarget) }
         }
     }
-    func pauseMotion() { motionGeneration += 1; motionActive = false; motion.stop(); detector.reset(); pourDetector.reset() }
-    func suspend() { cancelTutorial(); demoTask?.cancel(); demoTask = nil; isDemonstrating = false; closePeek() }
+    private func updateToolFollow(_ acceleration: Double) {
+        let target = max(-1, min(1, acceleration))
+        let next = toolFollow * 0.55 + target * 0.45
+        let settled = abs(next) < 0.03 ? 0 : next
+        if abs(settled - toolFollow) > 0.02 || (settled == 0 && toolFollow != 0) { toolFollow = settled }
+    }
+    func pauseMotion() { motionGeneration += 1; motionActive = false; motion.stop(); detector.reset(); pourDetector.reset(); toolFollow = 0 }
+    func suspend() { cancelTutorial(); impactHapticTask?.cancel(); impactHapticTask = nil; demoTask?.cancel(); demoTask = nil; isDemonstrating = false; closePeek(resumeFieldMotion: false) }
     func demonstrate() {
         guard session.isActive else { return }
         suspend(); usedDemo = true; isDemonstrating = true

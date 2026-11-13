@@ -163,6 +163,8 @@ struct WelcomeHomeView: View {
                 .overlay(Capsule().strokeBorder(Color(red: 0.77, green: 0.63, blue: 0.43), lineWidth: 0.75))
         }
         .accessibilityIdentifier("resume")
+        .disabled(!isActive || openingChapter)
+        .accessibilityHidden(!isActive || openingChapter)
         .padding(.top, 24)
         .padding(.bottom, 18)
     }
