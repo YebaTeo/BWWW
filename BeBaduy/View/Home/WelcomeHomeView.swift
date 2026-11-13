@@ -34,15 +34,9 @@ struct WelcomeHomeView: View {
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
-                if let growth = preview.plantingGrowth {
-                    PlantingGrowthRain(progress: growth)
-                        .ignoresSafeArea()
-                        .accessibilityHidden(true)
-                        .allowsHitTesting(false)
-                }
                 CinematicSpeedLinesOverlay(
                     progress: progress,
-                    isScrolling: preview.isTransitioning && preview.plantingGrowth == nil && (
+                    isScrolling: preview.isTransitioning && (
                         (displayedStage < 5 && selectedStage < 5) ||
                         (displayedStage == 5 && selectedStage == 6) ||
                         (displayedStage == 6 && selectedStage == 5)
@@ -276,26 +270,6 @@ private struct CinematicSpeedLinesOverlay: View {
             .allowsHitTesting(false)
             .opacity(velocity)
             .blendMode(.screen)
-        }
-    }
-}
-
-private struct PlantingGrowthRain: View {
-    let progress: CGFloat
-
-    var body: some View {
-        Canvas { context, size in
-            let rain = min(1, progress * 8, max(0, (0.76 - progress) * 5))
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.blue.opacity(0.13 * rain)))
-            var streaks = Path()
-            for index in 0..<100 {
-                let x = CGFloat((index * 47) % 101) / 101 * size.width
-                let offset = CGFloat((index * 37) % 103) / 103
-                let y = (offset + progress * 5).truncatingRemainder(dividingBy: 1) * size.height
-                streaks.move(to: CGPoint(x: x, y: y))
-                streaks.addLine(to: CGPoint(x: x - 5, y: y + 19))
-            }
-            context.stroke(streaks, with: .color(.white.opacity(0.48 * rain)), lineWidth: 1)
         }
     }
 }

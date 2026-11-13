@@ -7,7 +7,6 @@ final class HomePreviewViewModel {
     private(set) var progress: CGFloat = 0
     private(set) var isTransitioning = false
     private(set) var selectedStage = 0
-    private(set) var plantingGrowth: CGFloat?
     @ObservationIgnored private var transitionTask: Task<Void, Never>?
     #if DEBUG
     @ObservationIgnored private var lastDebugSwipeAt: Date?
@@ -19,7 +18,6 @@ final class HomePreviewViewModel {
         transitionTask?.cancel()
         transitionTask = nil
         isTransitioning = false
-        plantingGrowth = nil
         progress = GrowthStage.allStages[selectedStage].targetProgress
     }
 
@@ -40,7 +38,6 @@ final class HomePreviewViewModel {
         let previousStage = stage.id
         transitionTask?.cancel()
         selectedStage = index
-        plantingGrowth = nil
         if reduceMotion || skipAnimation {
             progress = GrowthStage.allStages[index].targetProgress
             isTransitioning = false
@@ -51,11 +48,9 @@ final class HomePreviewViewModel {
             let isForestClearing = (previousStage == 0 && index == 1) || (previousStage == 1 && index == 0)
             let isLeuitTransition = (previousStage <= 4 && index >= 5) || (previousStage >= 5 && index <= 4) || (previousStage == 5 && index == 6) || (previousStage == 6 && index == 5)
             let isConclusionPan = (previousStage == 5 && index == 6) || (previousStage == 6 && index == 5)
-            let isPlantingGrowth = previousStage == 1 && index == 2
-            if isPlantingGrowth { plantingGrowth = 0 }
             let start = progress
             let destination = GrowthStage.allStages[index].targetProgress
-            let duration: Double = isPlantingGrowth ? 4.5 : isConclusionPan ? 0.18 : (isHarvestTimeLapse ? 27 : (isLeuitTransition ? 1.35 : (isForestClearing ? 7.2 : 0.23)))
+            let duration: Double = isConclusionPan ? 0.18 : (isHarvestTimeLapse ? 12 : (isLeuitTransition ? 1.35 : (isForestClearing ? 7.2 : 0.23)))
             // Custom scene inputs need actual intermediate state values;
             // withAnimation alone only interpolates animatable view properties.
             transitionTask = Task { @MainActor in
@@ -69,10 +64,8 @@ final class HomePreviewViewModel {
                     transaction.disablesAnimations = true
                     withTransaction(transaction) {
                         progress = start + (destination - start) * CGFloat(fraction)
-                        if isPlantingGrowth { plantingGrowth = CGFloat(fraction) }
                     }
                     if fraction >= 1 {
-                        plantingGrowth = nil
                         isTransitioning = false
                         break
                     }
