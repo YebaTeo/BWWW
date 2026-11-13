@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     let journey: JourneyViewModel
     let motion: MotionService
+    @State private var showsLaunchSplash = true
     @State private var loadsFirstPreview = false
     @State private var showsJourney = false
     @State private var pendingTransitionFrom: Int?
@@ -12,8 +13,9 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private func finishLoadingPreview() {
-        guard loadsFirstPreview else { return }
+        guard showsLaunchSplash || loadsFirstPreview else { return }
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+            showsLaunchSplash = false
             loadsFirstPreview = false
         }
     }
@@ -31,24 +33,23 @@ struct HomeView: View {
                         onCompletion: { model.showsCompletion = true },
                         isActive: model.path.isEmpty && !showsJourney && !model.showsCompletion
                     )
-                    .accessibilityHidden(loadsFirstPreview)
-                    .allowsHitTesting(!loadsFirstPreview)
+                    .accessibilityHidden(showsLaunchSplash || loadsFirstPreview)
+                    .allowsHitTesting(!showsLaunchSplash && !loadsFirstPreview)
                 } else {
                     IntroductionView {
                         loadsFirstPreview = true
                     }
-                    .accessibilityHidden(loadsFirstPreview)
-                    .allowsHitTesting(!loadsFirstPreview)
+                    .accessibilityHidden(showsLaunchSplash || loadsFirstPreview)
+                    .allowsHitTesting(!showsLaunchSplash && !loadsFirstPreview)
+                    .onAppear(perform: finishLoadingPreview)
                 }
-                if loadsFirstPreview {
+                if showsLaunchSplash {
+                    LaunchSplashView().transition(.opacity)
+                } else if loadsFirstPreview {
                     ZStack {
                         LessonBackdrop(asset: "OnboardingNgahuma")
                         Color.black.opacity(0.35).ignoresSafeArea()
-                        ProgressView("Menyiapkan perjalanan…")
-                            .tint(.white)
-                            .foregroundStyle(.white)
-                            .padding(24)
-                            .background(.black.opacity(0.68), in: RoundedRectangle(cornerRadius: 20))
+                        LaunchLoadingIndicator()
                             .accessibilityIdentifier("onboarding.loading")
                     }
                     .transition(.opacity)

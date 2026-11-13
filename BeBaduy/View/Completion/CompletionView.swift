@@ -27,7 +27,7 @@ struct CompletionView: View {
                     Spacer()
                     LessonButton(title: "Lihat kembali semua tahapan", identifier: "journey.recap") { showsRecap = true }
                 }
-            }.multilineTextAlignment(.center).foregroundStyle(.white)
+            }.multilineTextAlignment(.leading).foregroundStyle(.white)
                 .padding(28).frame(maxWidth: 560)
                 .frame(minHeight: geometry.size.height).frame(maxWidth: .infinity)
             }

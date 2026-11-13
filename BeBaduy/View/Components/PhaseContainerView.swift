@@ -249,9 +249,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             } else if showsActiveControls {
                 activity()
                     .environment(card)
-                    .frame(maxWidth: 260)
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 8)
             }
         }
     }

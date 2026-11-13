@@ -12,8 +12,6 @@ struct WelcomeHomeView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.dynamicTypeSize) private var typeSize
-    private var largeText: Bool { typeSize.isAccessibilitySize }
     @State private var preview = HomePreviewViewModel()
     @State private var initializedPreview = false
     @State private var openingChapter = false
@@ -61,17 +59,10 @@ struct WelcomeHomeView: View {
                         .accessibilityHidden(true)
                 }
                 VStack(spacing: 0) {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .gesture(stageSwipe)
-                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
                     VStack(spacing: 0) {
-                        ScrollView {
-                            stageCard
-                                .frame(maxWidth: 440)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .frame(maxHeight: viewport.size.height * (largeText ? 0.42 : 0.23))
+                        stageCard
+                            .frame(maxWidth: 440)
                         actions
                             .frame(maxWidth: 440)
                     }
@@ -84,6 +75,9 @@ struct WelcomeHomeView: View {
                     .allowsHitTesting(!preview.isTransitioning)
                     .accessibilityHidden(preview.isTransitioning)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .simultaneousGesture(stageSwipe)
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
                 .padding(.bottom, viewport.size.height * 0.09)
@@ -215,13 +209,16 @@ struct WelcomeHomeView: View {
 
     private var stageCard: some View {
         VStack(spacing: 8) {
-            Text(stage.name)
+            Text(stage.isConclusion ? "MENGELOLA PARE\nHUMA" : stage.name)
                 .font(.system(size: 44, weight: .black, design: .rounded))
                 .fontWidth(.condensed)
                 .tracking(1)
+                .lineLimit(stage.isConclusion ? 2 : 1)
+                .minimumScaleFactor(0.7)
                 .foregroundStyle(gold)
                 .shadow(color: .black.opacity(0.78), radius: 10, y: 3)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityLabel(stage.name)
                 .accessibilityIdentifier("home.stage.title")
             Text(stage.narrative)
                 .font(.body)
@@ -231,6 +228,7 @@ struct WelcomeHomeView: View {
             if let message = journey.storageMessage {
                 Text(message)
                     .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
                     .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
             }
 

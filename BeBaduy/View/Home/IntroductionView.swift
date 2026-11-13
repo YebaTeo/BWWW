@@ -4,8 +4,6 @@ struct IntroductionView: View {
     let finish: () -> Void
 
     @State private var page: Story? = .welcome
-    @State private var showsSplash = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Story: Int, CaseIterable, Identifiable {
         case welcome, pikukuh, ngahuma
@@ -57,19 +55,10 @@ struct IntroductionView: View {
             .scrollPosition(id: $page)
             .scrollIndicators(.hidden)
             .accessibilityIdentifier("intro.story")
-            .accessibilityHidden(showsSplash)
-            .allowsHitTesting(!showsSplash)
-            .overlay {
-                if showsSplash { splash(size: geometry.size) }
-            }
         }
         .ignoresSafeArea()
         .foregroundStyle(AppTheme.cream)
-        .background(.black)
-        .task {
-            do { try await Task.sleep(for: .milliseconds(850)) } catch { return }
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { showsSplash = false }
-        }
+        .background(Color(red: 0.49, green: 0.39, blue: 0.29))
     }
 
     private func storyPage(_ story: Story, size: CGSize, topInset: CGFloat, bottomInset: CGFloat) -> some View {
@@ -84,7 +73,8 @@ struct IntroductionView: View {
                 Text(story.title)
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .accessibilityAddTraits(.isHeader)
-                Text(story.message).font(.body)
+                Text(story.message)
+                    .font(.system(.title3, design: .rounded, weight: .regular))
                 if story == .ngahuma {
                     LessonButton(title: "Mulai Ngahuma", identifier: "intro.continue", action: finish)
                         .padding(.top, 10)
@@ -112,24 +102,6 @@ struct IntroductionView: View {
             .accessibilityHidden(true)
         }
         .frame(width: size.width, height: size.height, alignment: .bottom)
-        .clipped()
-    }
-
-    private func splash(size: CGSize) -> some View {
-        ZStack {
-            backdrop("OnboardingVillage", size: size)
-                .blur(radius: 22)
-                .overlay(.black.opacity(0.28))
-            VStack(spacing: 20) {
-                Image("OnboardingLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 108, height: 108)
-                    .clipShape(RoundedRectangle(cornerRadius: 26))
-                    .accessibilityHidden(true)
-                Text("BeBaduy").font(.system(.largeTitle, design: .rounded, weight: .bold))
-            }
-        }
         .clipped()
     }
 

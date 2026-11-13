@@ -901,7 +901,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func revealNgoredRegrowth(duration: TimeInterval = 3.2) {
-        for index in 4..<min(7, ngoredWeedRoots.count) {
+        for index in ngoredWeedRoots.indices.dropFirst(4).prefix(3) {
             animateNgoredWeedGrowth(index, duration: duration, key: "weedRegrowth")
         }
     }
