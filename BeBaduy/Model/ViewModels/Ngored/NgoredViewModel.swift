@@ -7,7 +7,7 @@ import Foundation
     }
     let scene = NgahumaScene()
     private let motion: (any MotionProviding)?
-    @ObservationIgnored private var lookMotion = NarawasLookMotion(smoothingTime: 0.025)
+    @ObservationIgnored private var lookMotion = NarawasLookMotion()
     private var visible = false
     private var initialRainStartedAt = Date()
     private var initialRainPending = false
@@ -34,7 +34,7 @@ import Foundation
 
     private func updateLookMotion() {
         stopLookMotion()
-        guard visible, motionAllowed, session.isActive, step != .cycles, step != .finalCycles,
+        guard visible, motionAllowed, session.isActive,
               let motion, motion.available else { return }
         lookMotion.reset()
         scene.beginMotionLook()
@@ -193,7 +193,6 @@ import Foundation
 
     private func beginGrowthCycles() {
         step = .cycles
-        stopLookMotion()
         scene.revealNgoredRegrowth(duration: 4.5)
         scene.animateNgoredDayNight(cycles: 3, duration: 12, growthFrom: 0.18, growthTo: 0.5) { [weak self] in
             guard let self, self.session.isActive else { return }
@@ -206,7 +205,6 @@ import Foundation
 
     private func beginFinalCycles() {
         step = .finalCycles
-        stopLookMotion()
         scene.animateNgoredDayNight(cycles: 3, duration: 12, growthFrom: 0.5, growthTo: 1) { [weak self] in
             guard let self, self.session.isActive else { return }
             self.step = .complete

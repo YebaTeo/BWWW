@@ -12,6 +12,8 @@ struct WelcomeHomeView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var largeText: Bool { typeSize.isAccessibilitySize }
     @State private var preview = HomePreviewViewModel()
     @State private var initializedPreview = false
     @State private var openingChapter = false
@@ -59,10 +61,17 @@ struct WelcomeHomeView: View {
                         .accessibilityHidden(true)
                 }
                 VStack(spacing: 0) {
-                    Spacer(minLength: 0)
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(stageSwipe)
+                        .accessibilityHidden(true)
                     VStack(spacing: 0) {
-                        stageCard
-                            .frame(maxWidth: 440)
+                        ScrollView {
+                            stageCard
+                                .frame(maxWidth: 440)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .frame(maxHeight: viewport.size.height * (largeText ? 0.42 : 0.23))
                         actions
                             .frame(maxWidth: 440)
                     }
@@ -75,19 +84,12 @@ struct WelcomeHomeView: View {
                     .allowsHitTesting(!preview.isTransitioning)
                     .accessibilityHidden(preview.isTransitioning)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .simultaneousGesture(stageSwipe)
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
                 .padding(.bottom, viewport.size.height * 0.09)
-                if let scrollCueStart {
-                    TimelineView(.animation(minimumInterval: 1.0 / 15)) { timeline in
-                        let elapsed = timeline.date.timeIntervalSince(scrollCueStart)
-                        if ScrollCueMotion.amount(elapsed: elapsed) > 0.12 {
-                            scrollCueButtons(viewport: viewport)
-                        }
-                    }
+                if isActive && !preview.isTransitioning && !openingChapter {
+                    scrollCueButtons(viewport: viewport)
+                        .ignoresSafeArea()
                 }
             }
         }
@@ -169,20 +171,20 @@ struct WelcomeHomeView: View {
     }
 
     private func scrollCueButtons(viewport: GeometryProxy) -> some View {
-        VStack(spacing: 0) {
+        let cueWidth = min(220, viewport.size.width * 0.56)
+        return VStack(spacing: 0) {
             if canScrollUp {
                 Button {
                     cancelScrollCue()
                     preview.swipe(direction: -1, reduceMotion: reduceMotion)
                 } label: {
                     Color.clear
-                        .frame(height: min(70, viewport.size.height * 0.085))
-                        .frame(maxWidth: .infinity)
+                        .frame(width: cueWidth, height: 82)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Tahap sebelumnya")
-                .padding(.top, max(44, viewport.safeAreaInsets.top + 8))
+                .padding(.top, max(54, viewport.safeAreaInsets.top + 4))
             }
             Spacer(minLength: 0)
             if canScrollDown {
@@ -191,15 +193,15 @@ struct WelcomeHomeView: View {
                     preview.swipe(direction: 1, reduceMotion: reduceMotion)
                 } label: {
                     Color.clear
-                        .frame(height: min(70, viewport.size.height * 0.085))
-                        .frame(maxWidth: .infinity)
+                        .frame(width: cueWidth, height: 76)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Tahap berikutnya")
-                .padding(.bottom, max(4, viewport.safeAreaInsets.bottom))
+                .padding(.bottom, max(20, viewport.safeAreaInsets.bottom))
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     @discardableResult
@@ -218,16 +220,13 @@ struct WelcomeHomeView: View {
 
     private var stageCard: some View {
         VStack(spacing: 8) {
-            Text(stage.isConclusion ? "MENGELOLA PARE\nHUMA" : stage.name)
+            Text(stage.name)
                 .font(.system(size: 44, weight: .black, design: .rounded))
                 .fontWidth(.condensed)
                 .tracking(1)
-                .lineLimit(stage.isConclusion ? 2 : 1)
-                .minimumScaleFactor(0.7)
                 .foregroundStyle(gold)
                 .shadow(color: .black.opacity(0.78), radius: 10, y: 3)
                 .accessibilityAddTraits(.isHeader)
-                .accessibilityLabel(stage.name)
                 .accessibilityIdentifier("home.stage.title")
             Text(stage.narrative)
                 .font(.body)
@@ -237,7 +236,6 @@ struct WelcomeHomeView: View {
             if let message = journey.storageMessage {
                 Text(message)
                     .font(.footnote)
-                    .fixedSize(horizontal: false, vertical: true)
                     .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
             }
 
