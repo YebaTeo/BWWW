@@ -6,7 +6,7 @@ import UIKit
 /// SceneKit-powered spatial AR experience for Narawas, unifying HomeView's Narawas rendering
 /// (full root-to-crown 3D relief trees that split at the trunk leaving the rooted stump,
 /// arched grass blades, sun lighting, and 3-layer spatial Huma environment)
-/// with 360° tree placement, look-around, and interactive tree-clearing & burning.
+/// with forward 180° tree placement, look-around, and interactive tree-clearing & burning.
 @MainActor
 @Observable
 final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
@@ -135,9 +135,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var slashedInCurrentStroke = false
     private(set) var motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var motionReference = simd_quatf(angle: 0, axis: [0, 1, 0])
+    private var lastRawYaw: Float?
     private let feedback = UIImpactFeedbackGenerator(style: .medium)
 
     private let soilY: Float = 0.038
+    private static let arHalfTurn: Float = .pi / 2
+    private static let ngoredWeedAngles: [Float] = [1.20, 0.40, -0.40, -1.20, 0.95, 0, -0.95]
+    private static let ngoredRiceAngles: [Float] = [0.80, 0, -0.80]
     private static let windActionKey = "vegetation.breeze"
 
     @MainActor
@@ -257,7 +261,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    // MARK: - Scene Construction (3 Spatial Layers + SceneKit Sun + 360° HomeView Grass & Trees)
+    // MARK: - Scene Construction (3 Spatial Layers + SceneKit Sun + Forward 180° Grass & Trees)
 
     private func buildScene() {
         guard let materials else { return }
@@ -305,15 +309,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // 2. Unified 3D Ground & Shadow Receiver (matching HomeView, no extra disks under trees)
         buildGround(using: materials)
 
-        // 3. HomeView 3D Trees spread 360° around the scene (loaded down to roots, splitting at cut line)
+        // 3. HomeView 3D trees in the forward half (loaded down to roots, splitting at cut line)
         buildForest(using: materials)
 
-        // 4. HomeView 3D Wild Grass Blades distributed 360° around the huma clearing
+        // 4. HomeView 3D wild grass blades in the forward half of the huma clearing
         buildWildGrass(using: materials)
         buildNgoredWeeds(using: materials)
         buildNgoredRice(using: materials)
 
-        // 5. 3D Floating Golden Dust Motes integrated throughout the 360° AR space
+        // 5. 3D floating golden dust motes throughout the forward AR space
         buildAtmosphericMotes(using: materials)
 
         // 6. Fire, Embers & Ash Clods (for the burning phase)
@@ -508,17 +512,17 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         worldRoot.addChildNode(terrainNode)
     }
 
-    // MARK: - HomeView 3D Forest Spread Across All 360° (Full Root-to-Crown + Split Stump)
+    // MARK: - HomeView 3D Forest in the Forward 180° (Full Root-to-Crown + Split Stump)
 
     private func buildForest(using materials: NgahumaMaterials) {
         forestRoot.name = "forest"
         worldRoot.addChildNode(forestRoot)
 
-        // Three interactive trees distributed around the clearing.
+        // Keep all three interactive trees inside the camera's forward half-turn.
         let placements: [(angle: Float, distance: Float, yawOffset: Float, scale: Float)] = [
             (0, 1.84, -0.06, 2.25),
-            (2 * .pi / 3, 1.86, -0.09, 2.15),
-            (4 * .pi / 3, 1.85, -0.08, 2.20)
+            (1.10, 1.86, -0.09, 2.15),
+            (-1.10, 1.85, -0.08, 2.20)
         ]
 
         let sharedUpperTreeGeo = makeTreeSectionGeometry(from: materials.treeTexture, startRow: 6, endRow: 40, includeWind: true)
@@ -791,7 +795,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         return lipNode
     }
 
-    // MARK: - HomeView 3D Wild Grass Blades Distributed 360°
+    // MARK: - HomeView 3D Wild Grass Blades in the Forward 180°
 
     private func buildWildGrass(using materials: NgahumaMaterials) {
         wildRoot.name = "wildGrass"
@@ -800,9 +804,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         wildRoot.opacity = 1
         worldRoot.addChildNode(wildRoot)
 
-        // 1. Dense inner 360° wild grass ring, visible around the participant.
-        for index in 0..<240 {
-            let angle = Float(index) * 2.3999
+        // Keep the same grass density while placing every blade within the reachable view.
+        for index in 0..<120 {
+            let fraction = (Float(index) * 0.6180339).truncatingRemainder(dividingBy: 1)
+            let angle = (fraction * 2 - 1) * (Self.arHalfTurn - 0.05)
             let distance = 0.62 + Float((index * 13) % 73) * 0.034
             let base = SCNVector3(
                 sin(angle) * distance,
@@ -827,9 +832,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             )
         }
 
-        // 2. Outer 360° meadow grass blades extending toward the horizon grass rim
-        for index in 0..<120 {
-            let angle = Float(index) * 2.399963
+        // 2. Outer meadow grass blades extending toward the horizon grass rim
+        for index in 0..<60 {
+            let fraction = (Float(index) * 0.6180339).truncatingRemainder(dividingBy: 1)
+            let angle = (fraction * 2 - 1) * (Self.arHalfTurn - 0.05)
             let radius = 2.15 + Float((index * 11) % 31) * 0.14
             let base = SCNVector3(sin(angle) * radius, soilY, -cos(angle) * radius)
             let height = 0.16 + Float(index % 6) * 0.024
@@ -850,9 +856,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             )
         }
 
-        // 3. Perimeter horizon grass blades (radius 8.8 to 11.5m) seamlessly blending the terrain floor into the 360° cylinder
-        for index in 0..<56 {
-            let angle = Float(index) * (2.0 * .pi / 56.0) + Float(index % 5) * 0.04
+        // 3. Perimeter blades blend the terrain floor into the panorama in the visible half.
+        for index in 0..<28 {
+            let angle = (-Self.arHalfTurn + 0.05) + (Float(index) + 0.5) * (2 * Self.arHalfTurn - 0.10) / 28
             let radius = 8.8 + Float((index * 17) % 29) * 0.095
             let py = soilY + min(1.0, max(0.0, (radius - 7.5) / 4.5)) * 0.22
             let base = SCNVector3(sin(angle) * radius, py, -cos(angle) * radius)
@@ -879,13 +885,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         ngoredWeedFragments.removeAll()
         ngoredWeedRoots.removeAll()
         ngoredWeedRestPositions.removeAll()
-        for index in 0..<7 {
-            let angle = Float(index) * (2 * .pi / 4)
-            let distance: Float = 1.12
+        for (index, angle) in Self.ngoredWeedAngles.enumerated() {
+            let distance: Float = index < 4 ? 1.12 : 0.85
             let center = SCNVector3(sin(angle) * distance, soilY, -cos(angle) * distance)
             let clump = SCNNode()
             clump.name = "ngoredWeed_\(index)"
-            clump.isHidden = index >= 4
+            clump.isHidden = true
             clump.position = center
             worldRoot.addChildNode(clump)
             for bladeIndex in 0..<7 {
@@ -1134,11 +1139,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private func buildNgoredRice(using materials: NgahumaMaterials) {
         ngoredRiceRoots.removeAll()
-        for index in 0..<3 {
+        for (index, angle) in Self.ngoredRiceAngles.enumerated() {
             // Place each padi plant between adjacent cuttable weeds.
-            let angle = Float(index) * (2 * .pi / 3) + .pi / 4
-            // Keep rice on the same planting row/radius as the four weeds,
-            // positioned in the gaps between their targets.
+            // Keep rice between the first four weeds in the forward half of the field.
             let radius: Float = 1.12
             let base = SCNVector3(sin(angle) * radius, soilY, -cos(angle) * radius)
             let plant = HomeSceneRenderer.makeNgoredTransitionRicePlant()
@@ -1160,7 +1163,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             plant.addChildNode(plantingPoint)
             worldRoot.addChildNode(plant)
             plant.scale = SCNVector3(1, 1, 1)
-            plant.isHidden = false
+            plant.isHidden = true
             ngoredRiceRoots.append(plant)
         }
     }
@@ -1240,7 +1243,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             system.emittingDirection = SCNVector3(0, -1, 0)
             system.spreadingAngle = 5
             system.acceleration = SCNVector3(0, -0.18, 0)
-            system.emitterShape = SCNBox(width: 5.8, height: 0.015, length: 5.8, chamferRadius: 0)
+            system.emitterShape = SCNBox(width: 5.8, height: 0.015, length: 3.0, chamferRadius: 0)
             system.birthLocation = .surface
             system.birthDirection = .constant
             system.particleImage = rainImage
@@ -1256,7 +1259,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
             let emitter = SCNNode()
             emitter.name = "ngoredRain3D_\(layer)"
-            emitter.position = SCNVector3(0, layer == 0 ? 2.5 : 4.1, 0)
+            emitter.position = SCNVector3(0, layer == 0 ? 2.5 : 4.1, -1.5)
             emitter.addParticleSystem(system)
             worldRoot.addChildNode(emitter)
             ngoredRainNodes.append(emitter)
@@ -1509,7 +1512,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    // MARK: - 3D Atmospheric Golden Dust Motes (Integrated in 360° World Space)
+    // MARK: - 3D Atmospheric Golden Dust Motes (Integrated in Forward World Space)
 
     private func buildAtmosphericMotes(using materials: NgahumaMaterials) {
         atmosphereMotesRoot.name = "atmosphereMotes"
@@ -1530,11 +1533,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let billboard = SCNBillboardConstraint()
         billboard.freeAxes = .all
 
-        // Distribute 90 3D golden dust motes across all 360° at depths from 1.05m to 4.2m
+        // Distribute 3D golden dust motes across the forward 180° at depths from 1.05m to 4.2m
         // so they float in front of, between, and behind the 3D trees and grass with real depth occlusion.
         for i in 0..<90 {
             let fi = Float(i)
-            let angle = fi * 2.399963
+            let fraction = (fi * 0.6180339).truncatingRemainder(dividingBy: 1)
+            let angle = (fraction * 2 - 1) * (Self.arHalfTurn - 0.12)
             let distance = 1.05 + Float((i * 19) % 43) * 0.072
             let baseX = sin(angle) * distance
             let baseZ = -cos(angle) * distance
@@ -1568,7 +1572,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    // MARK: - HomeView Fire & Ash Particle Systems (Scaled for 360° Narawas AR)
+    // MARK: - HomeView Fire & Ash Particle Systems (Scaled for 180° Narawas AR)
 
     private func buildFireAndAsh(using materials: NgahumaMaterials) {
         fireRoot.name = "fire"
@@ -1919,12 +1923,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func beginMotionLook() {
         motionReference = motionOrientation
+        lastRawYaw = nil
     }
 
     func focusNgoredRice() {
-        // The first rice clump is 45° to the right of the default forward view.
-        motionOrientation = simd_quatf(angle: -.pi / 4, axis: [0, 1, 0])
+        // The first rice clump is on the right side of the forward field.
+        motionOrientation = simd_quatf(angle: -Self.ngoredRiceAngles[0], axis: [0, 1, 0])
         motionReference = motionOrientation
+        lastRawYaw = nil
         updatePreviewCamera(fixedPosition: true)
     }
 
@@ -1932,16 +1938,22 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         guard !suspended else { return }
         let combined = simd_normalize(motionReference * relative)
         let yawVector = SIMD4<Float>(0, combined.imag.y, 0, combined.real)
-        let yawLength = simd_length(yawVector)
-        motionOrientation = yawLength > 0.0001
-            ? simd_quatf(vector: yawVector / yawLength)
-            : simd_quatf(angle: 0, axis: [0, 1, 0])
+        let rawYaw = 2 * atan2(yawVector.y, yawVector.w)
+        let signedYaw = atan2(sin(rawYaw), cos(rawYaw))
+        let previousYaw = 2 * atan2(motionOrientation.imag.y, motionOrientation.real)
+        let change = lastRawYaw.map { last in
+            atan2(sin(signedYaw - last), cos(signedYaw - last))
+        } ?? 0
+        let limitedYaw = max(-Self.arHalfTurn, min(Self.arHalfTurn, previousYaw + change))
+        motionOrientation = simd_quatf(angle: limitedYaw, axis: [0, 1, 0])
+        lastRawYaw = signedYaw
         updatePreviewCamera(fixedPosition: fixedPosition)
     }
 
     func recenterLook() {
         motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
         motionReference = motionOrientation
+        lastRawYaw = nil
         updatePreviewCamera()
         feedback.impactOccurred(intensity: 0.45)
     }
@@ -2356,6 +2368,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         ashRoot.opacity = 0
         forestRoot.isHidden = true
         forestRoot.opacity = 0
+        // Keep the floating motes in the same forward half as the Ngored plants.
+        for index in atmosphereMotes.indices {
+            let mote = atmosphereMotes[index]
+            let fraction = (Float(index) * 0.6180339).truncatingRemainder(dividingBy: 1)
+            let angle = (fraction * 2 - 1) * (Self.arHalfTurn - 0.12)
+            let distance = hypot(mote.baseX, mote.baseZ)
+            atmosphereMotes[index].baseX = sin(angle) * distance
+            atmosphereMotes[index].baseZ = -cos(angle) * distance
+        }
         treeEntries.forEach { entry in
             entry.trunk.isHidden = true
             entry.rootAnchor.isHidden = true
@@ -2377,6 +2398,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             weed.isHidden = index >= 4
             weed.opacity = 1
         }
+        ngoredRiceRoots.forEach { $0.isHidden = false }
         progress = 0
     }
 
