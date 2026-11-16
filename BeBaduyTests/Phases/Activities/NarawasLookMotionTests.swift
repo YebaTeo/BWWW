@@ -68,16 +68,63 @@ final class NarawasLookMotionTests: XCTestCase {
         let model = NgoredViewModel(motion: motion)
         model.start()
         model.setVisible(true)
+        defer { model.setVisible(false) }
 
-        let gravity = SIMD3<Double>(0, -0.2, -sqrt(0.96))
-        motion.handler?(.init(time: 0, verticalAcceleration: 0, gravity: gravity, rotationRate: .zero))
-        motion.handler?(.init(time: 0.1, verticalAcceleration: 1, gravity: gravity, rotationRate: [2, 0, 0]))
-        XCTAssertEqual(model.scene.motionOrientation.angle, 0, accuracy: 0.001)
-        motion.handler?(.init(time: 0.2, verticalAcceleration: 0, gravity: gravity, rotationRate: -gravity * 2))
-        XCTAssertGreaterThan(model.scene.motionOrientation.angle, 0.1)
-        XCTAssertEqual(model.scene.motionOrientation.imag.x, 0, accuracy: 0.001)
-        XCTAssertEqual(model.scene.motionOrientation.imag.z, 0, accuracy: 0.001)
+        let initial = model.scene.motionOrientation
+        let pose = simd_quatd(angle: 1.2, axis: [1, 0, 0])
+        let up = SIMD3<Double>(0, 0, 1)
+        let gravity = pose.inverse.act(-up)
+        motion.handler?(.init(time: 0, verticalAcceleration: 0, gravity: gravity, attitude: pose.vector))
+        let pitch = simd_quatd(angle: 0.3, axis: [1, 0, 0]) * pose
+        motion.handler?(.init(time: 0.1, verticalAcceleration: 0, gravity: pitch.inverse.act(-up), attitude: pitch.vector))
+        XCTAssertEqual(abs(simd_dot(initial.vector, model.scene.motionOrientation.vector)), 1, accuracy: 0.001)
+
+        let turned = simd_quatd(angle: 0.2, axis: up) * pose
+        motion.handler?(.init(time: 0.2, verticalAcceleration: 0, gravity: gravity, attitude: turned.vector))
+        let change = initial.inverse * model.scene.motionOrientation
+        XCTAssertEqual(change.angle, 0.196, accuracy: 0.005)
+        XCTAssertEqual(change.imag.x, 0, accuracy: 0.001)
+        XCTAssertEqual(change.imag.z, 0, accuracy: 0.001)
+    }
+
+    @MainActor func testNgoredRecalibratesWhenSecondWeedingStarts() async throws {
+        let motion = FakeMotion()
+        let model = NgoredViewModel(motion: motion)
+        model.start()
+        model.setVisible(true)
+        defer { model.setVisible(false) }
+        model.beginInitialRainAfterCard()
+        let deadline = ContinuousClock.now + .seconds(8)
+        while model.step == .initialRain, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertEqual(model.step, .weeding)
+        guard model.step == .weeding else { return }
+        motion.handler?(sample(0, simd_quatd(angle: 0, axis: [0, 1, 0])))
+        motion.handler?(sample(0.1, simd_quatd(angle: 0.3, axis: [0, 1, 0])))
+        let beforeCycle = model.scene.motionOrientation
+        let staleCallback = motion.handler
+
+        for weed in 0..<4 {
+            for _ in 0..<3 { model.remove(weed) }
+        }
+        model.observeRain()
+        model.finishRain()
+        XCTAssertEqual(model.step, .cycles)
+        XCTAssertNil(motion.handler)
+        staleCallback?(sample(0.2, simd_quatd(angle: 1, axis: [0, 1, 0])))
         model.setVisible(false)
+        model.setVisible(true)
+        XCTAssertNil(motion.handler)
+        model.scene.advanceNgoredDayNight(by: 12)
+        XCTAssertEqual(model.step, .secondWeeding)
+        XCTAssertNotNil(motion.handler)
+
+        // The phone has moved during the animation. That pose is the new baseline.
+        motion.handler?(sample(12.2, simd_quatd(angle: 1.2, axis: [0, 1, 0])))
+        XCTAssertEqual(abs(simd_dot(beforeCycle.vector, model.scene.motionOrientation.vector)), 1, accuracy: 0.0001)
+        motion.handler?(sample(12.3, simd_quatd(angle: 1.4, axis: [0, 1, 0])))
+        XCTAssertEqual((beforeCycle.inverse * model.scene.motionOrientation).angle, 0.196, accuracy: 0.005)
     }
 
     @MainActor func testMissingSensorAndInterruptionKeepTouchAvailable() {

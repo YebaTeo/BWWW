@@ -1,6 +1,5 @@
 import Observation
 import Foundation
-import simd
 @Observable @MainActor final class NgoredViewModel {
     enum Step: Equatable {
         case initialRain, weeding, cleared, rain, cycles
@@ -8,10 +7,7 @@ import simd
     }
     let scene = NgahumaScene()
     private let motion: (any MotionProviding)?
-    private var lookMotion = NarawasLookMotion()
-    private var lastLookTime: Double?
-    private var heading: Double = 0
-    private var smoothedHeading: Double = 0
+    @ObservationIgnored private var lookMotion = NarawasLookMotion(smoothingTime: 0.025)
     private var visible = false
     private var initialRainStartedAt = Date()
     private var initialRainPending = false
@@ -37,39 +33,21 @@ import simd
     }
 
     private func updateLookMotion() {
-        motionGeneration += 1
-        motion?.stop()
+        stopLookMotion()
+        guard visible, motionAllowed, session.isActive, step != .cycles, step != .finalCycles,
+              let motion, motion.available else { return }
         lookMotion.reset()
-        lastLookTime = nil
-        heading = 0
-        smoothedHeading = 0
-        guard visible, motionAllowed, session.isActive, let motion, motion.available else { return }
         scene.beginMotionLook()
         let generation = motionGeneration
         motion.start { [weak self] sample in
             guard let self, self.motionGeneration == generation, let sample else { return }
-            if let rotation = self.horizontalLook(sample) { self.scene.applyMotionLook(rotation, fixedPosition: true) }
+            if let rotation = self.lookMotion.consume(sample) { self.scene.applyMotionLook(rotation, fixedPosition: true) }
         }
     }
 
-    private func horizontalLook(_ sample: MotionSample) -> simd_quatf? {
-        guard let rate = sample.rotationRate, let gravity = sample.gravity else {
-            return lookMotion.consume(sample)
-        }
-        let magnitude = simd_length(gravity)
-        // Project the gyro onto world up so turning works at any held tilt.
-        let yawRate = -simd_dot(rate, gravity) / magnitude
-        guard magnitude > 0.5, yawRate.isFinite, sample.time.isFinite else { return nil }
-        guard let previous = lastLookTime else {
-            lastLookTime = sample.time
-            return nil
-        }
-        guard sample.time > previous else { return nil }
-        lastLookTime = sample.time
-        let elapsed = min(0.1, sample.time - previous)
-        if abs(yawRate) > 0.02 { heading += yawRate * elapsed }
-        smoothedHeading += (heading - smoothedHeading) * (1 - exp(-elapsed / 0.06))
-        return simd_quatf(angle: Float(smoothedHeading), axis: [0, 1, 0])
+    private func stopLookMotion() {
+        motionGeneration += 1
+        motion?.stop()
     }
 
     var session = PhaseSessionState()
@@ -215,17 +193,20 @@ import simd
 
     private func beginGrowthCycles() {
         step = .cycles
+        stopLookMotion()
         scene.revealNgoredRegrowth(duration: 4.5)
         scene.animateNgoredDayNight(cycles: 3, duration: 12, growthFrom: 0.18, growthTo: 0.5) { [weak self] in
             guard let self, self.session.isActive else { return }
             self.scene.presentNgoredDaytime()
             self.removed.formUnion(0..<4)
             self.step = .secondWeeding
+            self.updateLookMotion()
         }
     }
 
     private func beginFinalCycles() {
         step = .finalCycles
+        stopLookMotion()
         scene.animateNgoredDayNight(cycles: 3, duration: 12, growthFrom: 0.5, growthTo: 1) { [weak self] in
             guard let self, self.session.isActive else { return }
             self.step = .complete
@@ -253,8 +234,7 @@ import simd
     }
 
     func suspend() {
-        motionGeneration += 1
-        motion?.stop()
+        stopLookMotion()
         scene.setSuspended(true)
         ActivityAudio.shared.stop()
         task?.cancel()

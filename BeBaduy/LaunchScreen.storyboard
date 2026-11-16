@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="25098" targetRuntime="iOS.CocoaTouch" useAutolayout="YES" launchScreen="YES" colorMatched="YES" initialViewController="launch-controller">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="25073"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--View Controller-->
+        <scene sceneID="launch-scene">
+            <objects>
+                <viewController id="launch-controller" sceneMemberID="viewController">
+                    <layoutGuides>
+                        <viewControllerLayoutGuide type="top" id="8WQ-1G-PZ4"/>
+                        <viewControllerLayoutGuide type="bottom" id="MTg-3q-3IP"/>
+                    </layoutGuides>
+                    <view key="view" clipsSubviews="YES" contentMode="scaleToFill" id="launch-view">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                        <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" image="LaunchLandscape" translatesAutoresizingMaskIntoConstraints="NO" id="landscape">
+                                <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                            </imageView>
+                            <stackView contentMode="scaleToFill" axis="vertical" alignment="center" spacing="20" translatesAutoresizingMaskIntoConstraints="NO" id="branding">
+                                <rect key="frame" x="124.66666666666669" y="323.66666666666669" width="144" height="205.00000000000006"/>
+                                <subviews>
+                                    <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="OnboardingLogo" translatesAutoresizingMaskIntoConstraints="NO" id="logo">
+                                        <rect key="frame" x="0.0" y="0.0" width="144" height="144"/>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="144" id="logo-height"/>
+                                            <constraint firstAttribute="width" constant="144" id="logo-width"/>
+                                        </constraints>
+                                    </imageView>
+                                    <label contentMode="scaleToFill" text="BeBaduy" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="wordmark">
+                                        <rect key="frame" x="1" y="164" width="142" height="41"/>
+                                        <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="41" id="wordmark-height"/>
+                                        </constraints>
+                                        <fontDescription key="fontDescription" type="boldSystem" pointSize="34"/>
+                                        <color key="textColor" red="1" green="0.96470588239999999" blue="0.92941176469999998" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                    </label>
+                                </subviews>
+                            </stackView>
+                        </subviews>
+                        <color key="backgroundColor" red="0.41240561008453369" green="0.31687763333320618" blue="0.22588104009628296" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="branding" firstAttribute="centerX" secondItem="launch-view" secondAttribute="centerX" id="branding-x"/>
+                            <constraint firstItem="branding" firstAttribute="centerY" secondItem="launch-view" secondAttribute="centerY" id="branding-y"/>
+                            <constraint firstItem="landscape" firstAttribute="bottom" secondItem="launch-view" secondAttribute="bottom" id="landscape-bottom"/>
+                            <constraint firstItem="landscape" firstAttribute="leading" secondItem="launch-view" secondAttribute="leading" id="landscape-leading"/>
+                            <constraint firstItem="landscape" firstAttribute="top" secondItem="launch-view" secondAttribute="top" id="landscape-top"/>
+                            <constraint firstItem="landscape" firstAttribute="trailing" secondItem="launch-view" secondAttribute="trailing" id="landscape-trailing"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="first-responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-376" y="5"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchLandscape" width="384" height="576"/>
+        <image name="OnboardingLogo" width="1024" height="1024"/>
+    </resources>
+</document>

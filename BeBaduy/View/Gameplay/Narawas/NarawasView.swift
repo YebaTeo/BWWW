@@ -19,13 +19,21 @@ struct NarawasView: View {
     }
 
     var body: some View {
+        let isLoading = !initialized || model.scene.loadingAssets
         ZStack {
             NarawasSurface(scene: model.scene)
                 .ignoresSafeArea()
                 .allowsHitTesting(message == nil && model.session.isActive)
                 .accessibilityIdentifier("narawas.field")
+            if isLoading || model.scene.assetError != nil {
+                LessonBackdrop(asset: "LaunchLandscape")
+                    .allowsHitTesting(false)
+            }
             if let message {
                 messageOverlay(message)
+            } else if isLoading {
+                LaunchLoadingIndicator(message: "Menyiapkan lahan…")
+                    .accessibilityIdentifier("narawas.loading")
             } else {
                 VStack(spacing: 16) {
                     if model.stage == .burning {
@@ -35,9 +43,7 @@ struct NarawasView: View {
                             .accessibilityLabel("Progres pembakaran")
                     }
                     Spacer()
-                    if model.scene.loadingAssets || !initialized {
-                        ProgressView("Menyiapkan lahan…")
-                    } else if let error = model.scene.assetError {
+                    if let error = model.scene.assetError {
                         card {
                             Text(error)
                             Button("Coba lagi") { Task { await model.scene.prepareAssets() } }

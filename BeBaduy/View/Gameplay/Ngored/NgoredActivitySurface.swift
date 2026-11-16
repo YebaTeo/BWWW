@@ -133,7 +133,7 @@ struct NgoredActivitySurface: View {
         }
         .task(id: model.removed) {
             if model.step == .cleared || model.step == .secondCleared {
-                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
                 model.observeRain()
             }
         }
