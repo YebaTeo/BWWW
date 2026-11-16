@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The chapter map shares the same live SceneKit crops used by Home.
+/// The chapter map uses still artwork for its menu previews.
 struct JourneyView: View {
     let journey: JourneyViewModel
     var showsRecap = false
@@ -86,7 +86,18 @@ struct JourneyView: View {
     private func phaseCard(_ phase: PhaseContent, unlocked: Bool) -> some View {
         let stage = GrowthStage.allStages[phase.id.index]
         return ZStack(alignment: .leading) {
-            StageCardScene(progress: stage.targetProgress, phase: phase.id)
+            if showsRecap {
+                StageCardScene(progress: stage.targetProgress, phase: phase.id)
+            } else {
+                GeometryReader { geometry in
+                    Image(phase.id == .ngalantai ? "drying_rice_before" : phase.before.assetName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                }
+                .accessibilityHidden(true)
+            }
             LinearGradient(
                 stops: [
                     .init(color: Color(red: 0.15, green: 0.09, blue: 0.06).opacity(0.96), location: 0),

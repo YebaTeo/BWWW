@@ -5,7 +5,7 @@ struct NgaleuitkeunPareView: View {
     @State private var model = NgaleuitkeunPareViewModel()
     var body: some View {
         PhaseContainerView(content: PhaseContent.content(for: .ngaleuitkeunPare), session: model.session, journey: journey,
-            start: model.start, replay: model.start, demonstrate: model.demonstrate,
+            start: model.start, replay: model.start,
             restore: { model.session.restore($0) }, advance: advance,
             showsInitialActivityCard: false,
             leuitActivity: model.sceneState,

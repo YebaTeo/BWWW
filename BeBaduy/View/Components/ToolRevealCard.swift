@@ -14,12 +14,15 @@ struct ToolRevealCard<Artwork: View>: View {
             .aspectRatio(3.0 / 4, contentMode: .fit)
             .frame(maxWidth: 330)
             .overlay {
-                ToolRevealFaces(
-                    angle: isRevealed ? 180 : 0,
-                    title: title,
-                    description: description,
-                    artwork: artwork
-                )
+                WovenRevealFaces(angle: isRevealed ? 180 : 0) { size in
+                    let illustrationHeight = size.height * 0.46
+                    ViewThatFits(in: .vertical) {
+                        details(illustrationHeight: illustrationHeight)
+                        ScrollView { details(illustrationHeight: illustrationHeight) }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 24)
+                }
                 .contentShape(RoundedRectangle(cornerRadius: 18))
                 .onTapGesture { isRevealed = false }
                 .accessibilityElement(children: .contain)
@@ -42,54 +45,6 @@ struct ToolRevealCard<Artwork: View>: View {
                 }
             }
     }
-}
-
-private struct ToolRevealFaces<Artwork: View>: View, Animatable {
-    nonisolated var angle: Double
-    let title: String
-    let description: String
-    @ViewBuilder var artwork: () -> Artwork
-
-    nonisolated var animatableData: Double {
-        get { angle }
-        set { angle = newValue }
-    }
-
-    private let shape = RoundedRectangle(cornerRadius: 18)
-
-    var body: some View {
-        GeometryReader { geometry in
-            let showingTool = angle >= 90
-
-            ZStack {
-                if showingTool {
-                    let illustrationHeight = geometry.size.height * 0.46
-                    Color(red: 0.17, green: 0.13, blue: 0.12)
-                    ViewThatFits(in: .vertical) {
-                        details(illustrationHeight: illustrationHeight)
-                        ScrollView { details(illustrationHeight: illustrationHeight) }
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 24)
-                } else {
-                    Image("ToolRevealWeave")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .overlay(.black.opacity(0.32))
-                        .accessibilityHidden(true)
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipShape(shape)
-            .overlay {
-                shape.strokeBorder(AppTheme.heading.opacity(0.6), lineWidth: 0.75)
-                    .allowsHitTesting(false)
-            }
-            .rotation3DEffect(.degrees(showingTool ? angle - 180 : angle),
-                              axis: (x: 0, y: 1, z: 0), perspective: 0.45)
-        }
-    }
 
     private func details(illustrationHeight: CGFloat) -> some View {
         VStack(spacing: 16) {
@@ -110,6 +65,46 @@ private struct ToolRevealFaces<Artwork: View>: View, Animatable {
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity)
+    }
+}
+
+struct WovenRevealFaces<Front: View>: View, Animatable {
+    nonisolated var angle: Double
+    @ViewBuilder var front: (CGSize) -> Front
+
+    nonisolated var animatableData: Double {
+        get { angle }
+        set { angle = newValue }
+    }
+
+    private let shape = RoundedRectangle(cornerRadius: 18)
+
+    var body: some View {
+        GeometryReader { geometry in
+            let showingFront = angle >= 90
+
+            ZStack {
+                if showingFront {
+                    Color(red: 0.17, green: 0.13, blue: 0.12)
+                    front(geometry.size)
+                } else {
+                    Image("ToolRevealWeave")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .overlay(.black.opacity(0.32))
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(AppTheme.heading.opacity(0.6), lineWidth: 0.75)
+                    .allowsHitTesting(false)
+            }
+            .rotation3DEffect(.degrees(showingFront ? angle - 180 : angle),
+                              axis: (x: 0, y: 1, z: 0), perspective: 0.45)
+        }
     }
 }
 

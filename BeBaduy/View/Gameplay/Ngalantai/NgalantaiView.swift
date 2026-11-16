@@ -10,7 +10,7 @@ struct NgalantaiView: View {
     }
     var body: some View {
         PhaseContainerView(content: PhaseContent.content(for: .ngalantai), session: model.session, journey: journey,
-            start: model.start, replay: model.start, demonstrate: model.demonstrate,
+            start: model.start, replay: model.start,
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
             activityVisibility: { if $0 { model.resume() } else { model.suspend() } },
             usesContextCards: false,

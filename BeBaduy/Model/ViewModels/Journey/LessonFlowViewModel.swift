@@ -20,5 +20,5 @@ import Observation
         guard canSkip else { return }
         screen = .explanation
     }
-    func replay() { screen = .activity }
+    func replay(hasEquipment: Bool = false) { screen = hasEquipment ? .equipment : .activity }
 }

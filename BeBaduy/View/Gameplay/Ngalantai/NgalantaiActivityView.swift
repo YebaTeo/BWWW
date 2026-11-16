@@ -14,18 +14,15 @@ struct NgalantaiActivityView: View {
                 if model.step == .balancing {
                     Button("Petunjuk", action: model.showHelp).frame(minHeight: 44)
                 }
-                if model.step == .awaitingLandscape || model.step == .balanceInstructions {
-                    Button("Lihat demonstrasi", action: model.demonstrate).frame(minHeight: 44)
-                        .accessibilityIdentifier("demonstrate")
-                }
             }
+            .padding(.horizontal, 16)
             Spacer(minLength: 0)
             switch model.step {
             case .awaitingLandscape:
                 panel {
                     Image(systemName: "iphone.landscape").font(.title)
                     Text("Layar harus dalam mode lanskap.").font(.headline).foregroundStyle(AppTheme.heading)
-                    Text("Putar ponselmu untuk memulai. Jika layar tidak berputar, periksa kunci rotasi atau lihat demonstrasi.")
+                    Text("Putar ponselmu untuk memulai. Jika layar tidak berputar, periksa kunci rotasi.")
                 }
             case .balanceInstructions:
                 panel {
@@ -63,12 +60,13 @@ struct NgalantaiActivityView: View {
             case .complete:
                 EmptyView()
             }
-        }.padding(.horizontal, 16).padding(.bottom, 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .disabled(model.isDemonstrating)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(model.isDemonstrating)
     }
 
     private func panel(@ViewBuilder content: () -> some View) -> some View {
         ActivityCardPanel(content: content)
+            .activityCardInsets()
     }
 }

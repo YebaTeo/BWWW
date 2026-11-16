@@ -13,6 +13,12 @@ private struct ActivityCardStyle: ViewModifier {
 
 extension View {
     func activityCardStyle() -> some View { modifier(ActivityCardStyle()) }
+
+    /// Insets for a card in the bottom row of a safe-area layout.
+    func activityCardInsets() -> some View {
+        padding(.horizontal, 16)
+            .padding(.bottom, 8)
+    }
 }
 
 /// Content-sized card shared by all chapters. Only overflowing content scrolls.

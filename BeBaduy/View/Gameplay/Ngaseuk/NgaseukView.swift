@@ -17,7 +17,7 @@ struct NgaseukView: View {
     }
     var body: some View {
         PhaseContainerView(content: PhaseContent.content(for: .ngaseuk), session: model.session, journey: journey,
-            start: model.start, replay: model.start, demonstrate: model.demonstrate,
+            start: model.start, replay: model.start,
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend, activityVisibility: model.setActivityVisible,
             showsInitialActivityCard: false,
             surface: { NgaseukActivitySurface(model: model) }, activity: { NgaseukActivityView(model: model) },

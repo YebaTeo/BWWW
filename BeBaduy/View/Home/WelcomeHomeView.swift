@@ -12,8 +12,6 @@ struct WelcomeHomeView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.dynamicTypeSize) private var typeSize
-    private var largeText: Bool { typeSize.isAccessibilitySize }
     @State private var preview = HomePreviewViewModel()
     @State private var initializedPreview = false
     @State private var openingChapter = false
@@ -66,12 +64,11 @@ struct WelcomeHomeView: View {
                         .gesture(stageSwipe)
                         .accessibilityHidden(true)
                     VStack(spacing: 0) {
-                        ScrollView {
-                            stageCard
-                                .frame(maxWidth: 440)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .frame(maxHeight: viewport.size.height * (largeText ? 0.42 : 0.23))
+                        stageCard
+                            .frame(maxWidth: 440)
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                            .gesture(stageSwipe)
                         actions
                             .frame(maxWidth: 440)
                     }
@@ -243,6 +240,7 @@ struct WelcomeHomeView: View {
                 .font(.system(size: 44, weight: .black, design: .rounded))
                 .fontWidth(.condensed)
                 .tracking(1)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(gold)
                 .shadow(color: .black.opacity(0.78), radius: 10, y: 3)
                 .accessibilityAddTraits(.isHeader)
@@ -275,6 +273,7 @@ struct WelcomeHomeView: View {
                 .overlay(Capsule().strokeBorder(Color(red: 0.77, green: 0.63, blue: 0.43), lineWidth: 0.75))
         }
         .accessibilityIdentifier("resume")
+        .fixedSize(horizontal: false, vertical: true)
         .disabled(!isActive || openingChapter)
         .accessibilityHidden(!isActive || openingChapter)
         .padding(.top, 24)

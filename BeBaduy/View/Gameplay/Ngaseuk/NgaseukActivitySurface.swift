@@ -99,7 +99,7 @@ struct NgaseukActivitySurface: View {
                 if model.step == .instructions {
                     tutorial
                 }
-                if model.step == .digging {
+                if model.step == .digging && card.mode == .hidden {
                     VStack(spacing: 6) {
                         Text(model.motionActive ? "Gerakkan ponsel ke bawah atau ketuk lubang" : model.session.feedback)
                             .font(.headline)
@@ -109,7 +109,8 @@ struct NgaseukActivitySurface: View {
                         .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
                         .allowsHitTesting(false)
                 }
-                if model.step == .seeding && model.peekTarget == nil && !model.isDraggingSeed {
+                if model.step == .seeding && card.mode == .hidden &&
+                    model.peekTarget == nil && !model.isDraggingSeed {
                     VStack(spacing: 6) {
                         Text("Goyangkan ponsel perlahan atau seret wadah benih ke lubang")
                             .font(.headline)
