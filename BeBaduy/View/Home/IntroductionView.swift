@@ -1,9 +1,17 @@
 import SwiftUI
 
 struct IntroductionView: View {
+    let stageProgress: CGFloat
+    var onFirstFrame: (() -> Void)? = nil
     let finish: () -> Void
 
-    @State private var page: Story? = .welcome
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var page: Story = .welcome
+    @State private var incomingPage: Story?
+    @State private var outgoingOffset: CGFloat = 0
+    @State private var incomingOffset: CGFloat = 0
+    @State private var isTransitioning = false
+    @State private var transitionTask: Task<Void, Never>?
 
     private enum Story: Int, CaseIterable, Identifiable {
         case welcome, pikukuh, ngahuma
@@ -15,14 +23,6 @@ struct IntroductionView: View {
             case .welcome: "Selamat Datang!"
             case .pikukuh: "Pikukuh"
             case .ngahuma: "Mengenal Ngahuma"
-            }
-        }
-
-        var image: String {
-            switch self {
-            case .welcome: "OnboardingVillage"
-            case .pikukuh: "OnboardingPikukuh"
-            case .ngahuma: "OnboardingNgahuma"
             }
         }
 
@@ -40,35 +40,53 @@ struct IntroductionView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            ScrollView(.vertical) {
-                LazyVStack(spacing: 0) {
-                    ForEach(Story.allCases) { story in
-                        storyPage(story, size: geometry.size,
+            ZStack {
+                ZStack {
+                    CinematicAtmosphereView(progress: stageProgress, isActive: true)
+                    SceneKitCropView(progress: stageProgress, isActive: true, onFirstFrame: onFirstFrame)
+                }
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+                ScrollView(.vertical) {
+                    ZStack {
+                        storyPage(page, size: geometry.size,
                                   topInset: geometry.safeAreaInsets.top,
                                   bottomInset: geometry.safeAreaInsets.bottom)
-                            .id(story)
+                            .offset(y: outgoingOffset)
+                        if let incomingPage {
+                            storyPage(incomingPage, size: geometry.size,
+                                      topInset: geometry.safeAreaInsets.top,
+                                      bottomInset: geometry.safeAreaInsets.bottom)
+                                .offset(y: incomingOffset)
+                        }
                     }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
                 }
-                .scrollTargetLayout()
+                .scrollDisabled(true)
+                .scrollIndicators(.hidden)
+                .accessibilityIdentifier("intro.story")
+                .gesture(storySwipe(height: geometry.size.height))
+                .allowsHitTesting(!isTransitioning)
             }
-            .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-            .scrollPosition(id: $page)
-            .scrollIndicators(.hidden)
-            .accessibilityIdentifier("intro.story")
+            .accessibilityAction(named: "Halaman berikutnya") {
+                changePage(by: 1, height: geometry.size.height)
+            }
+            .accessibilityAction(named: "Halaman sebelumnya") {
+                changePage(by: -1, height: geometry.size.height)
+            }
         }
         .ignoresSafeArea()
         .foregroundStyle(AppTheme.cream)
         .background(Color(red: 0.49, green: 0.39, blue: 0.29))
+        .sensoryFeedback(.selection, trigger: page)
+        .onDisappear { transitionTask?.cancel() }
     }
 
     private func storyPage(_ story: Story, size: CGSize, topInset: CGFloat, bottomInset: CGFloat) -> some View {
         ZStack(alignment: .bottomLeading) {
-            backdrop(story.image, size: size)
-                .overlay(alignment: .bottom) {
-                    LinearGradient(colors: [.clear, .black.opacity(0.66), AppTheme.action.opacity(0.96)],
-                                   startPoint: .top, endPoint: .bottom)
-                        .frame(height: size.height * 0.55)
-                }
+            LinearGradient(colors: [.clear, .black.opacity(0.66), AppTheme.action.opacity(0.96)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: size.height * 0.55)
             VStack(alignment: .leading, spacing: 14) {
                 Text(story.title)
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
@@ -105,12 +123,38 @@ struct IntroductionView: View {
         .clipped()
     }
 
-    private func backdrop(_ image: String, size: CGSize) -> some View {
-        Image(image)
-            .resizable()
-            .scaledToFill()
-            .frame(width: size.width, height: size.height)
-            .clipped()
-            .accessibilityHidden(true)
+    private func storySwipe(height: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 18)
+            .onEnded { value in
+                guard abs(value.translation.height) > 45,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                changePage(by: value.translation.height < 0 ? 1 : -1, height: height)
+            }
+    }
+
+    private func changePage(by direction: Int, height: CGFloat) {
+        guard !isTransitioning,
+              let next = Story(rawValue: page.rawValue + direction) else { return }
+        if reduceMotion {
+            page = next
+            return
+        }
+        isTransitioning = true
+        incomingPage = next
+        incomingOffset = CGFloat(direction) * height
+        transitionTask = Task { @MainActor in
+            // Give the entering page a frame offscreen before sliding both layers.
+            do { try await Task.sleep(for: .milliseconds(20)) } catch { return }
+            withAnimation(.easeInOut(duration: 0.48)) {
+                outgoingOffset = -CGFloat(direction) * height
+                incomingOffset = 0
+            }
+            do { try await Task.sleep(for: .milliseconds(480)) } catch { return }
+            page = next
+            incomingPage = nil
+            outgoingOffset = 0
+            isTransitioning = false
+            transitionTask = nil
+        }
     }
 }

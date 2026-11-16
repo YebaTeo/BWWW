@@ -106,6 +106,11 @@ struct GrowthStage: Identifiable, Equatable {
             leafColor: Color(red: 0.85, green: 0.62, blue: 0.24)
         )
     ]
+
+    static func onboardingStage(for journey: JourneyProgress) -> GrowthStage {
+        if journey.allComplete { return allStages[allStages.count - 1] }
+        return allStages.first(where: { $0.phase == journey.currentPhase }) ?? allStages[0]
+    }
     
     /// Finds the closest matching stage given a normalized progress value [0.0 ... 1.0].
     static func currentStage(for progress: CGFloat) -> GrowthStage {

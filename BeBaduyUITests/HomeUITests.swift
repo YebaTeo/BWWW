@@ -1,20 +1,23 @@
 import XCTest
 @MainActor final class HomeUITests: XCTestCase {
-    func testSwipeUnfinishedChapterOpensActivityAndMenuHasSixChapters() {
+    func testJourneyMenuShowsSceneCardsAndLocksNextStage() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress"]
         app.launch()
         finishOnboarding(in: app)
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
-        let scene = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
-        scene.press(forDuration: 0.05, thenDragTo: scene.withOffset(CGVector(dx: 0, dy: -140)))
-        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
-        XCTAssertFalse(app.buttons["continue"].exists)
-        app.buttons["lesson.back"].tap()
         app.buttons["home.journey"].tap()
+        XCTAssertTrue(app.staticTexts["Perjalanan Ngahuma"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["journey.prologue"].exists)
         XCTAssertTrue(app.buttons["phase_ngahuru"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["phase_ngaseuk"].isEnabled)
         XCTAssertFalse(app.buttons["phase_narawas"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Journey scene cards"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["home.journey.close"].tap()
+        XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
     }
 
     func testPoCPadiPreviewKeepsLearningProgressAndResumes() {
@@ -62,7 +65,7 @@ import XCTest
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
     }
 
-    func testOnboardingSwipesAndPersistsCompletion() {
+    func testOnboardingReturnsOnNextLaunch() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress"]
         app.launch()
@@ -73,8 +76,9 @@ import XCTest
         app.terminate()
         app.launchArguments = ["--uitesting"]
         app.launch()
+        XCTAssertTrue(app.scrollViews["intro.story"].waitForExistence(timeout: 15))
+        finishOnboarding(in: app)
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 15))
-        XCTAssertFalse(app.scrollViews["intro.story"].exists)
     }
 
     private func finishOnboarding(in app: XCUIApplication) {
@@ -82,7 +86,12 @@ import XCTest
         XCTAssertTrue(app.staticTexts["Selamat Datang!"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["intro.continue"].isHittable)
         story.swipeUp()
-        XCTAssertTrue(app.staticTexts["Pikukuh"].isHittable)
+        let pikukuh = app.staticTexts["Pikukuh"]
+        XCTAssertTrue(pikukuh.waitForExistence(timeout: 5))
+        let pikukuhIsHittable = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isHittable == true"), object: pikukuh
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [pikukuhIsHittable], timeout: 5), .completed)
         XCTAssertFalse(app.buttons["intro.continue"].isHittable)
         story.swipeUp()
         XCTAssertTrue(app.buttons["intro.continue"].waitForExistence(timeout: 5))

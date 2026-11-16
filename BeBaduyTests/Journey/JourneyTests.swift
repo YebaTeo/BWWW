@@ -36,4 +36,19 @@ final class JourneyTests: XCTestCase {
         XCTAssertTrue(journey.progress.introductionSeen)
         XCTAssertFalse(journey.progress.journeyCompleted)
     }
+
+    @MainActor func testOnboardingSceneFollowsCurrentStageAndEndsAtGranary() {
+        var progress = JourneyProgress()
+        XCTAssertEqual(GrowthStage.onboardingStage(for: progress).id, 0)
+        for phase in PhaseID.allCases.prefix(2) {
+            progress.complete(phase, outcome: .observed)
+        }
+        progress.currentPhase = .ngored
+        XCTAssertEqual(GrowthStage.onboardingStage(for: progress).id, 2)
+        for phase in PhaseID.allCases.dropFirst(2) {
+            progress.complete(phase, outcome: .observed)
+        }
+        XCTAssertEqual(GrowthStage.onboardingStage(for: progress).id, 6)
+        XCTAssertEqual(GrowthStage.onboardingStage(for: progress).targetProgress, 1)
+    }
 }

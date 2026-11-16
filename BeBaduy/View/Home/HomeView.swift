@@ -5,12 +5,28 @@ struct HomeView: View {
     let motion: MotionService
     @State private var showsLaunchSplash = true
     @State private var loadsFirstPreview = false
+    @State private var showsIntroduction = true
     @State private var showsJourney = false
+    @State private var reopenIntroduction = false
     @State private var pendingTransitionFrom: Int?
     @State private var pendingPhase: PhaseID?
     @State private var model = HomeViewModel()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var introductionProgress: CGFloat {
+        GrowthStage.onboardingStage(for: journey.progress).targetProgress
+    }
+
+    private var shouldShowIntroduction: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--uitesting"), arguments.contains(where: { $0.hasPrefix("--uitest-") }) {
+            return false
+        }
+        #endif
+        return showsIntroduction
+    }
 
     private func finishLoadingPreview() {
         guard showsLaunchSplash || loadsFirstPreview else { return }
@@ -23,7 +39,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $model.path) {
             ZStack {
-                if journey.progress.introductionSeen {
+                if !shouldShowIntroduction {
                     WelcomeHomeView(
                         journey: journey,
                         onFirstFrame: finishLoadingPreview,
@@ -36,31 +52,27 @@ struct HomeView: View {
                     .accessibilityHidden(showsLaunchSplash || loadsFirstPreview)
                     .allowsHitTesting(!showsLaunchSplash && !loadsFirstPreview)
                 } else {
-                    IntroductionView {
+                    IntroductionView(stageProgress: introductionProgress, onFirstFrame: finishLoadingPreview) {
+                        if !journey.progress.introductionSeen {
+                            journey.finishIntroduction()
+                            journey.open(.narawas)
+                        }
+                        showsIntroduction = false
                         loadsFirstPreview = true
                     }
                     .accessibilityHidden(showsLaunchSplash || loadsFirstPreview)
                     .allowsHitTesting(!showsLaunchSplash && !loadsFirstPreview)
-                    .onAppear(perform: finishLoadingPreview)
                 }
                 if showsLaunchSplash {
                     LaunchSplashView().transition(.opacity)
                 } else if loadsFirstPreview {
                     ZStack {
-                        LessonBackdrop(asset: "OnboardingNgahuma")
                         Color.black.opacity(0.35).ignoresSafeArea()
                         LaunchLoadingIndicator()
                             .accessibilityIdentifier("onboarding.loading")
                     }
                     .transition(.opacity)
                 }
-            }
-            .task(id: loadsFirstPreview) {
-                guard loadsFirstPreview, !journey.progress.introductionSeen else { return }
-                // Give the loading view a frame before starting scene construction.
-                do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
-                journey.finishIntroduction()
-                journey.open(.narawas)
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: PhaseID.self) { phase in
@@ -78,35 +90,65 @@ struct HomeView: View {
                 }
                 .id(phase)
             }
-            .sheet(isPresented: $showsJourney, onDismiss: {
+            .fullScreenCover(isPresented: $showsJourney, onDismiss: {
+                if reopenIntroduction {
+                    reopenIntroduction = false
+                    showsIntroduction = true
+                    return
+                }
                 if let phase = pendingPhase {
                     pendingPhase = nil
                     model.open(phase, journey: journey)
                 }
             }) {
                 NavigationStack {
+                ZStack(alignment: .topLeading) {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            JourneyView(journey: journey) { phase in
+                        VStack(alignment: .leading, spacing: 20) {
+                            JourneyView(journey: journey, onPrologue: {
+                                reopenIntroduction = true
+                                showsJourney = false
+                            }) { phase in
                                 pendingPhase = phase
                                 showsJourney = false
                             }
-                            NavigationLink("Tentang BeBaduy", destination: AboutView())
+                            NavigationLink(destination: AboutView()) {
+                            Text("Tentang BeBaduy")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.85))
+                                .frame(maxWidth: .infinity)
                                 .frame(minHeight: 44)
+                            }
                         }
-                        .padding(AppTheme.margin)
-                        .frame(maxWidth: 640)
+                        .padding(.top, 72)
+                        .padding(.bottom, 36)
+                        .frame(maxWidth: 540)
                         .frame(maxWidth: .infinity)
                     }
-                    .background(AppTheme.background)
-                    .navigationTitle("Dari huma ke leuit")
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Tutup") { showsJourney = false }
-                                .accessibilityIdentifier("home.journey.close")
-                        }
+                    .scrollIndicators(.hidden)
+                    Button { showsJourney = false } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 42, height: 42)
+                            .background(.black.opacity(0.3), in: Circle())
+                            .overlay(Circle().strokeBorder(.white.opacity(0.42), lineWidth: 0.7))
                     }
+                    .accessibilityLabel("Kembali")
+                    .accessibilityIdentifier("home.journey.close")
+                    .padding(.leading, 20)
+                    .padding(.top, 8)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    CinematicAtmosphereView(progress: introductionProgress, isActive: false)
+                        .blur(radius: 16)
+                        .overlay(Color(red: 0.20, green: 0.12, blue: 0.08).opacity(0.34))
+                        .ignoresSafeArea()
+                }
+                .toolbar(.hidden, for: .navigationBar)
+                }
+                .preferredColorScheme(.dark)
             }
             .fullScreenCover(isPresented: $model.showsCompletion) {
                 CompletionView(journey: journey) { model.showsCompletion = false }
