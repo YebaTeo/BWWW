@@ -87,36 +87,11 @@ struct WelcomeHomeView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
                 .padding(.bottom, viewport.size.height * 0.09)
-                if scrollCueStart != nil {
-                    VStack(spacing: 0) {
-                        if canScrollUp {
-                            Button {
-                                cancelScrollCue()
-                                preview.swipe(direction: -1, reduceMotion: reduceMotion)
-                            } label: {
-                                Color.clear
-                                    .frame(height: min(70, viewport.size.height * 0.085))
-                                    .frame(maxWidth: .infinity)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Tahap sebelumnya")
-                            .padding(.top, max(44, viewport.safeAreaInsets.top + 8))
-                        }
-                        Spacer(minLength: 0)
-                        if canScrollDown {
-                            Button {
-                                cancelScrollCue()
-                                preview.swipe(direction: 1, reduceMotion: reduceMotion)
-                            } label: {
-                                Color.clear
-                                    .frame(height: min(70, viewport.size.height * 0.085))
-                                    .frame(maxWidth: .infinity)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Tahap berikutnya")
-                            .padding(.bottom, max(4, viewport.safeAreaInsets.bottom))
+                if let scrollCueStart {
+                    TimelineView(.animation(minimumInterval: 1.0 / 15)) { timeline in
+                        let elapsed = timeline.date.timeIntervalSince(scrollCueStart)
+                        if ScrollCueMotion.amount(elapsed: elapsed) > 0.12 {
+                            scrollCueButtons(viewport: viewport)
                         }
                     }
                 }
@@ -196,6 +171,40 @@ struct WelcomeHomeView: View {
                 playPendingStageTransition()
             }
             scheduleScrollCue()
+        }
+    }
+
+    private func scrollCueButtons(viewport: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            if canScrollUp {
+                Button {
+                    cancelScrollCue()
+                    preview.swipe(direction: -1, reduceMotion: reduceMotion)
+                } label: {
+                    Color.clear
+                        .frame(height: min(70, viewport.size.height * 0.085))
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Tahap sebelumnya")
+                .padding(.top, max(44, viewport.safeAreaInsets.top + 8))
+            }
+            Spacer(minLength: 0)
+            if canScrollDown {
+                Button {
+                    cancelScrollCue()
+                    preview.swipe(direction: 1, reduceMotion: reduceMotion)
+                } label: {
+                    Color.clear
+                        .frame(height: min(70, viewport.size.height * 0.085))
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Tahap berikutnya")
+                .padding(.bottom, max(4, viewport.safeAreaInsets.bottom))
+            }
         }
     }
 
@@ -299,9 +308,6 @@ struct WelcomeHomeView: View {
             do { try await Task.sleep(for: .seconds(2)) } catch { return }
             guard !Task.isCancelled, isActive, !preview.isTransitioning else { return }
             scrollCueStart = .now
-            do { try await Task.sleep(for: .seconds(ScrollCueMotion.duration)) } catch { return }
-            guard !Task.isCancelled else { return }
-            scrollCueStart = nil
             scrollCueTask = nil
         }
     }
@@ -319,56 +325,54 @@ private struct LightScrollCue: View {
         TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
             let elapsed = max(0, timeline.date.timeIntervalSince(startDate))
             let cueAmount = ScrollCueMotion.amount(elapsed: elapsed)
+            let pulseScale = reduceMotion ? CGFloat(1) : ScrollCueMotion.scale(elapsed: elapsed)
             ZStack {
                 if showsDown {
                     LightCueField(pointsUp: false)
+                        .scaleEffect(y: pulseScale, anchor: .bottom)
                         .opacity(cueAmount)
                 }
                 if showsUp {
                     LightCueField(pointsUp: true)
+                        .scaleEffect(y: pulseScale, anchor: .top)
                         .opacity(cueAmount)
                 }
 
                 Canvas { context, size in
-                    guard cueAmount > 0 else { return }
+                    guard cueAmount > 0, showsUp else { return }
                     let positionAmount = reduceMotion ? CGFloat(1) : CGFloat(cueAmount)
                     let cueHeight = min(155, size.height * 0.19)
                     let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
 
                     for index in 0..<28 {
-                        // Reuse the rising orbs, then let each one dissolve into the white field.
-                        let pointsUp = showsUp && (!showsDown || index.isMultiple(of: 2))
-                        let slot = showsUp && showsDown ? index / 2 : index
-                        let lastSlot = showsUp && showsDown ? 13 : 27
+                        // Gather rising sky particles into the top scroll cue.
+                        let slot = index
+                        let lastSlot = 27
                         let seed = Double(index)
+                        let t = CGFloat(slot) / CGFloat(lastSlot)
                         let speed = 0.04 + seed.truncatingRemainder(dividingBy: 5) * 0.012
                         let cycle = (time * speed + seed * 0.15).truncatingRemainder(dividingBy: 1)
                         let sourceY = size.height * CGFloat(1 - cycle)
                         let sourceX = size.width * CGFloat((seed * 17).truncatingRemainder(dividingBy: 100) / 100)
                             + CGFloat(sin(time * 0.8 + seed * 2) * 18)
-                        let t = CGFloat(slot) / CGFloat(lastSlot)
-                        let targetX = size.width * (0.015 + 0.97 * t)
+                        let targetX = size.width * (0.25 + 0.50 * t)
                         let curve = sin(t * .pi)
-                        let edgeDistance = cueHeight * (0.94 - 0.82 * curve)
-                        let targetY = (pointsUp ? edgeDistance : size.height - edgeDistance)
-                            + CGFloat((index * 11) % 7 - 3) * 1.3
+                        let edgeDistance = cueHeight * (0.78 - 0.34 * curve)
+                        let targetY = edgeDistance + CGFloat((index * 11) % 7 - 3) * 1.3
                         let x = sourceX + (targetX - sourceX) * positionAmount
                         let y = sourceY + (targetY - sourceY) * positionAmount
                         let blend = cueAmount * (1 - Double(positionAmount))
                         let coreRadius = 1.2 + CGFloat(index % 3) * 0.8
                         let haloRadius = coreRadius * (3.2 + positionAmount * 3.0)
-                        let haloColor = pointsUp
-                            ? Color(red: 1, green: 0.86, blue: 0.52)
-                            : Color.white
-                        let coreColor = pointsUp
-                            ? Color(red: 1, green: 0.96, blue: 0.76)
-                            : Color.white
+                        let yellowMix = Double(positionAmount)
+                        let haloColor = Color(red: 1.0, green: 1.0 - 0.14 * yellowMix, blue: 1.0 - 0.58 * yellowMix)
+                        let coreColor = Color(red: 1.0, green: 1.0 - 0.08 * yellowMix, blue: 1.0 - 0.42 * yellowMix)
 
                         context.fill(
                             Path(ellipseIn: CGRect(x: x - haloRadius, y: y - haloRadius,
                                                    width: haloRadius * 2, height: haloRadius * 2)),
                             with: .radialGradient(
-                                Gradient(colors: [haloColor.opacity(blend * 0.26), .clear]),
+                                Gradient(colors: [haloColor.opacity(blend * 0.38), .clear]),
                                 center: CGPoint(x: x, y: y),
                                 startRadius: 0,
                                 endRadius: haloRadius
@@ -377,11 +381,10 @@ private struct LightScrollCue: View {
                         context.fill(
                             Path(ellipseIn: CGRect(x: x - coreRadius, y: y - coreRadius,
                                                    width: coreRadius * 2, height: coreRadius * 2)),
-                            with: .color(coreColor.opacity(blend * 0.52))
+                            with: .color(coreColor.opacity(blend * 0.72))
                         )
                     }
                 }
-                .blendMode(.screen)
             }
         }
     }
@@ -391,46 +394,100 @@ private struct LightCueField: View {
     let pointsUp: Bool
 
     var body: some View {
-        let light = pointsUp ? Color(red: 1, green: 0.88, blue: 0.56) : Color.white
-        let strength = pointsUp ? 1.55 : 1.0
+        let light = pointsUp ? Color(red: 1, green: 0.88, blue: 0.56) : Color(red: 0.62, green: 0.44, blue: 0.27)
+        let strength = 1.45
+        let verticalStops: [Gradient.Stop] = pointsUp
+            ? [
+                .init(color: .clear, location: 0.78),
+                .init(color: light.opacity(0.24 * strength), location: 0.84),
+                .init(color: light.opacity(0.38 * strength), location: 0.88),
+                .init(color: light.opacity(0.22 * strength), location: 0.915),
+                .init(color: .clear, location: 0.942)
+            ]
+            : [
+                .init(color: .clear, location: 0.80),
+                .init(color: light.opacity(0.24 * strength), location: 0.87),
+                .init(color: light.opacity(0.38 * strength), location: 0.91),
+                .init(color: light.opacity(0.22 * strength), location: 0.945),
+                .init(color: .clear, location: 0.972)
+            ]
         LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: light.opacity(0.025 * strength), location: 0.38),
-                .init(color: light.opacity(0.08 * strength), location: 0.62),
-                .init(color: light.opacity(0.17 * strength), location: 0.82),
-                .init(color: light.opacity(0.26 * strength), location: 1)
-            ],
+            stops: verticalStops,
             startPoint: .top,
             endPoint: .bottom
         )
         .mask {
-            LightBowlShape()
-                .fill(.white)
-                .blur(radius: 30)
+            ZStack {
+                LightBowlShape(pointsUp: pointsUp)
+                    .fill(.white)
+                    .blur(radius: 10)
+                LightChevronGap(pointsUp: pointsUp)
+                    .stroke(.white, style: StrokeStyle(lineWidth: 14, lineCap: .round, lineJoin: .round))
+                    .blur(radius: 5)
+                    .opacity(0.78)
+                    .offset(y: pointsUp ? -2 : 2)
+                    .blendMode(.destinationOut)
+            }
+            .compositingGroup()
         }
+        .mask {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.22),
+                    .init(color: .white.opacity(0.25), location: 0.29),
+                    .init(color: .white.opacity(0.72), location: 0.36),
+                    .init(color: .white, location: 0.44),
+                    .init(color: .white, location: 0.56),
+                    .init(color: .white.opacity(0.72), location: 0.64),
+                    .init(color: .white.opacity(0.25), location: 0.71),
+                    .init(color: .clear, location: 0.78)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+        .opacity(0.92)
         .scaleEffect(y: pointsUp ? -1 : 1)
     }
 }
 
+/// A transparent cut through the centered light field, revealing the landscape beneath.
+private struct LightChevronGap: Shape {
+    let pointsUp: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let halfSpan = min(105, rect.width * 0.25)
+        let leftX = rect.midX - halfSpan
+        let rightX = rect.midX + halfSpan
+        let edgeY = rect.height * (pointsUp ? 0.848 : 0.888)
+        let centerY = edgeY + rect.height * 0.044
+        path.move(to: CGPoint(x: leftX, y: edgeY))
+        path.addLine(to: CGPoint(x: rect.midX, y: centerY))
+        path.addLine(to: CGPoint(x: rightX, y: edgeY))
+        return path
+    }
+}
+
 private struct LightBowlShape: Shape {
+    let pointsUp: Bool
+
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let width = rect.width
         let height = rect.height
-        path.move(to: CGPoint(x: -40, y: height * 0.79))
-        path.addCurve(
-            to: CGPoint(x: width * 0.5, y: height * 0.93),
-            control1: CGPoint(x: width * 0.18, y: height * 0.90),
-            control2: CGPoint(x: width * 0.36, y: height * 0.94)
-        )
-        path.addCurve(
-            to: CGPoint(x: width + 40, y: height * 0.79),
-            control1: CGPoint(x: width * 0.64, y: height * 0.94),
-            control2: CGPoint(x: width * 0.82, y: height * 0.90)
-        )
-        path.addLine(to: CGPoint(x: width + 40, y: height + 40))
-        path.addLine(to: CGPoint(x: -40, y: height + 40))
+        let halfSpan = min(105, width * 0.25)
+        let leftX = rect.midX - halfSpan
+        let rightX = rect.midX + halfSpan
+        let edgeY = height * (pointsUp ? 0.815 : 0.855)
+        let centerY = edgeY + height * 0.044
+        let bandHeight = height * 0.064
+        path.move(to: CGPoint(x: leftX, y: edgeY))
+        path.addLine(to: CGPoint(x: rect.midX, y: centerY))
+        path.addLine(to: CGPoint(x: rightX, y: edgeY))
+        path.addLine(to: CGPoint(x: rightX, y: edgeY + bandHeight))
+        path.addLine(to: CGPoint(x: rect.midX, y: centerY + bandHeight))
+        path.addLine(to: CGPoint(x: leftX, y: edgeY + bandHeight))
         path.closeSubpath()
         return path
     }

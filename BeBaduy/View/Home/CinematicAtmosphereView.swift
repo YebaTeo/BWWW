@@ -21,7 +21,7 @@ struct CinematicAtmosphereView: View {
 
     private var daylight: CGFloat {
         // Ngored (.666) begins in morning. During the Ngored → Mipit
-        // transition the light completes two day/night cycles, beginning and
+        // transition the light completes five day/night cycles, beginning and
         // ending in daylight on Mipit.
         return CGFloat((1 - cos(orbitPhase)) / 2)
     }
@@ -103,7 +103,8 @@ struct CinematicAtmosphereView: View {
                     .position(moon)
                     .opacity(moonVisibility)
 
-                let panEase = HomeConclusionPan.amount(progress: progress)
+                let panT = min(1.0, max(0.0, (progress - 0.932) / (0.985 - 0.932)))
+                let panEase = CGFloat(panT * panT * (3.0 - 2.0 * panT))
                 let panOffset = panEase * -110.0
 
                 if imageAvailable {
@@ -122,6 +123,7 @@ struct CinematicAtmosphereView: View {
                         let cueAmount = scrollCueStart.map {
                             ScrollCueMotion.amount(elapsed: timeline.date.timeIntervalSince($0))
                         } ?? 0
+                        let horizonY = canvasSize.height * 0.52
                         for i in 0..<28 {
                             let seed = Double(i)
                             let speed = 0.04 + (seed.truncatingRemainder(dividingBy: 5)) * 0.012
@@ -131,9 +133,26 @@ struct CinematicAtmosphereView: View {
                             let radius = 1.2 + CGFloat(i % 3) * 0.8
                             let opacity = sin(cycle * .pi) * (0.65 - 0.42 * night)
                             context.opacity = opacity * pow(1 - cueAmount, 2)
+                            let particleColor: Color
+                            if y < horizonY {
+                                let skyT = Double(min(1, max(0, (horizonY - y) / horizonY)))
+                                let yellowMix = min(1, skyT * 0.65 + cueAmount * 0.55)
+                                particleColor = Color(
+                                    red: 1.0,
+                                    green: 1.0 - 0.15 * yellowMix,
+                                    blue: 0.98 - 0.60 * yellowMix
+                                )
+                            } else {
+                                let soilTone = Double(i % 3) * 0.05
+                                particleColor = Color(
+                                    red: 0.55 + soilTone,
+                                    green: 0.37 + soilTone * 0.7,
+                                    blue: 0.21 + soilTone * 0.5
+                                )
+                            }
                             context.fill(
                                 Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
-                                with: .color(Color(red: 1, green: 0.90, blue: 0.65))
+                                with: .color(particleColor)
                             )
                         }
                     }
@@ -273,14 +292,22 @@ struct CinematicAtmosphereView: View {
 }
 
 enum ScrollCueMotion {
-    static let duration = 3.4
+    static let visibleDuration = 4.8
+    static let cycleDuration = 7.2
 
     static func amount(elapsed: TimeInterval) -> Double {
-        let arrival = min(1, max(0, elapsed / 1.2))
-        let departure = min(1, max(0, (elapsed - 2.2) / 1.2))
+        let phase = max(0, elapsed).truncatingRemainder(dividingBy: cycleDuration)
+        guard phase < visibleDuration else { return 0 }
+        let arrival = min(1, phase / 0.65)
+        let departure = min(1, max(0, (phase - 4.1) / 0.7))
         let gathered = arrival * arrival * (3 - 2 * arrival)
         let released = departure * departure * (3 - 2 * departure)
         return gathered * (1 - released)
+    }
+
+    static func scale(elapsed: TimeInterval) -> CGFloat {
+        let phase = max(0, elapsed).truncatingRemainder(dividingBy: cycleDuration)
+        return CGFloat(1 + 0.045 * sin(phase * .pi * 2 / 1.65))
     }
 }
 
