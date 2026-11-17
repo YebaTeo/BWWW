@@ -225,6 +225,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         guard displayLink == nil else { return }
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
+        // Match the scene cadence; avoid extra CPU updates on ProMotion displays.
+        link.preferredFramesPerSecond = 60
         link.add(to: .main, forMode: .common)
         link.isPaused = suspended
         displayLink = link
@@ -2419,6 +2421,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         lastFrameTimestamp = 0
         displayLink?.isPaused = value
         view?.isPlaying = !value
+        view?.rendersContinuously = !value
         updateWindState()
         if value {
             clearGolokSwing()
@@ -2439,6 +2442,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         if let tap { view?.removeGestureRecognizer(tap) }
         tap = nil
         view?.isPlaying = false
+        view?.rendersContinuously = false
         view = nil
     }
 

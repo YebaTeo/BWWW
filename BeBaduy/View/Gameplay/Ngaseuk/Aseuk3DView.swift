@@ -207,6 +207,8 @@ struct Aseuk3DView: UIViewRepresentable {
             stopDisplayLink()
             lastTime = CACurrentMediaTime()
             let link = CADisplayLink(target: self, selector: #selector(onFrame(_:)))
+            // Match the scene cadence; avoid extra CPU updates on ProMotion displays.
+            link.preferredFramesPerSecond = 60
             link.add(to: .main, forMode: .common)
             self.displayLink = link
         }

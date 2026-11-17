@@ -171,6 +171,7 @@ final class HomeSceneRenderer: NSObject {
     func setActive(_ active: Bool, in view: SCNView, reduceMotion: Bool) {
         displayLink?.isPaused = !active
         view.isPlaying = active
+        view.rendersContinuously = active
         isWindEnabled = active && !reduceMotion
     }
 
@@ -222,6 +223,8 @@ final class HomeSceneRenderer: NSObject {
         buildScene()
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
+        // Match the scene cadence; avoid extra CPU updates on ProMotion displays.
+        link.preferredFramesPerSecond = 60
         link.add(to: .main, forMode: .common)
         displayLink = link
     }
