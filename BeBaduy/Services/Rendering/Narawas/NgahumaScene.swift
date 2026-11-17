@@ -1105,6 +1105,25 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    func projectedTreeChopPoint(at index: Int) -> CGPoint? {
+        guard let view, treeEntries.indices.contains(index) else { return nil }
+        let entry = treeEntries[index]
+        let localCut = SCNVector3(entry.worldBasePosition.x, soilY + entry.pivotOrigin.y + 0.08, entry.worldBasePosition.z)
+        let world = worldRoot.convertPosition(localCut, to: nil)
+        let camPos = simd_make_float3(cameraNode.simdWorldTransform.columns.3)
+        let camForward = -simd_make_float3(cameraNode.simdWorldTransform.columns.2)
+        let worldPos = simd_make_float3(Float(world.x), Float(world.y), Float(world.z))
+        let toNode = worldPos - camPos
+        guard simd_length(toNode) > 0.001 else { return nil }
+        guard simd_dot(simd_normalize(camForward), simd_normalize(toNode)) > 0.25 else { return nil }
+        let projected = view.projectPoint(world)
+        guard projected.z > 0.0 && projected.z < 1.0 else { return nil }
+        let x = CGFloat(projected.x)
+        let y = CGFloat(projected.y)
+        guard x >= 0, x <= view.bounds.width, y >= 0, y <= view.bounds.height else { return nil }
+        return CGPoint(x: x, y: y)
+    }
+
     func projectedNgoredWeedPoints(height: Float = 0.08) -> [CGPoint] {
         guard let view else { return [] }
         let camPos = simd_make_float3(cameraNode.simdWorldTransform.columns.3)
@@ -1801,7 +1820,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func animateChop(_ index: Int, tapCount: Int, requiredTaps: Int) {
-        playGolokSwing(at: index)
         let chopFraction = Float(tapCount) / Float(max(1, requiredTaps))
         treeChopProgress[index] = chopFraction
         treeChopStartTimes[index] = CACurrentMediaTime()
@@ -1819,7 +1837,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func animateCut(_ index: Int) {
-        playGolokSwing(at: index)
         treeChopProgress[index] = 1.0
         feedback.impactOccurred(intensity: 0.85)
         treeCutStartTimes[index] = CACurrentMediaTime()

@@ -9,6 +9,8 @@ import Foundation
     var session = PhaseSessionState()
     private(set) var collected: Set<Int> = []
     private(set) var treeTapCounts: [Int: Int] = [:]
+    private(set) var struckTree: Int?
+    private(set) var swingCount = 0
     private(set) var isDemonstrating = false
     let scene = NgahumaScene()
     @ObservationIgnored private var demoTask: Task<Void, Never>?
@@ -44,6 +46,7 @@ import Foundation
         stage = .entering
         collected.removeAll()
         treeTapCounts.removeAll()
+        struckTree = nil
         ignited.removeAll()
         usedDemo = false
         session.start()
@@ -57,9 +60,15 @@ import Foundation
         cutTree(index)
     }
 
+    func clearStruckTree() {
+        struckTree = nil
+    }
+
     private func cutTree(_ index: Int) {
         guard session.isActive, stage == .clearing, (0..<NarawasViewModel.treeCount).contains(index),
               !collected.contains(index) else { return }
+        struckTree = index
+        swingCount += 1
         let tapCount = (treeTapCounts[index] ?? 0) + 1
         treeTapCounts[index] = tapCount
         ActivityAudio.shared.play(.cut)

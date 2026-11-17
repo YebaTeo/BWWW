@@ -27,6 +27,16 @@ struct NarawasView: View {
                 .ignoresSafeArea()
                 .allowsHitTesting(message == nil && model.session.isActive)
                 .accessibilityIdentifier("narawas.field")
+            if let struckTree = model.struckTree, !reduceMotion {
+                TimelineView(.animation(minimumInterval: 1.0 / 60, paused: scenePhase != .active)) { _ in
+                    if let target = model.scene.projectedTreeChopPoint(at: struckTree) {
+                        Golok3DView(swingCount: model.swingCount)
+                            .frame(width: 300, height: 300)
+                            .position(x: target.x, y: target.y - 24)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
             if isLoading || model.scene.assetError != nil {
                 LessonBackdrop(asset: "LaunchLandscape")
                     .allowsHitTesting(false)
@@ -151,6 +161,11 @@ struct NarawasView: View {
         .onChange(of: message) { _, value in model.setHelpVisible(value != nil) }
         .onChange(of: reduceMotion) { _, value in model.configureLookMotion(reduceMotion: value) }
         .onChange(of: scenePhase) { _, value in model.setVisible(value == .active && message != .explanation) }
+        .task(id: model.swingCount) {
+            guard model.struckTree != nil else { return }
+            do { try await Task.sleep(for: .milliseconds(550)) } catch { return }
+            model.clearStruckTree()
+        }
         .onDisappear { model.setVisible(false); ActivityAudio.shared.stop() }
     }
 
