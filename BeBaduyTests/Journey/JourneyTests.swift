@@ -51,4 +51,53 @@ final class JourneyTests: XCTestCase {
         XCTAssertEqual(GrowthStage.onboardingStage(for: progress).id, 6)
         XCTAssertEqual(GrowthStage.onboardingStage(for: progress).targetProgress, 1)
     }
+
+    @MainActor func testHomeUsesSavedCompletionAndRejectsLockedRoutes() {
+        let store = MemoryStore()
+        let journey = JourneyViewModel(store: store)
+        let home = HomeViewModel()
+        let preview = HomePreviewViewModel()
+
+        home.open(.ngored, journey: journey)
+        XCTAssertTrue(home.path.isEmpty)
+        XCTAssertEqual(store.writes, 0)
+        XCTAssertEqual(journey.completedCount, 0)
+        preview.swipe(direction: 1, journey: journey.progress, reduceMotion: false)
+        XCTAssertEqual(preview.selectedStage, 0)
+        XCTAssertFalse(preview.isTransitioning)
+
+        journey.record(.narawas, outcome: .performed)
+        journey.record(.ngaseuk, outcome: .observed)
+        preview.swipe(direction: 1, journey: journey.progress, reduceMotion: false)
+        XCTAssertTrue(preview.isTransitioning)
+        preview.swipe(direction: 1, journey: journey.progress, reduceMotion: false)
+        XCTAssertEqual(preview.selectedStage, 1)
+        preview.stop()
+        preview.swipe(direction: -1, journey: journey.progress, reduceMotion: true)
+        XCTAssertEqual(preview.selectedStage, 0)
+
+        home.open(.narawas, journey: journey)
+        XCTAssertEqual(home.path, [.narawas])
+        let restored = JourneyViewModel(store: store).progress
+        XCTAssertTrue(restored.record(for: .narawas).performed)
+        preview.swipe(direction: 1, journey: restored, reduceMotion: true)
+        preview.swipe(direction: 1, journey: restored, reduceMotion: true)
+        preview.swipe(direction: 1, journey: restored, reduceMotion: true)
+        XCTAssertEqual(preview.selectedStage, PhaseID.ngored.index)
+    }
+
+    @MainActor func testHomeSummaryRequiresLeuitCompletion() {
+        var progress = JourneyProgress()
+        for phase in PhaseID.allCases.dropLast() { progress.complete(phase, outcome: .observed) }
+        let preview = HomePreviewViewModel()
+        preview.selectStage(PhaseID.ngaleuitkeunPare.index, journey: progress, reduceMotion: true)
+        preview.swipe(direction: 1, journey: progress, reduceMotion: true)
+        XCTAssertEqual(preview.selectedStage, PhaseID.ngaleuitkeunPare.index)
+        XCTAssertFalse(preview.canMove(direction: 1, journey: progress))
+
+        progress.complete(.ngaleuitkeunPare, outcome: .performed)
+        preview.swipe(direction: 1, journey: progress, reduceMotion: true)
+        XCTAssertTrue(GrowthStage.allStages[preview.selectedStage].isConclusion)
+        XCTAssertTrue(preview.canMove(direction: -1, journey: progress))
+    }
 }

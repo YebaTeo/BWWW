@@ -5,6 +5,7 @@ import SwiftUI
 /// Owns the Home SceneKit graph, frame loop, materials, and visual effects.
 @MainActor
 final class HomeSceneRenderer: NSObject {
+    var showsTreeFallEffects = true
     var showsRice = true { didSet { if oldValue != showsRice { needsApply = true } } }
     var showsRackPosts = true { didSet { if oldValue != showsRackPosts { needsApply = true } } }
     var rackBalance = 0.0 { didSet { if oldValue != rackBalance { needsApply = true } } }
@@ -3267,7 +3268,7 @@ final class HomeSceneRenderer: NSObject {
             fracturePairs[index].falling.opacity = CGFloat(fractureReveal)
             if fallT >= 0.22 && !crackedTrees.contains(index) {
                 crackedTrees.insert(index)
-                if isWindEnabled { emitCutSplinters(at: entry.origin) }
+                if isWindEnabled && showsTreeFallEffects { emitCutSplinters(at: entry.origin) }
             } else if fallT < 0.12 {
                 crackedTrees.remove(index)
             }
@@ -3319,7 +3320,7 @@ final class HomeSceneRenderer: NSObject {
                 .geometry?.materials.last?.transparency = 0
             if fallT >= contactTime && !impactedTrees.contains(index) {
                 impactedTrees.insert(index)
-                if isWindEnabled {
+                if isWindEnabled && showsTreeFallEffects {
                     emitDust(at: entry.origin)
                     emitTreeDebris(at: entry.origin, phase: Float(index) * 0.73)
                 }

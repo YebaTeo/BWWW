@@ -20,49 +20,85 @@ import XCTest
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
     }
 
-    func testPoCPadiPreviewKeepsLearningProgressAndResumes() {
+    func testHomeBlocksForwardSwipesBeforeCompletingNarawas() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress"]
         app.launch()
         finishOnboarding(in: app)
-
-        XCTAssertTrue(app.buttons["home.stage.0"].waitForExistence(timeout: 15))
-        for (index, title) in ["NARAWAS", "NGASEUK", "NGORED", "MIPIT", "NGALANTAI", "NGALEUITKEUN"].enumerated() {
-            app.buttons["home.stage.\(index)"].tap()
-            waitForPreviewTitle(title, in: app)
-            if index == 3 {
-                XCTAssertTrue(app.buttons["home.preview.finish"].isHittable)
-                XCTAssertTrue(app.buttons["resume"].isHittable)
-                app.buttons["home.preview.finish"].tap()
-                XCTAssertFalse(app.buttons["home.preview.finish"].exists)
-            }
-        }
-        XCTAssertTrue(app.buttons["resume"].isHittable)
-        XCTAssertTrue(app.buttons["home.menu"].isHittable)
-        app.buttons["resume"].tap()
-        XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
-        app.buttons["lesson.back"].tap()
-        app.buttons["home.stage.5"].tap()
-        XCTAssertTrue(app.buttons["home.preview.finish"].waitForNonExistence(timeout: 8))
-        let preview = XCTAttachment(screenshot: app.screenshot())
-        preview.name = "Leuit-granary"
-        preview.lifetime = .keepAlways
-        add(preview)
-        XCTAssertEqual(app.staticTexts["home.progress"].label, "0 dari 6 tahap telah dijelajahi")
-        app.buttons["home.preview.next"].tap()
         waitForPreviewTitle("NARAWAS", in: app)
-        app.buttons["resume"].tap()
+        app.swipeUp()
+        app.swipeUp()
+        waitForPreviewTitle("NARAWAS", in: app)
+        XCTAssertFalse(app.buttons["home.stage.next"].exists)
+        let startLabel = app.staticTexts["Ikut Narawas"]
+        XCTAssertTrue(startLabel.exists)
+        startLabel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
     }
 
-    func testSelectedUnlockedChapterOpensInsteadOfSavedChapter() {
+    func testHomeBrowsesUnlockedStagesAndStopsAtUnfinishedNgored() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngored"]
         app.launch()
-        app.buttons["home.stage.1"].tap()
-        XCTAssertTrue(app.buttons["resume"].isHittable)
+        waitForPreviewTitle("NGORED", in: app)
+        XCTAssertFalse(app.buttons["home.stage.next"].exists)
+        app.swipeDown()
+        waitForPreviewTitle("NGASEUK", in: app)
+        app.buttons["home.stage.next"].tap()
+        waitForPreviewTitle("NGORED", in: app)
+        app.swipeUp()
+        waitForPreviewTitle("NGORED", in: app)
+        XCTAssertFalse(app.buttons["home.stage.next"].exists)
         app.buttons["resume"].tap()
-        XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 15))
+    }
+
+    func testEquipmentCardsOpenAndFlipRepeatedly() {
+        for (phase, title) in [("ngaseuk", "Aseuk"), ("ngored", "Kored"), ("mipit", "Etem")] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-\(phase)"]
+            if phase == "mipit" {
+                app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+            }
+            app.launch()
+            let resume = app.buttons["resume"]
+            XCTAssertTrue(resume.waitForExistence(timeout: 30))
+            resume.tap()
+            let reveal = app.buttons["lesson.equipment.reveal"]
+            let begin = app.buttons["lesson.begin"]
+            XCTAssertTrue(reveal.waitForExistence(timeout: 30))
+            captureEquipment("\(title)-closed", in: app)
+            XCTAssertFalse(begin.exists)
+            reveal.tap()
+            XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5))
+            captureEquipment("\(title)-open", in: app)
+            XCTAssertTrue(begin.exists)
+            app.staticTexts[title].tap()
+            XCTAssertTrue(reveal.waitForExistence(timeout: 5))
+            XCTAssertFalse(begin.exists)
+            reveal.tap()
+            XCTAssertTrue(begin.waitForExistence(timeout: 5))
+            for _ in 0..<3 where !begin.isHittable { app.swipeUp() }
+            begin.tap()
+            XCTAssertTrue(app.buttons["lesson.back"].waitForExistence(timeout: 10))
+            XCTAssertFalse(reveal.exists)
+            app.terminate()
+            app.launchArguments.removeAll { $0 == "--reset-progress" }
+            app.launchArguments.insert("--uitest-explanations", at: 0)
+            app.launch()
+            XCTAssertTrue(resume.waitForExistence(timeout: 30))
+            resume.tap()
+            XCTAssertTrue(reveal.waitForExistence(timeout: 15))
+            XCTAssertFalse(begin.exists)
+            app.terminate()
+        }
+    }
+
+    private func captureEquipment(_ name: String, in app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testOnboardingReturnsOnNextLaunch() {

@@ -45,6 +45,9 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         flow.screen == .result || flow.screen == .explanation ||
         (flow.screen == .activity && session.outcome != nil)
     }
+    private var isPresentingEquipment: Bool {
+        equipment != nil && (flow.screen == .introduction || flow.screen == .equipment)
+    }
     private var targetProgress: CGFloat {
         if flow.screen == .activity, let activityProgress { return activityProgress }
         return content.id.progress(isResult: isResult)
@@ -57,6 +60,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     .accessibilityHidden(true)
                 SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active,
                                  showsRice: content.id != .mipit || flow.screen != .activity,
+                                 showsTreeFallEffects: !isPresentingEquipment,
                                  mipitHarvested: mipitHarvested,
                                  showsRackPosts: showsRackPosts || flow.screen != .activity,
                                  rackBalance: rackBalance,
