@@ -127,6 +127,13 @@ private struct StageCardScene: View {
     let phase: PhaseID
     let thumbnail: UIImage?
 
+    private static let backdrop: UIImage? = {
+        let renderer = ImageRenderer(content: CinematicAtmosphereView(progress: 0.75, isActive: false)
+            .frame(width: 360, height: 116))
+        renderer.scale = 2
+        return renderer.uiImage
+    }()
+
     private var scale: CGFloat {
         switch phase {
         case .narawas: 1.25
@@ -139,7 +146,10 @@ private struct StageCardScene: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                CinematicAtmosphereView(progress: progress, isActive: false)
+                if let backdrop = Self.backdrop {
+                    Image(uiImage: backdrop).resizable().scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                }
                 if let thumbnail {
                     Image(uiImage: thumbnail)
                         .resizable()

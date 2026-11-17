@@ -4585,7 +4585,20 @@ final class StageThumbnailStore {
         guard thumbnails.count < PhaseID.allCases.count, loadTask == nil else { return }
         loadTask = Task { @MainActor in
             defer { self.loadTask = nil }
-            guard let device = MTLCreateSystemDefaultDevice() else { return }
+            // Reuse SceneKit output across launches; version the cache with the app build.
+            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+            let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("JourneyThumbnails-v1-\(version)-\(build)", isDirectory: true)
+            for phase in PhaseID.allCases {
+                let url = directory.appendingPathComponent("\(phase.rawValue).png")
+                let data = await Task.detached(priority: .utility) { try? Data(contentsOf: url) }.value
+                if let data, let image = UIImage(data: data) { thumbnails[phase] = image }
+            }
+            guard thumbnails.count < PhaseID.allCases.count else { return }
+            // Let the presentation settle before constructing the offscreen scene.
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled, let device = MTLCreateSystemDefaultDevice() else { return }
             let sceneRenderer = HomeSceneRenderer()
             let offscreen = sceneRenderer.makeOffscreenRenderer(device: device)
             let snapshotSize = CGSize(width: 700, height: 340)
@@ -4599,7 +4612,14 @@ final class StageThumbnailStore {
                     with: offscreen,
                     size: snapshotSize
                 )
-                await Task.yield()
+                if let data = thumbnails[phase]?.pngData() {
+                    let url = directory.appendingPathComponent("\(phase.rawValue).png")
+                    await Task.detached(priority: .utility) {
+                        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                        try? data.write(to: url, options: .atomic)
+                    }.value
+                }
+                try? await Task.sleep(for: .milliseconds(80))
             }
         }
     }
