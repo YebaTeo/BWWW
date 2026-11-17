@@ -85,13 +85,8 @@ struct JourneyView: View {
     }
 
     private func phaseCard(_ phase: PhaseContent, unlocked: Bool) -> some View {
-        let stage = GrowthStage.allStages[phase.id.index]
         return ZStack(alignment: .leading) {
-            StageCardScene(
-                progress: stage.targetProgress,
-                phase: phase.id,
-                thumbnail: thumbnailStore.thumbnails[phase.id]
-            )
+            StageCardScene(thumbnail: thumbnailStore.thumbnails[phase.id])
             LinearGradient(
                 stops: [
                     .init(color: Color(red: 0.15, green: 0.09, blue: 0.06).opacity(0.96), location: 0),
@@ -123,45 +118,20 @@ struct JourneyView: View {
 }
 
 private struct StageCardScene: View {
-    let progress: CGFloat
-    let phase: PhaseID
     let thumbnail: UIImage?
 
-    private static let backdrop: UIImage? = {
-        let renderer = ImageRenderer(content: CinematicAtmosphereView(progress: 0.75, isActive: false)
-            .frame(width: 360, height: 116))
-        renderer.scale = 2
-        return renderer.uiImage
-    }()
-
-    private var scale: CGFloat {
-        switch phase {
-        case .narawas: 1.25
-        case .ngaseuk, .ngored: 2.0
-        case .mipit: 1.6
-        case .ngalantai, .ngaleuitkeunPare: 1.25
-        }
-    }
-
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                if let backdrop = Self.backdrop {
-                    Image(uiImage: backdrop).resizable().scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                }
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: geometry.size.width * scale, height: geometry.size.height * scale)
-                        .offset(x: geometry.size.width * 0.28)
-                        .transition(.opacity)
-                }
+        ZStack {
+            Color(red: 0.22, green: 0.14, blue: 0.09)
+            if let thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .scaledToFill()
+                    .transition(.opacity)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipped()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

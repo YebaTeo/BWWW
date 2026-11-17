@@ -4598,25 +4598,48 @@ final class StageThumbnailStore {
 
     private(set) var thumbnails: [PhaseID: UIImage] = [:]
     private var loadTask: Task<Void, Never>?
+    private var preloadTask: Task<Void, Never>?
 
-    func ensureLoaded() {
+    func preloadAfterLaunch() {
+        guard thumbnails.count < PhaseID.allCases.count, loadTask == nil, preloadTask == nil else { return }
+        preloadTask = Task { @MainActor in
+            defer { self.preloadTask = nil }
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            ensureLoaded(delayMilliseconds: 0)
+        }
+    }
+
+    func ensureLoaded(delayMilliseconds: Int = 300) {
+        preloadTask?.cancel()
+        preloadTask = nil
         guard thumbnails.count < PhaseID.allCases.count, loadTask == nil else { return }
         loadTask = Task { @MainActor in
             defer { self.loadTask = nil }
-            // Reuse SceneKit output across launches; version the cache with the app build.
+            // Reuse composited card output across launches; version the cache with the app build.
             let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
             let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("JourneyThumbnails-v1-\(version)-\(build)", isDirectory: true)
+                .appendingPathComponent("JourneyThumbnails-v2-\(version)-\(build)", isDirectory: true)
             for phase in PhaseID.allCases {
-                let url = directory.appendingPathComponent("\(phase.rawValue).png")
+                let url = directory.appendingPathComponent("\(phase.rawValue).jpg")
                 let data = await Task.detached(priority: .utility) { try? Data(contentsOf: url) }.value
                 if let data, let image = UIImage(data: data) { thumbnails[phase] = image }
             }
             guard thumbnails.count < PhaseID.allCases.count else { return }
-            // Let the presentation settle before constructing the offscreen scene.
-            try? await Task.sleep(for: .milliseconds(300))
+            if delayMilliseconds > 0 {
+                // Let the presentation settle before constructing the offscreen scene.
+                try? await Task.sleep(for: .milliseconds(delayMilliseconds))
+            }
             guard !Task.isCancelled, let device = MTLCreateSystemDefaultDevice() else { return }
+            let cardSize = CGSize(width: 360, height: 116)
+            let backdropRenderer = ImageRenderer(
+                content: CinematicAtmosphereView(progress: 0.75, isActive: false)
+                    .frame(width: cardSize.width, height: cardSize.height)
+            )
+            backdropRenderer.scale = 2
+            let backdrop = backdropRenderer.uiImage
+
             let sceneRenderer = HomeSceneRenderer()
             let offscreen = sceneRenderer.makeOffscreenRenderer(device: device)
             let snapshotSize = CGSize(width: 700, height: 340)
@@ -4625,20 +4648,59 @@ final class StageThumbnailStore {
                 if Task.isCancelled { break }
                 if thumbnails[phase] != nil { continue }
                 let progress = GrowthStage.allStages[phase.index].targetProgress
-                thumbnails[phase] = sceneRenderer.renderSnapshot(
+                let snapshot = sceneRenderer.renderSnapshot(
                     progress: progress,
                     with: offscreen,
                     size: snapshotSize
                 )
-                if let data = thumbnails[phase]?.pngData() {
-                    let url = directory.appendingPathComponent("\(phase.rawValue).png")
+                let composited = compositeCardImage(
+                    phase: phase,
+                    backdrop: backdrop,
+                    snapshot: snapshot,
+                    cardSize: cardSize
+                )
+                thumbnails[phase] = composited
+                if let data = composited.jpegData(compressionQuality: 0.90) {
+                    let url = directory.appendingPathComponent("\(phase.rawValue).jpg")
                     await Task.detached(priority: .utility) {
                         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                         try? data.write(to: url, options: .atomic)
                     }.value
                 }
-                try? await Task.sleep(for: .milliseconds(80))
+                try? await Task.sleep(for: .milliseconds(60))
             }
+        }
+    }
+
+    private func compositeCardImage(
+        phase: PhaseID,
+        backdrop: UIImage?,
+        snapshot: UIImage,
+        cardSize: CGSize
+    ) -> UIImage {
+        let scale: CGFloat = switch phase {
+        case .narawas: 1.25
+        case .ngaseuk, .ngored: 2.0
+        case .mipit: 1.6
+        case .ngalantai, .ngaleuitkeunPare: 1.25
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: cardSize, format: format).image { _ in
+            if let backdrop {
+                backdrop.draw(in: CGRect(origin: .zero, size: cardSize))
+            }
+            let targetWidth = cardSize.width * scale
+            let snapshotAspect = snapshot.size.width / max(1, snapshot.size.height)
+            let scaledHeight = targetWidth / snapshotAspect
+            let drawRect = CGRect(
+                x: cardSize.width * 0.78 - targetWidth * 0.5,
+                y: cardSize.height * 0.5 - scaledHeight * 0.5,
+                width: targetWidth,
+                height: scaledHeight
+            )
+            snapshot.draw(in: drawRect)
         }
     }
 }

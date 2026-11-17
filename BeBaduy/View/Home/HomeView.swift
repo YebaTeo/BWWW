@@ -29,6 +29,7 @@ struct HomeView: View {
     }
 
     private func finishLoadingPreview() {
+        StageThumbnailStore.shared.preloadAfterLaunch()
         guard showsLaunchSplash || loadsFirstPreview else { return }
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
             showsLaunchSplash = false
