@@ -246,7 +246,7 @@ import UIKit
     }
     func startMotion() {
         guard session.isActive, step == .digging, !isDemonstrating, !motionActive else { return }
-        guard motion.available else { session.feedback = "Sensor gerak tidak tersedia. Buka Petunjuk untuk melihat demonstrasi."; return }
+        guard motion.available else { session.feedback = "Sensor gerak tidak tersedia. Ketuk lubang untuk menggunakan aseuk."; return }
         session.feedback = ""
         heavyImpact.prepare()
         rigidImpact.prepare()

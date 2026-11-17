@@ -82,7 +82,7 @@ struct NgoredActivitySurface: View {
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
                 }
-                if isWeeding {
+                if isWeeding && card.mode == .hidden {
                     VStack(spacing: 6) {
                         Text("Usap gulma untuk menyapukan kored").font(.headline)
                         let removedCount = currentWeedTargets.filter { model.removed.contains($0) }.count

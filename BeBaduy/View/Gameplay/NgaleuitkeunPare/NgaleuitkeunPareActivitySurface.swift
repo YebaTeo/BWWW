@@ -36,7 +36,7 @@ struct NgaleuitkeunPareActivitySurface: View {
                 .accessibilityAction { model.placeLadder() }
                 .accessibilityIdentifier("field.ladder")
                 .overlay(alignment: .top) {
-                    if !model.isLadderPlaced {
+                    if !model.isLadderPlaced && card.mode == .hidden {
                         Text("Seret tangga bambu ke pintu leuit.")
                             .font(.headline)
                             .multilineTextAlignment(.center)

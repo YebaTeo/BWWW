@@ -159,7 +159,7 @@ import XCTest
         completeLeuit(); next()
         XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
     }
-    func testMipitLandscapeAndDemonstration() {
+    func testMipitAndNgalantaiLandscapeReplay() {
         defer { XCUIDevice.shared.orientation = .portrait }
         prepare(["--uitest-mipit"]); tap("resume"); start()
         capture("Mipit-three-plants")
@@ -183,13 +183,18 @@ import XCTest
 
         XCUIDevice.shared.orientation = .portrait
         tap("resume"); start()
-        tap("demonstrate")
+        XCTAssertFalse(app.buttons["Lihat demonstrasi"].exists)
+        XCUIDevice.shared.orientation = .landscapeRight
+        tap("ngalantai.balance.continue")
+        if app.buttons["ngalantai.balance.touch"].exists { tap("ngalantai.balance.touch") }
+        tap("ngalantai.balance.center")
+        XCUIDevice.shared.orientation = .portrait
         tap("ngalantai.drying.continue")
         tap("lesson.activity.result")
         tap("lesson.result.continue")
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
         tap("replay")
-        XCTAssertTrue(app.staticTexts["Putar ponsel ke posisi mendatar."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Layar harus dalam mode lanskap."].waitForExistence(timeout: 5))
         XCUIDevice.shared.orientation = .portrait
         XCUIDevice.shared.orientation = .landscapeLeft
         tap("ngalantai.balance.continue")
@@ -326,15 +331,10 @@ import XCTest
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
 
-    func testNarawasDemoAndReplay() {
+    func testNarawasHasNoDemonstrationAction() {
         prepare(); intro(); start()
         XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
-        tap("demonstrate")
-        XCTAssertTrue(app.buttons["narawas.activity.result"].waitForExistence(timeout: 40))
-        capture("Narawas-observed"); tap("narawas.activity.result"); tap("replay")
-        for index in 0..<4 { tap("narawas.cut.\(index)") }
-        for index in 0..<4 { tap("narawas.ignite.\(index)") }; tap("narawas.finishBurn"); next()
-        XCTAssertTrue(app.staticTexts["home.stage.title"].exists)
+        XCTAssertFalse(app.buttons["Lihat demonstrasi"].exists)
     }
     func testLargeTextButtonFlow() {
         prepare(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])

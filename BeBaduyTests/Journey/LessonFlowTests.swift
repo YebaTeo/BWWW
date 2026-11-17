@@ -29,4 +29,19 @@ import XCTest
         XCTAssertEqual(flow.screen, .activity)
         XCTAssertTrue(flow.canSkip)
     }
+
+    func testReplayWithEquipmentReturnsToToolCardFromResultAndExplanation() {
+        let flow = LessonFlowViewModel()
+        flow.beginActivity()
+        flow.completed()
+        flow.showResult()
+        flow.replay(hasEquipment: true)
+        XCTAssertEqual(flow.screen, .equipment)
+
+        flow.beginActivity()
+        flow.explain()
+        flow.replay(hasEquipment: true)
+        XCTAssertEqual(flow.screen, .equipment)
+        XCTAssertTrue(flow.canSkip)
+    }
 }

@@ -7,7 +7,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     let journey: JourneyViewModel
     let start: () -> Void
     let replay: () -> Void
-    let demonstrate: () -> Void
     let restore: (ActivityOutcome?) -> Void
     let advance: () -> Void
     var suspend: () -> Void = {}
@@ -127,27 +126,29 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                     Spacer()
                                 }
                                 .padding(.horizontal, 16)
-                                Spacer()
+                                Spacer(minLength: 0)
                                 completionCard
                             }
                         } else {
                             activity().disabled(!session.isActive)
                         }
                     case .result:
-                        ScrollView {
-                            VStack(spacing: 16) {
-                                Text("\(content.title) selesai!").font(.headline)
-                                    .foregroundStyle(Color(red: 1, green: 0.65, blue: 0.25))
-                                if session.outcome == .observed {
-                                    Text("Demonstrasi selesai.")
-                                } else if content.id != .mipit {
-                                    Text(content.result)
-                                }
-                                LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
-                                Button("Ulangi") { restartActivity() }.frame(minHeight: 44).accessibilityIdentifier("replay")
-                            }.font(.subheadline).multilineTextAlignment(.center).padding(24).activityCardStyle()
-                                .padding(24)
+                        Spacer(minLength: 0)
+                        ActivityCardPanel {
+                            Text("\(content.title) selesai!")
+                                .font(.headline)
+                                .foregroundStyle(AppTheme.heading)
+                            if session.outcome == .observed {
+                                Text("Demonstrasi selesai.")
+                            } else if content.id != .mipit {
+                                Text(content.result)
+                            }
+                            LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
+                            Button("Ulangi") { restartActivity() }
+                                .frame(minHeight: 44)
+                                .accessibilityIdentifier("replay")
                         }
+                        .activityCardInsets()
                     case .explanation:
                         ScrollView {
                             HumaGlassCard {
@@ -175,9 +176,13 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             let record = journey.progress.record(for: content.id)
             flow.restore(completed: record.explanationAvailable)
             if record.explanationAvailable {
-                replayingCompletedStage = true
-                start()
-                flow.beginActivity()
+                if equipment != nil {
+                    restartActivity()
+                } else {
+                    replayingCompletedStage = true
+                    start()
+                    flow.beginActivity()
+                }
             } else {
                 restore(record.outcome)
                 explore()
@@ -243,14 +248,12 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 completionCard
             } else if card.mode != .hidden {
                 ActivityCardPanel { cardContents }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-                .id(card.revision)
+                    .activityCardInsets()
+                    .id(card.revision)
             } else if showsActiveControls {
                 activity()
                     .environment(card)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .activityCardInsets()
             }
         }
     }
@@ -264,8 +267,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 flow.showResult()
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .activityCardInsets()
     }
 
     private var cardContents: some View {
@@ -282,15 +284,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     card.dismiss()
                 }
             }
-            Button("Lihat demonstrasi") {
-                card.dismiss()
-                setHelpVisible(false)
-                demonstrate()
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(AppTheme.cream)
-            .frame(minHeight: 44)
-            .accessibilityIdentifier("demonstrate")
             if card.mode == .help {
                 Button {
                     ActivityAudio.shared.enabled.toggle()
@@ -339,5 +332,14 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         if equipment == nil { start() }
     }
     private func begin() { start(); flow.beginActivity() }
-    private func restartActivity() { replay(); flow.replay() }
+    private func restartActivity() {
+        let hasEquipment = equipment != nil
+        if hasEquipment {
+            isToolRevealed = false
+            replayingCompletedStage = false
+        } else {
+            replay()
+        }
+        flow.replay(hasEquipment: hasEquipment)
+    }
 }

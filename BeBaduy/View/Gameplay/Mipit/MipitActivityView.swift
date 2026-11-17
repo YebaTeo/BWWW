@@ -20,6 +20,7 @@ struct MipitActivityView: View {
                     }
                 }
             }
+            .padding(.horizontal, 16)
             Spacer(minLength: 0)
             switch model.step {
             case .harvesting:
@@ -29,8 +30,6 @@ struct MipitActivityView: View {
                             .foregroundStyle(AppTheme.heading)
                         Text("Cubit layar untuk memotong batang pare menggunakan etem.")
                         LessonButton(title: "Mulai", identifier: "mipit.card.start") { showsHelp = false }
-                        Button("Lihat demonstrasi") { showsHelp = false; model.demonstrate() }
-                            .frame(minHeight: 44).accessibilityIdentifier("demonstrate")
                     }
                 } else {
                 VStack(spacing: 8) {
@@ -44,6 +43,7 @@ struct MipitActivityView: View {
                         Text("\(model.harvested.count) / \(MipitViewModel.harvestCount) malai terkumpul")
                     }.accessibilityElement(children: .combine)
                 }.font(.subheadline).multilineTextAlignment(.center).padding(24).activityCardStyle()
+                    .activityCardInsets()
                 }
             case .harvestSuccess:
                 panel {
@@ -52,12 +52,12 @@ struct MipitActivityView: View {
                 }
             }
         }
-        .padding(.horizontal, 16).padding(.bottom, 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .disabled(model.isDemonstrating)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(model.isDemonstrating)
     }
 
     private func panel(@ViewBuilder content: () -> some View) -> some View {
         ActivityCardPanel(content: content)
+            .activityCardInsets()
     }
 }

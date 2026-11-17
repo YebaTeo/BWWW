@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// The chapter map shares cached snapshots of the Home SceneKit crops for fast scrolling.
 struct JourneyView: View {
     let journey: JourneyViewModel
     var showsRecap = false

@@ -20,6 +20,8 @@ struct NarawasView: View {
 
     var body: some View {
         let isLoading = !initialized || model.scene.loadingAssets
+        let showsFieldAction = model.scene.assetError == nil &&
+            (model.stage == .complete || (model.stage != .clearing && model.ignited.count >= NarawasViewModel.treeCount))
         ZStack {
             NarawasSurface(scene: model.scene)
                 .ignoresSafeArea()
@@ -42,12 +44,14 @@ struct NarawasView: View {
                             .padding(.top, 48)
                             .accessibilityLabel("Progres pembakaran")
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                     if let error = model.scene.assetError {
                         card {
                             Text(error)
                             Button("Coba lagi") { Task { await model.scene.prepareAssets() } }
                         }
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 24)
                     } else {
                         if model.stage == .clearing {
                             Text("Berhasil ditebang: \(model.collected.count)/\(NarawasViewModel.treeCount)")
@@ -60,40 +64,42 @@ struct NarawasView: View {
                                 .background(Color.brown.opacity(0.85), in: Capsule())
                                 .accessibilityIdentifier("narawas.fire.progress")
                         }
-                        card {
-                            if model.stage == .complete {
-                                Text("Lahan sudah siap!").font(.headline).foregroundStyle(orange)
-                                Text("Huma siap memasuki tahap penanaman.")
-                                Button("Lihat hasil") {
-                                    message = .explanation
-                                    model.setVisible(false)
+                        if showsFieldAction {
+                            ActivityCardPanel {
+                                if model.stage == .complete {
+                                    Text("Lahan sudah siap!").font(.headline).foregroundStyle(AppTheme.heading)
+                                    Text("Huma siap memasuki tahap penanaman.")
+                                    LessonButton(title: "Lihat hasil", identifier: "narawas.activity.result") {
+                                        message = .explanation
+                                        model.setVisible(false)
+                                    }
+                                } else {
+                                    Text("Arahkan ponselmu ke kiri atau kanan agar kita bisa memantau api hingga mereda.")
+                                        .accessibilityIdentifier("narawas.sceneReady")
+                                    LessonButton(title: "Tampilkan kondisi setelah api reda",
+                                                 identifier: "narawas.finishBurn", action: model.finishBurn)
                                 }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(orange)
-                                .frame(minHeight: 44)
-                                .accessibilityIdentifier("narawas.activity.result")
-                            } else if model.stage == .clearing {
-                                Text("Arahkan ponselmu ke kiri atau kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!")
-                                    .accessibilityIdentifier("narawas.sceneReady")
-                            } else if model.ignited.count < NarawasViewModel.treeCount {
-                                Text("Arahkan ponsel ke sekeliling dan tap setiap pangkal pohon untuk menyalakan api.")
-                                    .accessibilityIdentifier("narawas.sceneReady")
-                            } else {
-                                Text("Arahkan ponselmu ke kiri atau kanan agar kita bisa memantau api hingga mereda.")
-                                    .accessibilityIdentifier("narawas.sceneReady")
-                                Button("Tampilkan kondisi setelah api reda", action: model.finishBurn)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(orange)
-                                    .frame(minHeight: 44)
-                                    .accessibilityIdentifier("narawas.finishBurn")
+                                motionHint
                             }
-                            if !model.motionMessage.isEmpty {
-                                Text(model.motionMessage).font(.caption)
+                            .activityCardInsets()
+                        } else {
+                            card {
+                                if model.stage == .clearing {
+                                    Text("Arahkan ponselmu ke kiri atau kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!")
+                                        .accessibilityIdentifier("narawas.sceneReady")
+                                } else {
+                                    Text("Arahkan ponsel ke sekeliling dan tap setiap pangkal pohon untuk menyalakan api.")
+                                        .accessibilityIdentifier("narawas.sceneReady")
+                                }
+                                motionHint
                             }
+                            .padding(.horizontal, 28)
+                            .padding(.bottom, 24)
                         }
                     }
                 }
-                .padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 24)
+                // Leave room for the back control when the action panel needs to scroll.
+                .padding(.top, showsFieldAction && model.stage != .burning ? 52 : 24)
             }
             VStack {
                 HStack {
@@ -199,6 +205,12 @@ struct NarawasView: View {
                 }.padding(.horizontal, 36).frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityIdentifier("narawas.message.continue")
+        }
+    }
+
+    @ViewBuilder private var motionHint: some View {
+        if !model.motionMessage.isEmpty {
+            Text(model.motionMessage).font(.caption)
         }
     }
 
