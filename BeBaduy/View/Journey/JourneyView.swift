@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// The chapter map shares the same live SceneKit crops used by Home.
+/// The chapter map shares cached snapshots of the Home SceneKit crops for fast scrolling.
 struct JourneyView: View {
     let journey: JourneyViewModel
     var showsRecap = false
     var onPrologue: (() -> Void)? = nil
     let open: (PhaseID) -> Void
+    private let thumbnailStore = StageThumbnailStore.shared
 
     private let ivory = Color(red: 0.99, green: 0.95, blue: 0.87)
     private let gold = Color(red: 1, green: 0.69, blue: 0.40)
@@ -55,6 +56,7 @@ struct JourneyView: View {
             }
         }
         .padding(.horizontal, 20)
+        .task { thumbnailStore.ensureLoaded() }
     }
 
     private var prologueCard: some View {
@@ -86,7 +88,11 @@ struct JourneyView: View {
     private func phaseCard(_ phase: PhaseContent, unlocked: Bool) -> some View {
         let stage = GrowthStage.allStages[phase.id.index]
         return ZStack(alignment: .leading) {
-            StageCardScene(progress: stage.targetProgress, phase: phase.id)
+            StageCardScene(
+                progress: stage.targetProgress,
+                phase: phase.id,
+                thumbnail: thumbnailStore.thumbnails[phase.id]
+            )
             LinearGradient(
                 stops: [
                     .init(color: Color(red: 0.15, green: 0.09, blue: 0.06).opacity(0.96), location: 0),
@@ -120,7 +126,7 @@ struct JourneyView: View {
 private struct StageCardScene: View {
     let progress: CGFloat
     let phase: PhaseID
-    @State private var visible = false
+    let thumbnail: UIImage?
 
     private var scale: CGFloat {
         switch phase {
@@ -134,17 +140,20 @@ private struct StageCardScene: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                CinematicAtmosphereView(progress: progress, isActive: visible)
-                SceneKitCropView(progress: progress, isActive: visible)
-                    .frame(width: geometry.size.width * scale, height: geometry.size.height * scale)
-                    .offset(x: geometry.size.width * 0.28)
+                CinematicAtmosphereView(progress: progress, isActive: false)
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geometry.size.width * scale, height: geometry.size.height * scale)
+                        .offset(x: geometry.size.width * 0.28)
+                        .transition(.opacity)
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped()
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-        .onAppear { visible = true }
-        .onDisappear { visible = false }
     }
 }

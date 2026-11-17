@@ -1,3 +1,4 @@
+import Metal
 import SceneKit
 import SwiftUI
 
@@ -218,6 +219,19 @@ final class HomeSceneRenderer: NSObject {
 
     func install(in view: SCNView) {
         configureRenderer(view)
+        buildScene()
+        frameTarget.owner = self
+        let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    private func buildScene() {
+        scene.background.contents = UIColor.clear
+        scene.physicsWorld.gravity = SCNVector3Zero
+        scene.physicsWorld.timeStep = 1.0 / 60.0
+        scene.physicsWorld.speed = 1
+
         configureCamera()
         configureLighting()
         buildGround()
@@ -235,10 +249,24 @@ final class HomeSceneRenderer: NSObject {
         buildGranaryPreview()
         buildLeuitActivityProps()
         configureObjectShadows()
-        frameTarget.owner = self
-        let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
-        link.add(to: .main, forMode: .common)
-        displayLink = link
+    }
+
+    fileprivate func makeOffscreenRenderer(device: any MTLDevice) -> SCNRenderer {
+        isWindEnabled = false
+        buildScene()
+        let renderer = SCNRenderer(device: device, options: nil)
+        renderer.scene = scene
+        renderer.autoenablesDefaultLighting = false
+        renderer.pointOfView = cameraNode
+        return renderer
+    }
+
+    fileprivate func renderSnapshot(progress: CGFloat, with renderer: SCNRenderer, size: CGSize) -> UIImage {
+        SCNTransaction.begin()
+        SCNTransaction.disableActions = true
+        applyProgress(progress)
+        SCNTransaction.commit()
+        return renderer.snapshot(atTime: 0, with: size, antialiasingMode: .multisampling2X)
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -4539,5 +4567,37 @@ final class HomeSceneRenderer: NSObject {
     nonisolated static func riceGrowthAmount(_ progress: Float) -> Float {
         let t = max(0, min(1, progress))
         return t * t * (3 - 2 * t)
+    }
+}
+
+/// Renders and caches static chapter-card thumbnails from a single offscreen SceneKit instance.
+@Observable @MainActor
+final class StageThumbnailStore {
+    static let shared = StageThumbnailStore()
+
+    private(set) var thumbnails: [PhaseID: UIImage] = [:]
+    private var loadTask: Task<Void, Never>?
+
+    func ensureLoaded() {
+        guard thumbnails.count < PhaseID.allCases.count, loadTask == nil else { return }
+        loadTask = Task { @MainActor in
+            defer { self.loadTask = nil }
+            guard let device = MTLCreateSystemDefaultDevice() else { return }
+            let sceneRenderer = HomeSceneRenderer()
+            let offscreen = sceneRenderer.makeOffscreenRenderer(device: device)
+            let snapshotSize = CGSize(width: 700, height: 340)
+
+            for phase in PhaseID.allCases {
+                if Task.isCancelled { break }
+                if thumbnails[phase] != nil { continue }
+                let progress = GrowthStage.allStages[phase.index].targetProgress
+                thumbnails[phase] = sceneRenderer.renderSnapshot(
+                    progress: progress,
+                    with: offscreen,
+                    size: snapshotSize
+                )
+                await Task.yield()
+            }
+        }
     }
 }
