@@ -111,9 +111,12 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             rimLightNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(rimLightNode)
 
-            // Use the bundled detailed soil directly. Regenerating a 1024²
-            // texture here blocks the first frame while the bowl is being dragged.
-            let soilImage = UIImage(named: "HumaTerrainTexture") ?? UIImage()
+            // Match the detailed soil texture used by the AR scene.
+            let environment = UIImage(named: "HumaEnvironment")
+            let soilImage = environment?.cgImage
+                .flatMap { NgahumaMaterials.buildSoilTexture(from: $0) }
+                .map { UIImage(cgImage: $0) }
+                ?? UIImage(named: "HumaTerrainTexture") ?? UIImage()
             let (terrainGeometry, terrainMaterial) = NgahumaMaterials.makeTerrainMesh(
                 span: 1.4,
                 steps: 24,
