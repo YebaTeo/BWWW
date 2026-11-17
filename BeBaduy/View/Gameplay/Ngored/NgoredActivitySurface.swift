@@ -52,7 +52,7 @@ struct NgoredActivitySurface: View {
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
-                TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active)) { _ in
+                TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active || !isWeeding)) { _ in
                     let points = model.scene.projectedNgoredWeedPoints()
                 ForEach(Array(currentWeedTargets), id: \.self) { index in
                         let cut = model.removed.contains(index)

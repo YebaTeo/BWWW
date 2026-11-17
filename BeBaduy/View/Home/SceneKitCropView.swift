@@ -14,7 +14,7 @@ import SwiftUI
 
 // MARK: - Public SwiftUI wrapper
 
-struct LeuitActivitySceneState {
+struct LeuitActivitySceneState: Equatable {
     var ladderPlaced: Bool
     var dragX: Float
     var dragY: Float
@@ -59,15 +59,18 @@ struct SceneKitCropView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        context.coordinator.showsRice = showsRice
-        context.coordinator.mipitHarvested = mipitHarvested
-        context.coordinator.showsRackPosts = showsRackPosts
-        context.coordinator.rackBalance = rackBalance
-        context.coordinator.rackTransitionTimeConstant = rackTransitionTimeConstant
-        context.coordinator.rackScale = rackScale
-        context.coordinator.leuitActivity = leuitActivity
-        context.coordinator.setActive(shouldRender, in: view, reduceMotion: reduceMotion)
-        context.coordinator.update(progress: progress)
+        let renderer = context.coordinator
+        if renderer.showsRice != showsRice { renderer.showsRice = showsRice }
+        if renderer.mipitHarvested != mipitHarvested { renderer.mipitHarvested = mipitHarvested }
+        if renderer.showsRackPosts != showsRackPosts { renderer.showsRackPosts = showsRackPosts }
+        if renderer.rackBalance != rackBalance { renderer.rackBalance = rackBalance }
+        if renderer.rackTransitionTimeConstant != rackTransitionTimeConstant {
+            renderer.rackTransitionTimeConstant = rackTransitionTimeConstant
+        }
+        if renderer.rackScale != rackScale { renderer.rackScale = rackScale }
+        if renderer.leuitActivity != leuitActivity { renderer.leuitActivity = leuitActivity }
+        renderer.setActive(shouldRender, in: view, reduceMotion: reduceMotion)
+        renderer.update(progress: progress)
     }
 
     static func dismantleUIView(_ view: SCNView, coordinator: HomeSceneRenderer) {

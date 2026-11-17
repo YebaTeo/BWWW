@@ -82,17 +82,19 @@ struct CinematicAtmosphereView: View {
                 .blendMode(.screen)
 
                 // Celestial cues make night recognizable beyond dimming the photo.
-                Canvas { context, canvasSize in
-                    for index in 0..<48 {
-                        let seed = Double(index)
-                        let x = canvasSize.width * CGFloat((seed * 0.6180339 + 0.13).truncatingRemainder(dividingBy: 1))
-                        let y = canvasSize.height * CGFloat(0.025 + (seed * 0.381966).truncatingRemainder(dividingBy: 1) * 0.26)
-                        let radius: CGFloat = index % 7 == 0 ? 0.9 : 0.45
-                        context.opacity = index % 3 == 0 ? 0.48 : 0.24
-                        context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: radius * 2, height: radius * 2)), with: .color(.white))
+                if night > 0.01 {
+                    Canvas { context, canvasSize in
+                        for index in 0..<48 {
+                            let seed = Double(index)
+                            let x = canvasSize.width * CGFloat((seed * 0.6180339 + 0.13).truncatingRemainder(dividingBy: 1))
+                            let y = canvasSize.height * CGFloat(0.025 + (seed * 0.381966).truncatingRemainder(dividingBy: 1) * 0.26)
+                            let radius: CGFloat = index % 7 == 0 ? 0.9 : 0.45
+                            context.opacity = index % 3 == 0 ? 0.48 : 0.24
+                            context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: radius * 2, height: radius * 2)), with: .color(.white))
+                        }
                     }
+                    .opacity(night * night)
                 }
-                .opacity(night * night)
 
                 // Opposite bodies share one circular orbit. The lower half
                 // is hidden beneath the landscape horizon.
@@ -117,7 +119,8 @@ struct CinematicAtmosphereView: View {
                         .offset(x: depth * 16 + panOffset * 1.0)
                 }
 
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isActive || scenePhase != .active || (reduceMotion && scrollCueStart == nil))) { timeline in
+                let particleInterval = ProcessInfo.processInfo.isLowPowerModeEnabled ? 1.0 / 20 : 1.0 / 30
+                TimelineView(.animation(minimumInterval: particleInterval, paused: !isActive || scenePhase != .active || (reduceMotion && scrollCueStart == nil))) { timeline in
                     Canvas { context, canvasSize in
                         let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
                         let cueAmount = scrollCueStart.map {

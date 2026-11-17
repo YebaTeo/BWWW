@@ -5,13 +5,16 @@ import SwiftUI
 /// Owns the Home SceneKit graph, frame loop, materials, and visual effects.
 @MainActor
 final class HomeSceneRenderer: NSObject {
-    var showsRice = true
-    var showsRackPosts = true
-    var rackBalance = 0.0
+    var showsRice = true { didSet { if oldValue != showsRice { needsApply = true } } }
+    var showsRackPosts = true { didSet { if oldValue != showsRackPosts { needsApply = true } } }
+    var rackBalance = 0.0 { didSet { if oldValue != rackBalance { needsApply = true } } }
     var rackTransitionTimeConstant = 0.16
-    var rackScale: Float = 0.92
-    var leuitActivity: LeuitActivitySceneState?
-    var mipitHarvested: Set<Int> = []
+    var rackScale: Float = 0.92 { didSet { if oldValue != rackScale { needsApply = true } } }
+    var leuitActivity: LeuitActivitySceneState? { didSet { if oldValue != leuitActivity { needsApply = true } } }
+    var mipitHarvested: Set<Int> = [] { didSet { if oldValue != mipitHarvested { needsApply = true } } }
+    private var needsApply = true
+    private var lastActive: Bool?
+    private var lastReduceMotion: Bool?
     private var mipitStandingNodes: [SCNNode] = []
     private var mipitSheafNodes: [SCNNode] = []
 
@@ -169,6 +172,9 @@ final class HomeSceneRenderer: NSObject {
     }
 
     func setActive(_ active: Bool, in view: SCNView, reduceMotion: Bool) {
+        guard lastActive != active || lastReduceMotion != reduceMotion else { return }
+        lastActive = active
+        lastReduceMotion = reduceMotion
         displayLink?.isPaused = !active
         view.isPlaying = active
         view.rendersContinuously = active
@@ -184,14 +190,19 @@ final class HomeSceneRenderer: NSObject {
     private func advance(_ link: CADisplayLink) {
         let dt = lastFrameTime == 0 ? 0 : min(link.timestamp - lastFrameTime, 1.0 / 15)
         lastFrameTime = link.timestamp
-        // Frame-rate independent settling; retarget from the current state
-        // when dragging reverses, instead of queuing more animations.
-        let isConclusionPan = targetProgress >= 0.95 && displayedProgress >= 0.949
-        let blend = isWindEnabled && !isConclusionPan ? 1 - exp(-dt / rackTransitionTimeConstant) : 1
-        displayedProgress += (targetProgress - displayedProgress) * blend
-        if abs(targetProgress - displayedProgress) < 0.0001 {
-            displayedProgress = targetProgress
+        let isSettling = abs(targetProgress - displayedProgress) > 0.0001
+        if isSettling {
+            // Frame-rate independent settling; retarget from the current state
+            // when dragging reverses, instead of queuing more animations.
+            let isConclusionPan = targetProgress >= 0.95 && displayedProgress >= 0.949
+            let blend = isWindEnabled && !isConclusionPan ? 1 - exp(-dt / rackTransitionTimeConstant) : 1
+            displayedProgress += (targetProgress - displayedProgress) * blend
+            if abs(targetProgress - displayedProgress) < 0.0001 {
+                displayedProgress = targetProgress
+            }
         }
+        let hasTimeAnimation = displayedProgress < 0.27 || leuitActivity != nil
+        guard isSettling || needsApply || hasTimeAnimation else { return }
         SCNTransaction.begin()
         SCNTransaction.disableActions = true
         applyProgress(displayedProgress)
@@ -3185,20 +3196,27 @@ final class HomeSceneRenderer: NSObject {
     // ════════════════════════════════════════════════════════════════════
 
     func update(progress: CGFloat) {
-        targetProgress = min(1, max(0, progress))
+        var clamped = min(1, max(0, progress))
         #if DEBUG
         if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--tree-progress=") }),
            let value = Double(argument.dropFirst("--tree-progress=".count)) {
-            targetProgress = min(1, max(0, CGFloat(value)))
+            clamped = min(1, max(0, CGFloat(value)))
         }
         #endif
+        if clamped != targetProgress {
+            targetProgress = clamped
+            needsApply = true
+        }
         if lastFrameTime == 0 || !isWindEnabled {
             displayedProgress = targetProgress
-            applyProgress(displayedProgress)
+            if needsApply {
+                applyProgress(displayedProgress)
+            }
         }
     }
 
     private func applyProgress(_ progress: CGFloat) {
+        needsApply = false
         let fullP = Float(min(1, max(0, progress)))
         updateHarvestLighting(progress: CGFloat(fullP))
         // Keep the original farming choreography intact through MIPIT
