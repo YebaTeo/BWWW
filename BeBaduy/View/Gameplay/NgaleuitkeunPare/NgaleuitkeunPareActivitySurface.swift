@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NgaleuitkeunPareActivitySurface: View {
     let model: NgaleuitkeunPareViewModel
+    @Environment(\.activitySceneInsets) private var sceneInsets
     @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -35,15 +36,11 @@ struct NgaleuitkeunPareActivitySurface: View {
                 .accessibilityHint("Seret tangga ke pintu leuit.")
                 .accessibilityAction { model.placeLadder() }
                 .accessibilityIdentifier("field.ladder")
-                .overlay(alignment: .top) {
+                .overlay {
                     if !model.isLadderPlaced && card.mode == .hidden {
-                        Text("Seret tangga bambu ke pintu leuit.")
-                            .font(.headline)
-                            .multilineTextAlignment(.center)
-                            .padding(24)
-                            .activityCardStyle()
-                            .padding(.top, 76)
-                            .allowsHitTesting(false)
+                        ActivityCardLayout(placement: .bottom, sceneInsets: sceneInsets) {
+                            ActivityCardPanel(passesTouchesThrough: true) { Text("Seret tangga bambu ke pintu leuit.") }
+                        }
                     }
                 }
         }

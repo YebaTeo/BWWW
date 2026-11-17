@@ -16,57 +16,86 @@ struct NgalantaiActivityView: View {
                 }
             }
             .padding(.horizontal, 16)
-            Spacer(minLength: 0)
             switch model.step {
             case .awaitingLandscape:
-                panel {
-                    Image(systemName: "iphone.landscape").font(.title)
-                    Text("Layar harus dalam mode lanskap.").font(.headline).foregroundStyle(AppTheme.heading)
-                    Text("Putar ponselmu untuk memulai. Jika layar tidak berputar, periksa kunci rotasi.")
+                ActivityCardLayout(placement: .middle) {
+                    ActivityCardPanel {
+                        Image(systemName: "iphone.landscape").font(.title).accessibilityHidden(true)
+                        ActivityCardHeading("Layar harus dalam mode lanskap.")
+                        Text("Putar ponselmu untuk memulai. Jika layar tidak berputar, periksa kunci rotasi.")
+                    }
                 }
             case .balanceInstructions:
-                panel {
-                    Text("Jaga keseimbangan Lantaian bambu!").font(.headline).foregroundStyle(AppTheme.heading)
-                    Text("Miringkan ponselmu ke kiri dan kanan agar pocong tidak terjatuh. Tahan bambu tetap rata selama tiga detik.")
-                    LessonButton(title: "Mulai", identifier: "ngalantai.balance.continue", action: model.beginBalance)
+                ActivityCardLayout(placement: .middle) {
+                    ActivityCardPanel {
+                        ActivityCardHeading("Jaga keseimbangan Lantaian bambu!")
+                        Text("Miringkan ponselmu ke kiri dan kanan agar pocong tidak terjatuh. Tahan bambu tetap rata selama tiga detik.")
+                    }
+                    ActivityAcknowledgement(title: "Mulai menjaga keseimbangan", identifier: "ngalantai.balance.continue",
+                                            action: model.beginBalance)
                 }
             case .balancing:
-                panel {
-                    ProgressView(value: model.steadyTime, total: 3).tint(AppTheme.orange).accessibilityLabel("Waktu seimbang")
-                    Text(abs(model.balance) < 0.18 ? "Seimbang · tahan sebentar" : "Arahkan bambu ke tengah")
-                        .font(.caption)
+                ActivityCardLayout(placement: .bottom) {
+                    ActivityCardPanel {
+                        ProgressView(value: model.steadyTime, total: 3)
+                            .tint(AppTheme.orange)
+                            .accessibilityLabel("Waktu seimbang")
+                        Text(abs(model.balance) < 0.18 ? "Seimbang · tahan sebentar" : "Arahkan bambu ke tengah")
+                    }
                     if model.usesTouch {
-                        Slider(value: Binding(get: { model.balance }, set: { model.setBalance($0) }), in: -1...1)
-                            .accessibilityLabel("Keseimbangan bambu").accessibilityIdentifier("ngalantai.balance.slider")
-                        Button("Ratakkan bambu") { model.setBalance(0) }
-                            .frame(minHeight: 44).accessibilityIdentifier("ngalantai.balance.center")
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 16) {
+                                balanceSlider.frame(minWidth: 120)
+                                centerButton.fixedSize(horizontal: true, vertical: false)
+                            }
+                            VStack(spacing: 4) {
+                                balanceSlider
+                                centerButton
+                            }
+                        }
                     } else {
-                        Button("Gunakan sentuhan", action: model.useTouch).frame(minHeight: 44)
+                        Button("Gunakan sentuhan", action: model.useTouch)
+                            .frame(minHeight: 44)
                             .accessibilityIdentifier("ngalantai.balance.touch")
                     }
                 }
             case .balanceDemo:
-                panel {
-                    Text("Demonstrasi keseimbangan")
-                    ProgressView(value: model.steadyTime, total: 3).tint(AppTheme.orange)
+                ActivityCardLayout(placement: .bottom) {
+                    ActivityCardPanel {
+                        Text("Demonstrasi keseimbangan")
+                        ProgressView(value: model.steadyTime, total: 3).tint(AppTheme.orange)
+                    }
                 }
             case .awaitingPortrait:
-                panel { Text("Tegakkan ponsel untuk melihat padi dijemur.").font(.headline).foregroundStyle(AppTheme.heading) }
+                ActivityCardLayout(placement: .middle) {
+                    ActivityCardPanel { Text("Tegakkan ponsel untuk melihat padi dijemur.") }
+                }
             case .drying:
-                panel {
-                    Text("Bagus!\n\nSekarang kita jemur pocong hingga kering.").font(.headline).foregroundStyle(AppTheme.heading)
-                    LessonButton(title: "Lihat hasil", identifier: "ngalantai.drying.continue", action: model.finishDrying)
+                ActivityCardLayout(placement: .middle) {
+                    ActivityCardPanel {
+                        ActivityCardHeading("Bagus!")
+                        Text("Sekarang kita jemur pocong hingga kering.")
+                    }
+                    ActivityAcknowledgement(title: "Lihat hasil", identifier: "ngalantai.drying.continue",
+                                            action: model.finishDrying)
                 }
             case .complete:
-                EmptyView()
+                Spacer(minLength: 0)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .disabled(model.isDemonstrating)
     }
 
-    private func panel(@ViewBuilder content: () -> some View) -> some View {
-        ActivityCardPanel(content: content)
-            .activityCardInsets()
+    private var balanceSlider: some View {
+        Slider(value: Binding(get: { model.balance }, set: { model.setBalance($0) }), in: -1...1)
+            .accessibilityLabel("Keseimbangan bambu")
+            .accessibilityIdentifier("ngalantai.balance.slider")
+    }
+
+    private var centerButton: some View {
+        Button("Ratakkan bambu") { model.setBalance(0) }
+            .frame(minHeight: 44)
+            .accessibilityIdentifier("ngalantai.balance.center")
     }
 }

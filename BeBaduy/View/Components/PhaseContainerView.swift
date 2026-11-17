@@ -6,7 +6,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     let session: PhaseSessionState
     let journey: JourneyViewModel
     let start: () -> Void
-    let replay: () -> Void
     let restore: (ActivityOutcome?) -> Void
     let advance: () -> Void
     var suspend: () -> Void = {}
@@ -29,7 +28,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     @State private var replayingCompletedStage = false
     @State private var isToolRevealed = false
     @State private var card = ActivityCardState()
-    @AccessibilityFocusState private var cardHeadingFocused: Bool
     private var immersive: Bool { flow.screen == .activity || flow.screen == .result }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
@@ -85,9 +83,10 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
 
                 if immersive {
                     surface().environment(card)
+                        .environment(\.activitySceneInsets, geometry.safeAreaInsets)
                         .disabled(!session.isActive || blocksScene)
-                        .allowsHitTesting(!blocksScene)
-                        .accessibilityHidden(blocksScene)
+                        .allowsHitTesting(session.isActive && !blocksScene)
+                        .accessibilityHidden(!session.isActive || blocksScene)
                         .ignoresSafeArea()
                 }
                 VStack(spacing: 0) {
@@ -130,29 +129,25 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                     Spacer()
                                 }
                                 .padding(.horizontal, 16)
-                                Spacer(minLength: 0)
                                 completionCard
                             }
                         } else {
                             activity().disabled(!session.isActive)
                         }
                     case .result:
-                        Spacer(minLength: 0)
-                        ActivityCardPanel {
-                            Text("\(content.title) selesai!")
-                                .font(.headline)
-                                .foregroundStyle(AppTheme.heading)
-                            if session.outcome == .observed {
-                                Text("Demonstrasi selesai.")
-                            } else if content.id != .mipit {
-                                Text(content.result)
+                        ActivityCardLayout(placement: .middle) {
+                            ActivityCardPanel {
+                                ActivityCardHeading("\(content.title) selesai!")
+                                if session.outcome == .observed {
+                                    Text("Demonstrasi selesai.")
+                                } else if content.id != .mipit {
+                                    Text(content.result)
+                                }
                             }
-                            LessonButton(title: "Lihat penjelasan", identifier: "lesson.result.continue") { flow.explain() }
-                            Button("Ulangi") { restartActivity() }
-                                .frame(minHeight: 44)
-                                .accessibilityIdentifier("replay")
+                            ActivityAcknowledgement(title: "Lihat penjelasan", identifier: "lesson.result.continue") {
+                                flow.explain()
+                            }
                         }
-                        .activityCardInsets()
                     case .explanation:
                         ScrollView {
                             HumaGlassCard {
@@ -181,7 +176,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             flow.restore(completed: record.explanationAvailable)
             if record.explanationAvailable {
                 if equipment != nil {
-                    restartActivity()
+                    flow.replay(hasEquipment: true)
                 } else {
                     replayingCompletedStage = true
                     start()
@@ -247,59 +242,41 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     }.accessibilityLabel("Buka petunjuk").accessibilityIdentifier("activity.help")
                 }
             }.padding(.horizontal, 16)
-            Spacer(minLength: 0)
-            if flow.screen == .activity && session.outcome != nil {
+            if session.outcome != nil {
                 completionCard
-            } else if card.mode != .hidden {
-                ActivityCardPanel { cardContents }
-                    .activityCardInsets()
-                    .id(card.revision)
-            } else if showsActiveControls {
-                activity()
-                    .environment(card)
-                    .activityCardInsets()
+            } else if card.mode != .hidden || showsActiveControls {
+                ActivityCardLayout(placement: .middle) {
+                    activity()
+                        .disabled(!session.isActive)
+                    if card.mode == .help {
+                        ActivityAcknowledgement(title: "Kembali ke aktivitas", identifier: "activity.card.close") {
+                            card.dismiss()
+                        }
+                        Button {
+                            ActivityAudio.shared.enabled.toggle()
+                        } label: {
+                            Label(ActivityAudio.shared.enabled ? "Suara aktif" : "Suara nonaktif",
+                                  systemImage: ActivityAudio.shared.enabled ? "speaker.wave.2" : "speaker.slash")
+                                .frame(minHeight: 44)
+                        }
+                        .accessibilityIdentifier("activity.sound")
+                    }
+                }
+                .environment(card)
+                .id(card.revision)
+            } else {
+                Spacer(minLength: 0)
             }
         }
     }
 
     private var completionCard: some View {
-        ActivityCardPanel {
-            Text("\(content.title) selesai!")
-                .font(.headline)
-                .foregroundStyle(AppTheme.heading)
-            LessonButton(title: "Lihat hasil", identifier: "lesson.activity.result") {
+        ActivityCardLayout(placement: .middle) {
+            ActivityCardPanel { ActivityCardHeading("\(content.title) selesai!") }
+            ActivityAcknowledgement(title: "Lihat hasil", identifier: "lesson.activity.result") {
                 flow.showResult()
             }
         }
-        .activityCardInsets()
-    }
-
-    private var cardContents: some View {
-        VStack(spacing: 16) {
-            Text(card.mode == .help ? "Petunjuk" : content.title)
-                .font(.headline)
-                .foregroundStyle(AppTheme.heading)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityFocused($cardHeadingFocused)
-                .onAppear { cardHeadingFocused = true }
-            activity().disabled(!session.isActive)
-            if card.mode == .help {
-                LessonButton(title: "Kembali ke aktivitas", identifier: "activity.card.close") {
-                    card.dismiss()
-                }
-            }
-            if card.mode == .help {
-                Button {
-                    ActivityAudio.shared.enabled.toggle()
-                } label: {
-                    Label(ActivityAudio.shared.enabled ? "Suara aktif" : "Suara nonaktif",
-                          systemImage: ActivityAudio.shared.enabled ? "speaker.wave.2" : "speaker.slash")
-                        .frame(minHeight: 44)
-                }.accessibilityIdentifier("activity.sound")
-            }
-        }
-        .environment(card)
-        .frame(maxWidth: .infinity)
     }
 
     private var header: some View {
@@ -311,10 +288,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             Spacer()
             Text("\(content.id.index + 1) / \(PhaseID.allCases.count)").font(.caption.monospacedDigit())
             Spacer()
-            if flow.screen == .explanation {
-                Button("Ulangi") { restartActivity() }.frame(minWidth: 60, minHeight: 44)
-                    .background(.ultraThinMaterial, in: Capsule()).accessibilityIdentifier("replay")
-            } else { Color.clear.frame(width: 60, height: 44) }
+            Color.clear.frame(width: 44, height: 44)
         }.padding(.horizontal, 20).padding(.vertical, 8)
     }
     @ViewBuilder private var equipmentArtwork: some View {
@@ -336,14 +310,4 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         if equipment == nil { start() }
     }
     private func begin() { start(); flow.beginActivity() }
-    private func restartActivity() {
-        let hasEquipment = equipment != nil
-        if hasEquipment {
-            isToolRevealed = false
-            replayingCompletedStage = false
-        } else {
-            replay()
-        }
-        flow.replay(hasEquipment: hasEquipment)
-    }
 }

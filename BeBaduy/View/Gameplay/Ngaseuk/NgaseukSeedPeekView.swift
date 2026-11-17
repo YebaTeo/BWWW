@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct NgaseukSeedPeekView: View {
+    @Environment(\.activitySceneInsets) private var sceneInsets
     let model: NgaseukViewModel
     let target: Int
     var dragActive = false
@@ -39,24 +40,14 @@ struct NgaseukSeedPeekView: View {
                         .animation(.easeOut(duration: 0.16), value: canPlant)
                 }
 
-                // Header Information Card
-                VStack(spacing: 8) {
-                    Text("Lubang \(target + 1)").font(.title2.bold())
-                    Text(statusText)
-                        .font(.headline).multilineTextAlignment(.center)
-                    if !dragActive && !filled && !model.motionActive && !isPourSequenceActive {
-                        Text("Kamu juga bisa menggunakan tombol di bawah.").font(.subheadline)
+                ActivityCardLayout(placement: .bottom, sceneInsets: sceneInsets) {
+                    ActivityCardPanel {
+                        ActivityCardHeading("Lubang \(target + 1)")
+                        Text(statusText)
+                        if !dragActive && !filled && !model.motionActive && !isPourSequenceActive {
+                            Text("Kamu juga bisa menggunakan tombol di bawah.").font(.subheadline)
+                        }
                     }
-                }
-                .font(.subheadline)
-                .padding(24)
-                .activityCardStyle()
-                .padding(.horizontal, 24)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.top, 65)
-
-                // Bottom Action Controls
-                VStack(spacing: 12) {
                     if !dragActive && !filled {
                         LessonButton(title: model.isBasketEntering ? "Baskom mendekat…" : (model.isBasketTilting ? "Memiringkan baskom…" : (model.isPouring ? "Menuang benih…" : "Tuang \(NgaseukViewModel.seedsPerHole) benih")),
                                      identifier: "ngaseuk.peek.pour",
@@ -78,9 +69,6 @@ struct NgaseukSeedPeekView: View {
                             .accessibilityIdentifier("ngaseuk.peek.back")
                     }
                 }
-                .padding(.horizontal, 28)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 48)
             }
             .allowsHitTesting(!dragActive)
         }

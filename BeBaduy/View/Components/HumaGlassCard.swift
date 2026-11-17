@@ -115,12 +115,6 @@ private struct HumaGlassCardPreview: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 32) {
-                    HStack {
-                        Spacer()
-                        Button("Ulangi") {}
-                            .buttonStyle(.glass)
-                            .tint(AppTheme.orange)
-                    }
                     HumaGlassCard() {
                         VStack(spacing: 24) {
                             Text("Kami memanfaatkan abu sisa pembakaran rumput dan daun kering untuk menyuburkan tanah.")
