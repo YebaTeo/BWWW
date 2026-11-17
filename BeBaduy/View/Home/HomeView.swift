@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var onboardingReady = false
     @State private var selectedTab: HomeTab = .menu
     @State private var isTabCollapsed = false
+    @State private var showsPrologue = false
 
     var body: some View {
         Group {
@@ -27,6 +28,7 @@ struct HomeView: View {
                     NavigationStack(path: $model.path) {
                         MenuView(
                             journey: journey,
+                            onPrologue: { showsPrologue = true },
                             open: { model.open($0, journey: journey) },
                             onScroll: { oldOffset, newOffset in
                                 updateTabBar(for: .menu, from: oldOffset, to: newOffset)
@@ -70,6 +72,26 @@ struct HomeView: View {
                 .tint(AppTheme.heading)
                 .fullScreenCover(isPresented: $model.showsCompletion) {
                     CompletionView(journey: journey) { model.showsCompletion = false }
+                }
+                .fullScreenCover(isPresented: $showsPrologue) {
+                    ZStack(alignment: .topTrailing) {
+                        IntroductionView(
+                            stageProgress: GrowthStage.onboardingStage(for: journey.progress).targetProgress
+                        ) {
+                            showsPrologue = false
+                        }
+                        Button { showsPrologue = false } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(.black.opacity(0.45), in: Circle())
+                        }
+                        .accessibilityLabel("Tutup prologue")
+                        .padding(.top, 12)
+                        .padding(.trailing, 20)
+                    }
+                    .preferredColorScheme(.dark)
                 }
             }
         }

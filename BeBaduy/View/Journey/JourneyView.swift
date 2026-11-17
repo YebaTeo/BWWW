@@ -59,52 +59,48 @@ struct JourneyView: View {
     }
 
     private var prologueCard: some View {
-        ZStack(alignment: .leading) {
+        ZStack {
             RoundedRectangle(cornerRadius: 18)
-                .fill(Color(red: 0.28, green: 0.17, blue: 0.11))
-            if let texture = UIImage(named: "HumaTerrainTexture") {
-                Image(uiImage: texture)
-                    .resizable()
-                    .scaledToFill()
-                    .opacity(0.32)
-            }
-            LinearGradient(colors: [.black.opacity(0.38), .clear], startPoint: .leading, endPoint: .trailing)
-            VStack(alignment: .leading, spacing: 4) {
+                .fill(.white.opacity(0.9))
+            VStack(spacing: 4) {
                 Text("PROLOGUE")
-                    .font(.system(.headline, design: .rounded, weight: .bold))
-                    .foregroundStyle(gold)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.orange)
                 Text("Kisah awal")
-                    .font(.subheadline)
-                    .foregroundStyle(ivory)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.black)
             }
-            .padding(22)
         }
-        .frame(height: 98)
+        .frame(height: 90)
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ivory.opacity(0.28), lineWidth: 0.6))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.8), lineWidth: 1))
     }
 
     private func phaseCard(_ phase: PhaseContent, unlocked: Bool) -> some View {
         return ZStack(alignment: .leading) {
             StageCardScene(thumbnail: thumbnailStore.thumbnails[phase.id])
-            LinearGradient(
-                stops: [
-                    .init(color: Color(red: 0.15, green: 0.09, blue: 0.06).opacity(0.96), location: 0),
-                    .init(color: Color(red: 0.19, green: 0.11, blue: 0.07).opacity(0.82), location: 0.46),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            if !unlocked { Color.black.opacity(0.58) }
+                .saturation(unlocked ? 1 : 0)
+            if unlocked {
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(red: 0.15, green: 0.09, blue: 0.06).opacity(0.96), location: 0),
+                        .init(color: Color(red: 0.19, green: 0.11, blue: 0.07).opacity(0.82), location: 0.46),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            } else {
+                Color(red: 0.34, green: 0.33, blue: 0.32).opacity(0.8)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(phase.id == .ngaleuitkeunPare ? "NGALEUITKEUN" : phase.title.uppercased())
                     .font(.system(.headline, design: .rounded, weight: .bold))
-                    .foregroundStyle(unlocked ? gold : gold.opacity(0.48))
+                    .foregroundStyle(unlocked ? gold : Color(red: 0.74, green: 0.69, blue: 0.63))
                 Text(showsRecap ? recap[phase.id.index] : unlocked ? phase.introduction : "Selesaikan \(PhaseContent.content(for: PhaseID.allCases[phase.id.index - 1]).title) untuk lanjut ke tahap ini.")
                     .font(.system(size: 13.5))
                     .lineLimit(3)
-                    .foregroundStyle(ivory.opacity(unlocked ? 1 : 0.52))
+                    .foregroundStyle(ivory.opacity(unlocked ? 1 : 0.72))
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: 218, alignment: .leading)
@@ -113,7 +109,7 @@ struct JourneyView: View {
         }
         .frame(height: 116)
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ivory.opacity(unlocked ? 0.38 : 0.14), lineWidth: 0.6))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ivory.opacity(unlocked ? 0.38 : 0.3), lineWidth: 0.6))
     }
 }
 
