@@ -63,7 +63,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                  showsRackPosts: showsRackPosts || flow.screen != .activity,
                                  rackBalance: rackBalance,
                                  animateWhileInactive: content.id == .ngalantai && flow.screen == .activity,
-                                 rackTransitionTimeConstant: content.id == .ngalantai && flow.screen == .activity ? 0.38 : 0.16,
+                                 rackTransitionTimeConstant: content.id == .ngalantai && flow.screen == .activity ? 0.18 : 0.16,
                                  rackScale: rackScale,
                                  leuitActivity: flow.screen == .activity ? leuitActivity : nil)
                     .ignoresSafeArea()

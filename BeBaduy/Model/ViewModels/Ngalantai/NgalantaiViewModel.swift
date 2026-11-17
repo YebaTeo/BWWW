@@ -18,7 +18,6 @@ import Foundation
     private var baseline: Double?
     @ObservationIgnored private var timer: Task<Void, Never>?
     @ObservationIgnored private var demoTask: Task<Void, Never>?
-    @ObservationIgnored private var rackDelayTask: Task<Void, Never>?
 
     var allowsLandscape: Bool {
         step == .awaitingLandscape || step == .balanceInstructions || step == .balancing || (step == .balanceDemo && landscapeDirection != 0)
@@ -28,7 +27,7 @@ import Foundation
 
     func start() {
         suspend()
-        rackDelayTask?.cancel(); rackDelayTask = nil; rackAnimationReady = false
+        rackAnimationReady = false
         step = .awaitingLandscape
         balance = 0.65; steadyTime = 0; usedDemo = false; usesTouch = false
         landscapeDirection = 0
@@ -51,12 +50,7 @@ import Foundation
     func beginBalance() {
         guard session.isActive, step == .balanceInstructions, landscapeDirection != 0 else { return }
         step = .balancing
-        rackDelayTask?.cancel()
-        rackDelayTask = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(1)) } catch { return }
-            guard let self, self.session.isActive, self.step == .balancing else { return }
-            self.rackAnimationReady = true
-        }
+        rackAnimationReady = true
         ActivityAudio.shared.play(.bamboo)
         resume()
     }
