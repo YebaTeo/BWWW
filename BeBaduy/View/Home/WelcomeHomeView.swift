@@ -91,15 +91,7 @@ struct WelcomeHomeView: View {
                 if isActive && !openingChapter {
                     VStack {
                         HStack {
-                            Button(action: onJourney) {
-                                Image(systemName: "square.grid.2x2")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .frame(width: 42, height: 42)
-                                    .background(.black.opacity(0.30), in: Circle())
-                                    .overlay(Circle().strokeBorder(ivory.opacity(0.45), lineWidth: 0.7))
-                            }
-                            .accessibilityLabel("Perjalanan Ngahuma")
-                            .accessibilityIdentifier("home.journey")
+                            StageMenuButton(stageIndex: selectedStage, action: onJourney)
                             Spacer()
                         }
                         Spacer()

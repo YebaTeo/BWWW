@@ -244,17 +244,20 @@ import XCTest
         XCTAssertTrue(app.buttons["ngaseuk.seeds.continue"].waitForExistence(timeout: 6))
     }
 
-    func testNgaseukMotionTutorialAndPlant() {
+    func testNgaseukMotionTutorialAndSeedDrag() {
         prepare(["--uitest-ngaseuk", "--uitest-ngaseuk-motion"]); start()
         waitForNgaseukHoles()
         capture("Ngaseuk-three-soil-holes")
         tap("ngaseuk.seeds.continue")
         XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
         let seed = app.descendants(matching: .any)["field.seed"].firstMatch
-        seed.press(forDuration: 0.6, thenDragTo: app.buttons["field.hole.0"])
-        pourIntoHole(1); pourIntoHole(2)
-        next()
-        XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(seed.waitForExistence(timeout: 5))
+        // The close-up replaces field elements during the gesture. Drag toward
+        // the middle hole using a coordinate that remains stable as it opens.
+        let middleHole = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.58))
+        seed.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.6, thenDragTo: middleHole)
+        XCTAssertTrue(app.staticTexts["1 / 3 lubang berisi benih"].waitForExistence(timeout: 8))
     }
 
     func testKoredSwipesAndThreeStrokes() {

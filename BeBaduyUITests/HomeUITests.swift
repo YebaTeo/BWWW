@@ -6,6 +6,7 @@ import XCTest
         app.launch()
         finishOnboarding(in: app)
         XCTAssertTrue(app.buttons["resume"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["home.journey"].value as? String, "1 dari 6 biji")
         app.buttons["home.journey"].tap()
         XCTAssertTrue(app.staticTexts["Perjalanan Ngahuma"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["journey.prologue"].exists)
@@ -41,16 +42,30 @@ import XCTest
         app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngored"]
         app.launch()
         waitForPreviewTitle("NGORED", in: app)
+        XCTAssertEqual(app.buttons["home.journey"].value as? String, "3 dari 6 biji")
         XCTAssertFalse(app.buttons["home.stage.next"].exists)
         app.swipeDown()
         waitForPreviewTitle("NGASEUK", in: app)
+        XCTAssertEqual(app.buttons["home.journey"].value as? String, "2 dari 6 biji")
         app.buttons["home.stage.next"].tap()
         waitForPreviewTitle("NGORED", in: app)
+        XCTAssertEqual(app.buttons["home.journey"].value as? String, "3 dari 6 biji")
         app.swipeUp()
         waitForPreviewTitle("NGORED", in: app)
         XCTAssertFalse(app.buttons["home.stage.next"].exists)
         app.buttons["resume"].tap()
         XCTAssertTrue(app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 15))
+    }
+
+    func testJourneyMenuShowsSixGrainsAtLastPhase() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-explanations", "--preview-stage=5"]
+        app.launch()
+        waitForPreviewTitle("NGALEUITKEUN", in: app)
+        let menu = app.buttons["home.journey"]
+        XCTAssertEqual(menu.value as? String, "6 dari 6 biji")
+        menu.tap()
+        XCTAssertTrue(app.staticTexts["Perjalanan Ngahuma"].waitForExistence(timeout: 10))
     }
 
     func testEquipmentCardsOpenAndFlipRepeatedly() {

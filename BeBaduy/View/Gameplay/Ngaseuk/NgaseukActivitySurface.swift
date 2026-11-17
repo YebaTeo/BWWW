@@ -135,10 +135,19 @@ struct NgaseukActivitySurface: View {
                         .gesture(seedDragGesture(in: geometry.size))
                         .zIndex(model.isDraggingSeed ? 2 : 0)
                 }
-                if let target = model.peekTarget {
-                    NgaseukSeedPeekView(model: model, target: target, dragActive: model.isDraggingSeed,
+                if model.step == .seeding {
+                    // Keep the SceneKit close-up mounted before the bowl enters a
+                    // hole. Building it inside onChanged stalls that drag frame.
+                    let isPeeking = model.peekTarget != nil
+                    NgaseukSeedPeekView(model: model,
+                                        target: model.peekTarget ?? model.nextSeedTarget ?? 0,
+                                        dragActive: model.isDraggingSeed,
                                         canPlant: model.isSeedInPlantingRange)
-                        .transition(.opacity)
+                        .opacity(isPeeking ? 1 : 0.001)
+                        .scaleEffect(isPeeking || reduceMotion ? 1 : 0.96)
+                        .allowsHitTesting(isPeeking)
+                        .accessibilityHidden(!isPeeking)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.26), value: isPeeking)
                 }
             }
             .coordinateSpace(name: "ngaseukField")

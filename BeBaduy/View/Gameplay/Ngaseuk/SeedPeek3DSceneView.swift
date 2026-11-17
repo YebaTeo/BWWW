@@ -41,6 +41,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
         private var seedNodes: [SCNNode] = []
         private var holeGroup: SCNNode?
         private var wasPouring = false
+        private var wasFilled = false
 
         private struct SeedSpot {
             let x: Float
@@ -110,12 +111,9 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             rimLightNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(rimLightNode)
 
-            // Restore the detailed AR soil surrounding the planting hole.
-            let environment = UIImage(named: "HumaEnvironment")
-            let soilImage = environment?.cgImage
-                .flatMap { NgahumaMaterials.buildSoilTexture(from: $0) }
-                .map { UIImage(cgImage: $0) }
-                ?? UIImage(named: "HumaTerrainTexture") ?? UIImage()
+            // Use the bundled detailed soil directly. Regenerating a 1024²
+            // texture here blocks the first frame while the bowl is being dragged.
+            let soilImage = UIImage(named: "HumaTerrainTexture") ?? UIImage()
             let (terrainGeometry, terrainMaterial) = NgahumaMaterials.makeTerrainMesh(
                 span: 1.4,
                 steps: 24,
@@ -156,6 +154,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             scene.rootNode.addChildNode(root)
             self.holeGroup = root
             self.wasPouring = isPouring
+            self.wasFilled = filled
 
             if isPouring {
                 animatePouring()
@@ -163,6 +162,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
         }
 
         func update(filled: Bool, isPouring: Bool) {
+            guard filled != wasFilled || isPouring != wasPouring else { return }
             if isPouring && !wasPouring {
                 animatePouring()
             } else if !isPouring {
@@ -176,6 +176,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
                 }
             }
             wasPouring = isPouring
+            wasFilled = filled
         }
 
         private func animatePouring() {
