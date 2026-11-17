@@ -10,7 +10,7 @@ struct MipitView: View {
     }
     var body: some View {
         PhaseContainerView(content: PhaseContent.content(for: .mipit), session: model.session, journey: journey,
-            start: start, replay: start,
+            start: start,
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
             usesContextCards: false,
             mipitHarvested: model.harvested,

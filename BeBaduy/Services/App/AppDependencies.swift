@@ -23,11 +23,16 @@ import Foundation
         if ProcessInfo.processInfo.arguments.contains("--uitesting"),
            let phase = ProcessInfo.processInfo.arguments.contains("--uitest-mipit") ? PhaseID.mipit :
                        ProcessInfo.processInfo.arguments.contains("--uitest-ngored") ? PhaseID.ngored :
-                       ProcessInfo.processInfo.arguments.contains("--uitest-ngaseuk") ? PhaseID.ngaseuk : nil {
+                       ProcessInfo.processInfo.arguments.contains("--uitest-ngaseuk") ? PhaseID.ngaseuk :
+                       ProcessInfo.processInfo.arguments.contains("--uitest-leuit") ? PhaseID.ngaleuitkeunPare : nil {
             journey.finishIntroduction()
             journey.record(.narawas, outcome: .observed)
             if phase != .ngaseuk { journey.record(.ngaseuk, outcome: .observed) }
-            if phase == .mipit { journey.record(.ngored, outcome: .observed) }
+            if phase == .mipit || phase == .ngaleuitkeunPare { journey.record(.ngored, outcome: .observed) }
+            if phase == .ngaleuitkeunPare {
+                journey.record(.mipit, outcome: .observed)
+                journey.record(.ngalantai, outcome: .observed)
+            }
             journey.open(phase)
         }
         #endif

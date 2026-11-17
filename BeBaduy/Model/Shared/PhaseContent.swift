@@ -82,7 +82,7 @@ struct PhaseContent: Identifiable, Sendable {
                 introduction: "Kami menyimpan hasil panen ke dalam leuit (lumbung) untuk kebutuhan di masa mendatang.",
                 instruction: "Seret tangga bambu (taraje) ke pintu, lalu perhatikan cara masuk ke leuit.",
                 explanation: "Menurut Pikukuh Baduy (hukum adat), pare huma yang disimpan di Leuit tidak boleh dijual atau ditukar.\n\nPare ini hanya boleh disimpan untuk keluarga dan kebutuhan adat.",
-                result: "Keren!\n\nKita sudah menyimpan hasil Ngahuma kali ini.\n\nUlangi lagi semua tahapan untuk memenuhi leuit ini.",
+                result: "Keren!\n\nKita sudah menyimpan hasil Ngahuma kali ini.",
                 timeCue: nil,
                 sourceIDs: ["S3"]
             )

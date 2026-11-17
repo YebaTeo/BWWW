@@ -1,6 +1,7 @@
 import SwiftUI
 struct NgoredActivitySurface: View {
     let model: NgoredViewModel
+    @Environment(\.activitySceneInsets) private var sceneInsets
     @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -83,18 +84,17 @@ struct NgoredActivitySurface: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                 }
                 if isWeeding && card.mode == .hidden {
-                    VStack(spacing: 6) {
-                        Text("Usap gulma untuk menyapukan kored").font(.headline)
-                        let removedCount = currentWeedTargets.filter { model.removed.contains($0) }.count
-                        Text("Rumput dicabut: \(removedCount)/\(currentWeedTargets.count)").font(.subheadline)
-                        if model.session.feedback.hasPrefix("Ini padi") {
-                            Text(model.session.feedback).font(.subheadline.bold())
-                                .accessibilityIdentifier("ngored.rice.feedback")
+                    ActivityCardLayout(placement: .bottom, sceneInsets: sceneInsets) {
+                        ActivityCardPanel(passesTouchesThrough: true) {
+                            Text("Usap gulma untuk menyapukan kored")
+                            let removedCount = currentWeedTargets.filter { model.removed.contains($0) }.count
+                            Text("Rumput dicabut: \(removedCount)/\(currentWeedTargets.count)").font(.subheadline)
+                            if model.session.feedback.hasPrefix("Ini padi") {
+                                Text(model.session.feedback).font(.subheadline.bold())
+                                    .accessibilityIdentifier("ngored.rice.feedback")
+                            }
                         }
-                    }.font(.subheadline).multilineTextAlignment(.center).padding(24)
-                        .activityCardStyle()
-                        .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
-                        .allowsHitTesting(false)
+                    }
                 }
                 if let struckWeed, !reduceMotion {
                     TimelineView(.animation(minimumInterval: 1.0 / 60, paused: scenePhase != .active)) { _ in

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NgaseukActivitySurface: View {
     let model: NgaseukViewModel
+    @Environment(\.activitySceneInsets) private var sceneInsets
     @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visibleDigCounts: [Int: Int] = [:]
@@ -96,31 +97,26 @@ struct NgaseukActivitySurface: View {
                             .zIndex(3)
                     }
                 }
-                if model.step == .instructions {
+                if model.step == .instructions && card.mode == .hidden {
                     tutorial
                 }
                 if model.step == .digging && card.mode == .hidden {
-                    VStack(spacing: 6) {
-                        Text(model.motionActive ? "Gerakkan ponsel ke bawah atau ketuk lubang" : model.session.feedback)
-                            .font(.headline)
-                        Text("\(model.holes.count) / 3 lubang").font(.subheadline.monospacedDigit())
-                    }.font(.subheadline).multilineTextAlignment(.center).padding(24)
-                        .activityCardStyle()
-                        .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
-                        .allowsHitTesting(false)
+                    ActivityCardLayout(placement: .bottom, sceneInsets: sceneInsets) {
+                        ActivityCardPanel(passesTouchesThrough: true) {
+                            Text(model.motionActive ? "Gerakkan ponsel ke bawah atau ketuk lubang" : model.session.feedback)
+                            Text("\(model.holes.count) / 3 lubang").font(.subheadline.monospacedDigit())
+                        }
+                    }
                 }
                 if model.step == .seeding && card.mode == .hidden &&
                     model.peekTarget == nil && !model.isDraggingSeed {
-                    VStack(spacing: 6) {
-                        Text("Goyangkan ponsel perlahan atau seret wadah benih ke lubang")
-                            .font(.headline)
-                        Text("\(model.seeds.count) / 3 lubang berisi benih")
-                            .font(.subheadline.monospacedDigit())
+                    ActivityCardLayout(placement: .bottom, sceneInsets: sceneInsets) {
+                        ActivityCardPanel(passesTouchesThrough: true) {
+                            Text("Goyangkan ponsel perlahan atau seret wadah benih ke lubang")
+                            Text("\(model.seeds.count) / 3 lubang berisi benih")
+                                .font(.subheadline.monospacedDigit())
+                        }
                     }
-                    .font(.subheadline).multilineTextAlignment(.center).padding(24)
-                    .activityCardStyle()
-                    .padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .top).padding(.top, 65)
-                    .allowsHitTesting(false)
                 }
                 if model.step == .seeding && (
                     model.isDraggingSeed ||
@@ -138,7 +134,7 @@ struct NgaseukActivitySurface: View {
                 if model.step == .seeding {
                     // Keep the SceneKit close-up mounted before the bowl enters a
                     // hole. Building it inside onChanged stalls that drag frame.
-                    let isPeeking = model.peekTarget != nil
+                    let isPeeking = model.peekTarget != nil && card.mode == .hidden
                     NgaseukSeedPeekView(model: model,
                                         target: model.peekTarget ?? model.nextSeedTarget ?? 0,
                                         dragActive: model.isDraggingSeed,

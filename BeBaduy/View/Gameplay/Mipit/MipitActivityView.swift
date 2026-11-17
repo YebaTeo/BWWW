@@ -5,50 +5,58 @@ struct MipitActivityView: View {
     @Binding var showsHelp: Bool
     @Environment(\.dismiss) private var dismiss
 
+    private let instruction = "Cubit layar untuk memotong batang pare menggunakan etem."
+
     var body: some View {
         VStack(spacing: 8) {
             HStack {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.left").frame(width: 44, height: 44)
-                }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
+                }
+                .accessibilityLabel("Kembali ke beranda")
+                .accessibilityIdentifier("lesson.back")
                 Spacer()
-                if model.step == .harvesting {
-                    if !showsHelp {
-                        Button { showsHelp = true } label: {
-                            Image(systemName: "questionmark.circle").frame(width: 44, height: 44)
-                        }.accessibilityLabel("Buka petunjuk")
+                if model.step == .harvesting && !showsHelp {
+                    Button { showsHelp = true } label: {
+                        Image(systemName: "questionmark.circle").frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("Buka petunjuk")
                 }
             }
             .padding(.horizontal, 16)
-            Spacer(minLength: 0)
+
             switch model.step {
             case .harvesting:
                 if showsHelp {
-                    panel {
-                        Text("Panen dengan etem").font(.headline)
-                            .foregroundStyle(AppTheme.heading)
-                        Text("Cubit layar untuk memotong batang pare menggunakan etem.")
-                        LessonButton(title: "Mulai", identifier: "mipit.card.start") { showsHelp = false }
+                    ActivityCardLayout(placement: .middle) {
+                        ActivityCardPanel {
+                            ActivityCardHeading("Panen dengan etem")
+                            Text(instruction)
+                        }
+                        ActivityAcknowledgement(title: "Mulai atau kembali memanen", identifier: "mipit.card.start") {
+                            showsHelp = false
+                        }
                     }
                 } else {
-                VStack(spacing: 8) {
-                    Text("Cubit layar untuk memotong batang pare menggunakan etem.").font(.subheadline)
-                    HStack {
-                        ForEach(0..<MipitViewModel.harvestCount, id: \.self) { index in
-                            if model.harvested.contains(index) {
-                                MipitRiceBundle().frame(width: 23, height: 34).accessibilityHidden(true)
+                    ActivityCardLayout(placement: .bottom) {
+                        ActivityCardPanel(passesTouchesThrough: true) {
+                            Text(instruction)
+                            ViewThatFits(in: .horizontal) {
+                                HStack {
+                                    ForEach(0..<model.harvested.count, id: \.self) { _ in
+                                        MipitRiceBundle().frame(width: 23, height: 34).accessibilityHidden(true)
+                                    }
+                                    harvestCount.fixedSize()
+                                }
+                                harvestCount
                             }
                         }
-                        Text("\(model.harvested.count) / \(MipitViewModel.harvestCount) malai terkumpul")
-                    }.accessibilityElement(children: .combine)
-                }.font(.subheadline).multilineTextAlignment(.center).padding(24).activityCardStyle()
-                    .activityCardInsets()
+                    }
                 }
             case .harvestSuccess:
-                panel {
-                    Text("Akhirnya, proses panen sudah selesai!").font(.headline)
-                    LessonButton(title: "Lihat hasil", identifier: "mipit.rotate", action: model.finishHarvest)
+                ActivityCardLayout(placement: .middle) {
+                    ActivityCardPanel { ActivityCardHeading("Akhirnya, proses panen sudah selesai!") }
+                    ActivityAcknowledgement(title: "Lihat hasil", identifier: "mipit.rotate", action: model.finishHarvest)
                 }
             }
         }
@@ -56,8 +64,8 @@ struct MipitActivityView: View {
         .disabled(model.isDemonstrating)
     }
 
-    private func panel(@ViewBuilder content: () -> some View) -> some View {
-        ActivityCardPanel(content: content)
-            .activityCardInsets()
+    private var harvestCount: some View {
+        Text("\(model.harvested.count) / \(MipitViewModel.harvestCount) malai terkumpul")
+            .font(.subheadline.monospacedDigit())
     }
 }

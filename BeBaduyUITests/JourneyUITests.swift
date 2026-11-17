@@ -106,16 +106,28 @@ import XCTest
         XCTAssertTrue(app.staticTexts["narawas.sceneReady"].waitForExistence(timeout: 30))
         XCTAssertFalse(app.scrollViews["lesson.explanation.page"].exists)
         XCTAssertFalse(app.buttons["replay"].exists)
-        capture("Completed-stage-activity-large-\(largeText)")
+        if largeText {
+            let card = app.descendants(matching: .any)["activity.navigation.card"].firstMatch
+            XCTAssertLessThanOrEqual(card.frame.height, 201)
+            capture("Narawas-bottom-large-text")
+            let scroll = app.scrollViews.matching(NSPredicate(
+                format: "identifier IN %@", ["activity.card.scroll", "activity.navigation.card"]
+            )).firstMatch
+            XCTAssertTrue(scroll.exists, app.debugDescription)
+            scroll.swipeUp()
+        } else {
+            capture("Completed-stage-activity-large-false")
+        }
         tap("lesson.back")
     }
 
     private func completeLeuit() {
         let ladder = app.descendants(matching: .any)["field.ladder"].firstMatch
         XCTAssertTrue(ladder.waitForExistence(timeout: 5))
-        let door = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.53))
-        ladder.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.15, thenDragTo: door)
-        XCTAssertTrue(app.buttons["lesson.activity.result"].waitForExistence(timeout: 6))
+        let ladderStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.65))
+        let door = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+        ladderStart.press(forDuration: 0.15, thenDragTo: door)
+        XCTAssertTrue(app.buttons["lesson.activity.result"].waitForExistence(timeout: 8))
     }
 
     func testFullSixChapterTouchJourneyAndReplay() {
@@ -159,10 +171,10 @@ import XCTest
         completeLeuit(); next()
         XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
     }
-    func testMipitAndNgalantaiLandscapeReplay() {
+    func testMipitAndNgalantaiLandscapeFlow() {
         defer { XCUIDevice.shared.orientation = .portrait }
         prepare(["--uitest-mipit"]); tap("resume"); start()
-        capture("Mipit-three-plants")
+        capture("Mipit-bottom-instructions")
         for index in 0..<3 {
             let plant = app.otherElements["field.harvest.\(index)"].firstMatch
             XCTAssertTrue(plant.waitForExistence(timeout: 5))
@@ -171,9 +183,13 @@ import XCTest
             plant.pinch(withScale: 0.5, velocity: -1)
             XCTAssertEqual(plant.value as? String, "Sudah dipanen")
         }
+        assertInformationCard(cue: "mipit.rotate")
+        capture("Mipit-middle-success")
         tap("mipit.rotate"); next(); start()
         XCTAssertFalse(app.buttons["ngalantai.balance.continue"].exists)
         XCUIDevice.shared.orientation = .landscapeRight
+        assertInformationCard(cue: "ngalantai.balance.continue")
+        capture("Ngalantai-middle-landscape")
         tap("ngalantai.balance.continue")
         XCUIDevice.shared.orientation = .landscapeLeft
         tap("ngalantai.balance.continue")
@@ -188,20 +204,14 @@ import XCTest
         tap("ngalantai.balance.continue")
         if app.buttons["ngalantai.balance.touch"].exists { tap("ngalantai.balance.touch") }
         tap("ngalantai.balance.center")
-        XCUIDevice.shared.orientation = .portrait
+        capture("Ngalantai-bottom-touch-controls")
+        waitForNgalantaiDrying()
         tap("ngalantai.drying.continue")
         tap("lesson.activity.result")
         tap("lesson.result.continue")
         XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
-        tap("replay")
-        XCTAssertTrue(app.staticTexts["Layar harus dalam mode lanskap."].waitForExistence(timeout: 5))
-        XCUIDevice.shared.orientation = .portrait
-        XCUIDevice.shared.orientation = .landscapeLeft
-        tap("ngalantai.balance.continue")
-        if app.buttons["ngalantai.balance.touch"].exists { tap("ngalantai.balance.touch") }
-        tap("ngalantai.balance.center")
-        tap("ngalantai.drying.continue")
-        next()
+        XCTAssertFalse(app.buttons["Ulangi"].exists)
+        tap("continue")
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
 
@@ -220,9 +230,19 @@ import XCTest
         tap("ngalantai.balance.continue")
         if app.buttons["ngalantai.balance.touch"].exists { tap("ngalantai.balance.touch") }
         tap("ngalantai.balance.center")
-        // Let the uninterrupted hold finish and the app request portrait itself.
+        waitForNgalantaiDrying()
         tap("ngalantai.drying.continue")
     }
+    private func waitForNgalantaiDrying() {
+        let drying = app.buttons["ngalantai.drying.continue"]
+        let returnPrompt = app.staticTexts["Tegakkan ponsel untuk melihat padi dijemur."]
+        if !drying.exists, returnPrompt.waitForExistence(timeout: 5) {
+            XCUIDevice.shared.orientation = .portrait
+        }
+        XCTAssertTrue(drying.waitForExistence(timeout: 8))
+        capture("Ngalantai-middle-drying")
+    }
+
     func pourIntoHole(_ index: Int) {
         tap("field.hole.\(index)")
         XCTAssertTrue(app.buttons["ngaseuk.peek.pour"].waitForExistence(timeout: 5))
@@ -241,13 +261,15 @@ import XCTest
         XCTAssertTrue(tutorial.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["field.hole.0"].exists)
         XCTAssertTrue(tutorial.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["ngaseuk.seeds.continue"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.buttons["ngaseuk.seeds.continue"].waitForExistence(timeout: 12))
     }
 
     func testNgaseukMotionTutorialAndSeedDrag() {
         prepare(["--uitest-ngaseuk", "--uitest-ngaseuk-motion"]); start()
         waitForNgaseukHoles()
         capture("Ngaseuk-three-soil-holes")
+        assertInformationCard(cue: "ngaseuk.seeds.continue")
+        capture("Ngaseuk-middle-planting")
         tap("ngaseuk.seeds.continue")
         XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
         let seed = app.descendants(matching: .any)["field.seed"].firstMatch
@@ -260,14 +282,75 @@ import XCTest
         XCTAssertTrue(app.staticTexts["1 / 3 lubang berisi benih"].waitForExistence(timeout: 8))
     }
 
+    func testNgaseukPlantingHelpAndCompletion() {
+        prepare(["--uitest-ngaseuk", "--uitest-ngaseuk-motion"]); start()
+        waitForNgaseukHoles()
+        assertInformationCard(cue: "ngaseuk.seeds.continue")
+        tap("ngaseuk.seeds.continue")
+        XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
+        capture("Ngaseuk-bottom-seeding")
+        tap("activity.help")
+        assertInformationCard(cue: "activity.card.close")
+        for index in 0..<3 { tap("seed_\(index)") }
+        next()
+        XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
+    }
+
     func testKoredSwipesAndThreeStrokes() {
         prepare(["--uitest-ngored"]); tap("resume")
         start()
-        let weed = app.descendants(matching: .any)["field.weed.0"].firstMatch
-        XCTAssertTrue(weed.waitForExistence(timeout: 15))
+        assertInformationCard(cue: "ngored.growth.begin")
+        capture("Ngored-middle-instructions")
+        tap("ngored.growth.begin")
+        XCTAssertFalse(app.buttons["ngored.growth.begin"].exists)
+        XCTAssertFalse(app.buttons["lesson.activity.result"].exists)
         if app.buttons["ngored.field.begin"].exists { tap("ngored.field.begin") }
+        XCTAssertTrue(app.staticTexts["Usap gulma untuk menyapukan kored"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["weed_0"].exists)
-        swipeWeed(0)
+        capture("Ngored-bottom-weeding")
+        let visibleWeeds = (0..<4).filter {
+            app.descendants(matching: .any)["field.weed.\($0)"].firstMatch.exists
+        }
+        XCTAssertFalse(visibleWeeds.isEmpty, app.debugDescription)
+        if let index = visibleWeeds.first { swipeWeed(index) }
+    }
+
+    func testLeuitCardAcknowledgementAndResult() {
+        prepare(["--uitest-leuit"]); tap("resume")
+        let ladderHint = app.staticTexts["Seret tangga bambu ke pintu leuit."]
+        XCTAssertTrue(ladderHint.waitForExistence(timeout: 10))
+        capture("Leuit-bottom-instructions")
+        tap("activity.help")
+        assertInformationCard(cue: "activity.card.close")
+        capture("Leuit-middle-help")
+        let hint = app.staticTexts["activity.continuation.hint"]
+        XCTAssertTrue(hint.exists)
+        XCTAssertEqual(hint.label, "Tap layar untuk lanjut")
+        XCTAssertTrue(hint.waitForNonExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["lesson.activity.result"].exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.27)).tap()
+        XCTAssertTrue(ladderHint.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["lesson.activity.result"].exists)
+        completeLeuit()
+        assertInformationCard(cue: "lesson.activity.result")
+        capture("Leuit-middle-success")
+        tap("lesson.activity.result")
+        assertInformationCard(cue: "lesson.result.continue")
+        capture("Leuit-middle-result")
+        XCTAssertFalse(app.buttons["Ulangi"].exists)
+        tap("lesson.result.continue")
+        XCTAssertTrue(app.scrollViews["lesson.explanation.page"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Ulangi"].exists)
+    }
+
+    private func assertInformationCard(cue identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let card = app.descendants(matching: .any)["activity.navigation.card"].firstMatch
+        let cue = app.buttons[identifier].firstMatch
+        XCTAssertTrue(cue.waitForExistence(timeout: 10), file: file, line: line)
+        XCTAssertTrue(card.exists, app.debugDescription, file: file, line: line)
+        XCTAssertEqual(card.buttons.count, 0, file: file, line: line)
+        XCTAssertEqual(card.sliders.count, 0, file: file, line: line)
+        XCTAssertTrue(cue.frame.contains(card.frame), file: file, line: line)
     }
 
     private func swipeWeed(_ index: Int) {
