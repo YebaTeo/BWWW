@@ -3,12 +3,15 @@ import XCTest
 
 @MainActor final class LeuitDiscoveryTests: XCTestCase {
     func testEveryChoiceNeedsASeparateRevealAndFinishesOnce() {
-        for topic in LeuitDiscoveryViewModel.Topic.allCases {
-            let model = LeuitDiscoveryViewModel()
-            model.choose(topic)
-            model.choose(topic == .birth ? .death : .birth)
+        for index in 0..<7 {
+            let model = LeuitDiscoveryViewModel(cardCount: 7)
+            model.choose(-1)
+            model.choose(7)
+            XCTAssertNil(model.selected)
+            model.choose(index)
+            model.choose((index + 1) % 7)
             model.reveal()
-            XCTAssertEqual(model.selected, topic)
+            XCTAssertEqual(model.selected, index)
             XCTAssertEqual(model.step, .movingForward)
             XCTAssertFalse(model.finish())
 
@@ -25,14 +28,14 @@ import XCTest
     }
 
     func testAnimationCompletionsFromPriorVisitsAreIgnored() {
-        let model = LeuitDiscoveryViewModel()
+        let model = LeuitDiscoveryViewModel(cardCount: 7)
         let priorVisit = model.visit
-        model.choose(.birth)
+        model.choose(0)
         model.reset()
         XCTAssertNil(model.selected)
         XCTAssertEqual(model.step, .choosing)
 
-        model.choose(.death)
+        model.choose(6)
         model.finishMoving(visit: priorVisit)
         XCTAssertEqual(model.step, .movingForward)
         model.finishMoving(visit: model.visit)

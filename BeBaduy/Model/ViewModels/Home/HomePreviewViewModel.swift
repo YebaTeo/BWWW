@@ -1,16 +1,13 @@
 import SwiftUI
 import Observation
 
-/// Owns preview selection, cancellable playback, and debug gesture policy.
+/// Owns preview selection and cancellable playback.
 @Observable @MainActor
 final class HomePreviewViewModel {
     private(set) var progress: CGFloat = 0
     private(set) var isTransitioning = false
     private(set) var selectedStage = 0
     @ObservationIgnored private var transitionTask: Task<Void, Never>?
-    #if DEBUG
-    @ObservationIgnored private var lastDebugSwipeAt: Date?
-    #endif
     var isPlayingHarvestTransition: Bool { isTransitioning && selectedStage == 3 }
     var stage: GrowthStage { GrowthStage.currentStage(for: progress) }
 
@@ -21,24 +18,25 @@ final class HomePreviewViewModel {
         progress = GrowthStage.allStages[selectedStage].targetProgress
     }
 
-    func swipe(direction: Int, reduceMotion: Bool) {
-        let destination = min(GrowthStage.allStages.count - 1, max(0, selectedStage + direction))
-        #if DEBUG
-        let now = Date()
-        let skip = lastDebugSwipeAt.map { now.timeIntervalSince($0) < 0.9 } ?? false
-        lastDebugSwipeAt = skip ? nil : now
-        selectStage(destination, reduceMotion: reduceMotion, skipAnimation: skip)
-        #else
-        selectStage(destination, reduceMotion: reduceMotion)
-        #endif
+    func canMove(direction: Int, journey: JourneyProgress) -> Bool {
+        guard !isTransitioning, direction == -1 || direction == 1 else { return false }
+        let destination = selectedStage + direction
+        return GrowthStage.allStages.indices.contains(destination)
+            && GrowthStage.allStages[destination].isAvailable(in: journey)
     }
 
-    func selectStage(_ index: Int, reduceMotion: Bool, skipAnimation: Bool = false) {
-        guard GrowthStage.allStages.indices.contains(index) else { return }
+    func swipe(direction: Int, journey: JourneyProgress, reduceMotion: Bool) {
+        guard canMove(direction: direction, journey: journey) else { return }
+        selectStage(selectedStage + direction, journey: journey, reduceMotion: reduceMotion)
+    }
+
+    func selectStage(_ index: Int, journey: JourneyProgress, reduceMotion: Bool) {
+        guard GrowthStage.allStages.indices.contains(index),
+              GrowthStage.allStages[index].isAvailable(in: journey) else { return }
         let previousStage = stage.id
         transitionTask?.cancel()
         selectedStage = index
-        if reduceMotion || skipAnimation {
+        if reduceMotion {
             progress = GrowthStage.allStages[index].targetProgress
             isTransitioning = false
         } else {

@@ -22,6 +22,10 @@ struct GrowthStage: Identifiable, Equatable {
     
     var isConclusion: Bool { id == 6 }
 
+    func isAvailable(in journey: JourneyProgress) -> Bool {
+        isConclusion ? journey.allComplete : journey.isUnlocked(phase)
+    }
+
     /// Formatted step counter (e.g. "01 / 05")
     var stepCounterString: String {
         String(format: "%02d / %02d", id + 1, GrowthStage.allStages.count)

@@ -20,8 +20,8 @@ struct WelcomeHomeView: View {
     @State private var scrollCueTask: Task<Void, Never>?
     private var progress: CGFloat { preview.progress }
     private var selectedStage: Int { preview.selectedStage }
-    private var canScrollUp: Bool { selectedStage > 0 }
-    private var canScrollDown: Bool { selectedStage < GrowthStage.allStages.count - 1 }
+    private var canScrollUp: Bool { preview.canMove(direction: -1, journey: journey.progress) }
+    private var canScrollDown: Bool { preview.canMove(direction: 1, journey: journey.progress) }
 
     private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
     private let gold = Color(red: 1, green: 0.62, blue: 0.14)
@@ -84,7 +84,7 @@ struct WelcomeHomeView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
                 .padding(.bottom, viewport.size.height * 0.09)
-                if isActive && !preview.isTransitioning && !openingChapter {
+                if isActive && !openingChapter && (canScrollUp || canScrollDown) {
                     scrollCueButtons(viewport: viewport)
                         .ignoresSafeArea()
                 }
@@ -112,12 +112,6 @@ struct WelcomeHomeView: View {
         .foregroundStyle(ivory)
         .tint(gold)
         .preferredColorScheme(.dark)
-        .accessibilityAction(named: "Tahap berikutnya") {
-            preview.swipe(direction: 1, reduceMotion: reduceMotion)
-        }
-        .accessibilityAction(named: "Tahap sebelumnya") {
-            preview.swipe(direction: -1, reduceMotion: reduceMotion)
-        }
         .onChange(of: selectedStage) { _, index in
             if !preview.isTransitioning { displayedStage = index }
             scheduleScrollCue()
@@ -150,15 +144,16 @@ struct WelcomeHomeView: View {
             #if DEBUG
             if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--preview-stage=") }),
                let index = Int(argument.dropFirst("--preview-stage=".count)),
-               GrowthStage.allStages.indices.contains(index) {
-                preview.selectStage(index, reduceMotion: true)
+               GrowthStage.allStages.indices.contains(index),
+               GrowthStage.allStages[index].isAvailable(in: journey.progress) {
+                preview.selectStage(index, journey: journey.progress, reduceMotion: true)
                 displayedStage = index
                 scheduleScrollCue()
                 return
             }
             #endif
             if let stage = GrowthStage.allStages.first(where: { $0.phase == journey.progress.currentPhase }) {
-                preview.selectStage(stage.id, reduceMotion: true)
+                preview.selectStage(stage.id, journey: journey.progress, reduceMotion: true)
                 displayedStage = stage.id
             }
             scheduleScrollCue()
@@ -167,10 +162,11 @@ struct WelcomeHomeView: View {
             guard pendingTransitionFrom == nil, !preview.isPlayingHarvestTransition else { return }
             if let saved = GrowthStage.allStages.first(where: { $0.phase == phase }) {
                 let shouldGrow = previous == .ngaseuk && phase == .ngored
-                preview.selectStage(saved.id, reduceMotion: reduceMotion || !shouldGrow)
+                preview.selectStage(saved.id, journey: journey.progress, reduceMotion: reduceMotion || !shouldGrow)
                 if !preview.isTransitioning { displayedStage = saved.id }
             }
         }
+        .onChange(of: canScrollDown) { _, _ in scheduleScrollCue() }
         .onDisappear {
             preview.stop()
             cancelScrollCue()
@@ -191,8 +187,7 @@ struct WelcomeHomeView: View {
         return VStack(spacing: 0) {
             if canScrollUp {
                 Button {
-                    cancelScrollCue()
-                    preview.swipe(direction: -1, reduceMotion: reduceMotion)
+                    moveStage(direction: -1)
                 } label: {
                     Color.clear
                         .frame(width: cueWidth, height: 82)
@@ -200,13 +195,13 @@ struct WelcomeHomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Tahap sebelumnya")
+                .accessibilityIdentifier("home.stage.previous")
                 .padding(.top, max(54, viewport.safeAreaInsets.top + 4))
             }
             Spacer(minLength: 0)
             if canScrollDown {
                 Button {
-                    cancelScrollCue()
-                    preview.swipe(direction: 1, reduceMotion: reduceMotion)
+                    moveStage(direction: 1)
                 } label: {
                     Color.clear
                         .frame(width: cueWidth, height: 76)
@@ -214,6 +209,7 @@ struct WelcomeHomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Tahap berikutnya")
+                .accessibilityIdentifier("home.stage.next")
                 .padding(.bottom, max(20, viewport.safeAreaInsets.bottom))
             }
         }
@@ -222,14 +218,15 @@ struct WelcomeHomeView: View {
 
     @discardableResult
     private func playPendingStageTransition() -> Bool {
-        guard let from = pendingTransitionFrom,
-              GrowthStage.allStages.indices.contains(from),
-              from + 1 < GrowthStage.allStages.count,
-              scenePhase == .active else { return false }
+        guard let from = pendingTransitionFrom, scenePhase == .active else { return false }
         pendingTransitionFrom = nil
-        preview.selectStage(from, reduceMotion: true)
+        let stages = GrowthStage.allStages
+        guard stages.indices.contains(from), from < stages.count - 1,
+              stages[from].isAvailable(in: journey.progress),
+              stages[from + 1].isAvailable(in: journey.progress) else { return false }
+        preview.selectStage(from, journey: journey.progress, reduceMotion: true)
         displayedStage = from
-        preview.selectStage(from + 1, reduceMotion: reduceMotion)
+        preview.selectStage(from + 1, journey: journey.progress, reduceMotion: reduceMotion)
         if !preview.isTransitioning { displayedStage = from + 1 }
         return true
     }
@@ -245,6 +242,14 @@ struct WelcomeHomeView: View {
                 .shadow(color: .black.opacity(0.78), radius: 10, y: 3)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("home.stage.title")
+                .accessibilityActions {
+                    if isActive && !openingChapter && canScrollDown {
+                        Button("Tahap berikutnya") { moveStage(direction: 1) }
+                    }
+                    if isActive && !openingChapter && canScrollUp {
+                        Button("Tahap sebelumnya") { moveStage(direction: -1) }
+                    }
+                }
             Text(stage.narrative)
                 .font(.body)
                 .lineSpacing(3)
@@ -287,16 +292,20 @@ struct WelcomeHomeView: View {
                 defer { scheduleScrollCue() }
                 guard abs(value.translation.height) > 45,
                       abs(value.translation.height) > abs(value.translation.width) else { return }
-                if value.translation.height < 0 {
-                    preview.swipe(direction: 1, reduceMotion: reduceMotion)
-                } else {
-                    preview.swipe(direction: -1, reduceMotion: reduceMotion)
-                }
+                moveStage(direction: value.translation.height < 0 ? 1 : -1)
             }
     }
 
+    private func moveStage(direction: Int) {
+        guard isActive, !openingChapter,
+              preview.canMove(direction: direction, journey: journey.progress) else { return }
+        cancelScrollCue()
+        preview.swipe(direction: direction, journey: journey.progress, reduceMotion: reduceMotion)
+    }
+
     private func openSelectedChapter() {
-        guard isActive, !openingChapter, !preview.isTransitioning else { return }
+        guard isActive, !openingChapter, !preview.isTransitioning,
+              stage.isAvailable(in: journey.progress) else { return }
         cancelScrollCue()
         openingChapter = true
         preview.stop()
