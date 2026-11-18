@@ -1,17 +1,14 @@
-# Project organization
+# BeBaduy project organization
 
-| Folder | Responsibility |
+| Folder under BeBaduy | Responsibility |
 | --- | --- |
-| `View/Home` | Animated five-stage preview and chapter navigation |
-| `View/Gameplay` | Full-screen activities, native view adapters, and instruction sheets grouped by chapter |
-| `View/Info` | Chapter explanations. The shared chapter container displays introductions from chapter content |
-| `Model` | Chapter content, stable phase identifiers, saved progress, and ViewModels |
-| `Services/Rendering` | Home and Narawas SceneKit renderers and shared geometry, material, and particle builders |
-| `Services/Motion`, `Audio`, and `Persistence` | Device motion, activity sound, and saved progress |
-| `Asset` | Bundled images, textures, and audio grouped by feature |
+| App | Entry point, dependency assembly, launch and app resources |
+| Features/Home, Onboarding, Journey | Home experience, first-use stories, chapter navigation and progress |
+| Features/Chapters | Narawas, Ngaseuk, Ngored, Mipit, Ngalantai and NgaleuitkeunPare. Each groups its views, view models, rendering, services and resources as needed. |
+| Features/Completion, Collection, About | Ending and Leuit discovery, collected cards, educational sources |
+| Shared/Learning | Phase content, stable identifiers, landscape and session models |
+| Shared/ActivityUI and DesignSystem | Common activity layout, cards, controls, buttons and theme |
+| Shared/Rendering | Huma renderer, shared materials, effects, geometry and scenery assets |
+| Shared/Services | Motion, orientation, audio and persistence |
 
-Home preview selection is independent of saved completion. Gameplay ViewModels validate interactions and handle demonstrations. Narawas's renderer reports tree and land taps, readiness, and settled fires. The ViewModel decides which actions are valid and when the activity completes. The renderer owns the camera pose, SceneKit objects, and per-patch visual timing.
-
-The shared chapter container handles introduction, optional equipment, activity, result, and explanation. The activity is the only screen that presents its instruction sheet.
-
-Xcode discovers app files through its filesystem-synchronized folder. Keep persisted phase identifiers and asset lookup keys stable when moving files. The older plans under `docs` document earlier iterations. README and this file describe the current implementation.
+Chapter view models own activity rules. Journey owns progress and navigation. Renderers own visual state. Unit tests mirror their owners under BeBaduyTests. BeBaduyUITests covers whole journeys. Xcode discovers source and resources through the three synchronized target roots.
