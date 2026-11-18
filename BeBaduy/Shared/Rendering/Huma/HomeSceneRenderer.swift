@@ -188,7 +188,12 @@ final class HomeSceneRenderer: NSObject {
         isWindEnabled = active && !reduceMotion
     }
 
+    var afterSettling: (() -> Void)? {
+        didSet { if afterSettling != nil && lastActive == true { displayLink?.isPaused = false } }
+    }
+
     func stopUpdates() {
+        afterSettling = nil
         firstFrameObserver = nil
         displayLink?.invalidate()
         displayLink = nil
@@ -207,6 +212,10 @@ final class HomeSceneRenderer: NSObject {
             if abs(targetProgress - displayedProgress) < 0.0001 {
                 displayedProgress = targetProgress
             }
+        }
+        if !isSettling, !needsApply, let action = afterSettling {
+            afterSettling = nil
+            action()
         }
         let hasTimeAnimation = displayedProgress < 0.27 || leuitActivity != nil
         guard isSettling || needsApply || hasTimeAnimation else {
@@ -274,24 +283,6 @@ final class HomeSceneRenderer: NSObject {
         buildGranaryPreview()
         buildLeuitActivityProps()
         configureObjectShadows()
-    }
-
-    fileprivate func makeOffscreenRenderer(device: any MTLDevice) -> SCNRenderer {
-        isWindEnabled = false
-        buildScene()
-        let renderer = SCNRenderer(device: device, options: nil)
-        renderer.scene = scene
-        renderer.autoenablesDefaultLighting = false
-        renderer.pointOfView = cameraNode
-        return renderer
-    }
-
-    fileprivate func renderSnapshot(progress: CGFloat, with renderer: SCNRenderer, size: CGSize) -> UIImage {
-        SCNTransaction.begin()
-        SCNTransaction.disableActions = true
-        applyProgress(progress)
-        SCNTransaction.commit()
-        return renderer.snapshot(atTime: 0, with: size, antialiasingMode: .multisampling2X)
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1401,7 +1392,7 @@ final class HomeSceneRenderer: NSObject {
             let distance = Float(ring) * 0.014
             let material = SCNMaterial()
             material.lightingModel = .physicallyBased
-            material.diffuse.contents = UIImage(named: "HumaYoungRice")
+            material.diffuse.contents = UIImage(named: "HumaGrassTexture")
                 ?? UIColor(red: 0.28, green: 0.58, blue: 0.16, alpha: 1)
             material.multiply.contents = UIColor(white: 0.96, alpha: 1)
             material.roughness.contents = 0.92
@@ -1428,7 +1419,7 @@ final class HomeSceneRenderer: NSObject {
             let angle = Float(index) * 2.3999
             let material = SCNMaterial()
             material.lightingModel = .physicallyBased
-            material.diffuse.contents = UIImage(named: "HumaYoungRice")
+            material.diffuse.contents = UIImage(named: "HumaGrassTexture")
                 ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
             material.multiply.contents = UIColor(red: 0.96, green: 0.82, blue: 0.32, alpha: 1)
             material.roughness.contents = 0.58
@@ -1475,7 +1466,7 @@ final class HomeSceneRenderer: NSObject {
         leafMat.lightingModel = .physicallyBased
         leafMat.normal.contents = normal
         leafMat.normal.intensity = 0.08
-        leafMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        leafMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
         leafMat.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
         leafMat.roughness.contents = 0.85
@@ -1518,7 +1509,7 @@ final class HomeSceneRenderer: NSObject {
         grainMat.lightingModel = .physicallyBased
         grainMat.normal.contents = normal
         grainMat.normal.intensity = 0.12
-        grainMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        grainMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
         grainMat.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
         grainMat.roughness.contents = 0.58
@@ -1569,7 +1560,7 @@ final class HomeSceneRenderer: NSObject {
         grainMat.lightingModel = .physicallyBased
         grainMat.normal.contents = normal
         grainMat.normal.intensity = 0.12
-        grainMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        grainMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
         grainMat.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
         grainMat.roughness.contents = 0.58
@@ -1583,7 +1574,7 @@ final class HomeSceneRenderer: NSObject {
         leafMat.lightingModel = .physicallyBased
         leafMat.normal.contents = normal
         leafMat.normal.intensity = 0.08
-        leafMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        leafMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
         leafMat.multiply.contents = UIColor(red: 0.98, green: 0.82, blue: 0.32, alpha: 1)
         leafMat.roughness.contents = 0.85
@@ -1596,7 +1587,7 @@ final class HomeSceneRenderer: NSObject {
         // 3. Cut Straw Butt (Puntung Jerami Hasil Panen Ani-ani)
         let strawMat = SCNMaterial()
         strawMat.lightingModel = .physicallyBased
-        strawMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        strawMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.88, green: 0.74, blue: 0.32, alpha: 1)
         strawMat.multiply.contents = UIColor(red: 0.92, green: 0.78, blue: 0.36, alpha: 1)
         strawMat.normal.contents = normal
@@ -2609,7 +2600,7 @@ final class HomeSceneRenderer: NSObject {
         grainMaterial.lightingModel = .physicallyBased
         grainMaterial.normal.contents = leafNormal
         grainMaterial.normal.intensity = 0.12
-        grainMaterial.diffuse.contents = UIImage(named: "HumaYoungRice")
+        grainMaterial.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
         grainMaterial.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
         grainMaterial.roughness.contents = 0.58
@@ -2623,7 +2614,7 @@ final class HomeSceneRenderer: NSObject {
         leafMat.lightingModel = .physicallyBased
         leafMat.normal.contents = leafNormal
         leafMat.normal.intensity = 0.08
-        leafMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        leafMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
         leafMat.multiply.contents = UIColor(red: 0.98, green: 0.82, blue: 0.32, alpha: 1)
         leafMat.roughness.contents = 0.85
@@ -2636,7 +2627,7 @@ final class HomeSceneRenderer: NSObject {
         // 3. Cut Straw Butt (Puntung Jerami Ani-ani mengarah ke atas di atas palang bambu)
         let strawMat = SCNMaterial()
         strawMat.lightingModel = .physicallyBased
-        strawMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        strawMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.88, green: 0.74, blue: 0.32, alpha: 1)
         strawMat.multiply.contents = UIColor(red: 0.92, green: 0.78, blue: 0.36, alpha: 1)
         strawMat.normal.contents = leafNormal
@@ -2984,7 +2975,7 @@ final class HomeSceneRenderer: NSObject {
         grainMaterial.lightingModel = .physicallyBased
         grainMaterial.normal.contents = leafNormal
         grainMaterial.normal.intensity = 0.12
-        grainMaterial.diffuse.contents = UIImage(named: "HumaYoungRice")
+        grainMaterial.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
         grainMaterial.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
         grainMaterial.roughness.contents = 0.58
@@ -2998,7 +2989,7 @@ final class HomeSceneRenderer: NSObject {
         leafMat.lightingModel = .physicallyBased
         leafMat.normal.contents = leafNormal
         leafMat.normal.intensity = 0.08
-        leafMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        leafMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
         leafMat.multiply.contents = UIColor(red: 0.98, green: 0.82, blue: 0.32, alpha: 1)
         leafMat.roughness.contents = 0.85
@@ -3011,7 +3002,7 @@ final class HomeSceneRenderer: NSObject {
         // 3. Cut Straw Butt (Puntung Jerami Hasil Panen Ani-ani)
         let strawMat = SCNMaterial()
         strawMat.lightingModel = .physicallyBased
-        strawMat.diffuse.contents = UIImage(named: "HumaYoungRice")
+        strawMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.88, green: 0.74, blue: 0.32, alpha: 1)
         strawMat.multiply.contents = UIColor(red: 0.92, green: 0.78, blue: 0.36, alpha: 1)
         strawMat.normal.contents = leafNormal
@@ -3226,6 +3217,7 @@ final class HomeSceneRenderer: NSObject {
         }
         #endif
         if clamped != targetProgress {
+            if lastActive == true { displayLink?.isPaused = false }
             targetProgress = clamped
             needsApply = true
         }
@@ -3800,7 +3792,7 @@ final class HomeSceneRenderer: NSObject {
         material.lightingModel    = .physicallyBased
         material.normal.contents = leafNormal
         material.normal.intensity = 0.08
-        let albedoName = root === plantingRoot ? "HumaYoungRice" : "HumaGrassTexture"
+        let albedoName = "HumaGrassTexture"
         material.diffuse.contents = UIImage(named: albedoName) ?? tint
         // Preserve the authored AR albedo instead of flattening it with a
         // dark green shader and a strong multiply tint.
@@ -3853,7 +3845,7 @@ final class HomeSceneRenderer: NSObject {
         material.lightingModel = .physicallyBased
         material.normal.contents = leafNormal
         material.normal.intensity = 0.12
-        material.diffuse.contents = UIImage(named: "HumaYoungRice")
+        material.diffuse.contents = UIImage(named: "HumaGrassTexture")
             ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
         material.multiply.contents = UIColor(red: 0.96, green: 0.82, blue: 0.32, alpha: 1)
         material.roughness.contents = 0.58
@@ -4610,119 +4602,5 @@ final class HomeSceneRenderer: NSObject {
     nonisolated static func riceGrowthAmount(_ progress: Float) -> Float {
         let t = max(0, min(1, progress))
         return t * t * (3 - 2 * t)
-    }
-}
-
-/// Renders and caches static chapter-card thumbnails from a single offscreen SceneKit instance.
-@Observable @MainActor
-final class StageThumbnailStore {
-    static let shared = StageThumbnailStore()
-
-    private(set) var thumbnails: [PhaseID: UIImage] = [:]
-    private var loadTask: Task<Void, Never>?
-    private var preloadTask: Task<Void, Never>?
-
-    func preloadAfterLaunch() {
-        guard thumbnails.count < PhaseID.allCases.count, loadTask == nil, preloadTask == nil else { return }
-        preloadTask = Task { @MainActor in
-            defer { self.preloadTask = nil }
-            try? await Task.sleep(for: .milliseconds(800))
-            guard !Task.isCancelled else { return }
-            ensureLoaded(delayMilliseconds: 0)
-        }
-    }
-
-    func ensureLoaded(delayMilliseconds: Int = 300) {
-        preloadTask?.cancel()
-        preloadTask = nil
-        guard thumbnails.count < PhaseID.allCases.count, loadTask == nil else { return }
-        loadTask = Task { @MainActor in
-            defer { self.loadTask = nil }
-            // Reuse composited card output across launches; version the cache with the app build.
-            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-            let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("JourneyThumbnails-v2-\(version)-\(build)", isDirectory: true)
-            for phase in PhaseID.allCases {
-                let url = directory.appendingPathComponent("\(phase.rawValue).jpg")
-                let data = await Task.detached(priority: .utility) { try? Data(contentsOf: url) }.value
-                if let data, let image = UIImage(data: data) { thumbnails[phase] = image }
-            }
-            guard thumbnails.count < PhaseID.allCases.count else { return }
-            if delayMilliseconds > 0 {
-                // Let the presentation settle before constructing the offscreen scene.
-                try? await Task.sleep(for: .milliseconds(delayMilliseconds))
-            }
-            guard !Task.isCancelled, let device = MTLCreateSystemDefaultDevice() else { return }
-            let cardSize = CGSize(width: 360, height: 116)
-            let backdropRenderer = ImageRenderer(
-                content: CinematicAtmosphereView(progress: 0.75, isActive: false)
-                    .frame(width: cardSize.width, height: cardSize.height)
-            )
-            backdropRenderer.scale = 2
-            let backdrop = backdropRenderer.uiImage
-
-            let sceneRenderer = HomeSceneRenderer()
-            let offscreen = sceneRenderer.makeOffscreenRenderer(device: device)
-            let snapshotSize = CGSize(width: 700, height: 340)
-
-            for phase in PhaseID.allCases {
-                if Task.isCancelled { break }
-                if thumbnails[phase] != nil { continue }
-                let progress = GrowthStage.allStages[phase.index].targetProgress
-                let snapshot = sceneRenderer.renderSnapshot(
-                    progress: progress,
-                    with: offscreen,
-                    size: snapshotSize
-                )
-                let composited = compositeCardImage(
-                    phase: phase,
-                    backdrop: backdrop,
-                    snapshot: snapshot,
-                    cardSize: cardSize
-                )
-                thumbnails[phase] = composited
-                if let data = composited.jpegData(compressionQuality: 0.90) {
-                    let url = directory.appendingPathComponent("\(phase.rawValue).jpg")
-                    await Task.detached(priority: .utility) {
-                        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                        try? data.write(to: url, options: .atomic)
-                    }.value
-                }
-                try? await Task.sleep(for: .milliseconds(60))
-            }
-        }
-    }
-
-    private func compositeCardImage(
-        phase: PhaseID,
-        backdrop: UIImage?,
-        snapshot: UIImage,
-        cardSize: CGSize
-    ) -> UIImage {
-        let scale: CGFloat = switch phase {
-        case .narawas: 1.25
-        case .ngaseuk, .ngored: 2.0
-        case .mipit: 1.6
-        case .ngalantai, .ngaleuitkeunPare: 1.25
-        }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
-        format.opaque = true
-        return UIGraphicsImageRenderer(size: cardSize, format: format).image { _ in
-            if let backdrop {
-                backdrop.draw(in: CGRect(origin: .zero, size: cardSize))
-            }
-            let targetWidth = cardSize.width * scale
-            let snapshotAspect = snapshot.size.width / max(1, snapshot.size.height)
-            let scaledHeight = targetWidth / snapshotAspect
-            let drawRect = CGRect(
-                x: cardSize.width * 0.78 - targetWidth * 0.5,
-                y: cardSize.height * 0.5 - scaledHeight * 0.5,
-                width: targetWidth,
-                height: scaledHeight
-            )
-            snapshot.draw(in: drawRect)
-        }
     }
 }

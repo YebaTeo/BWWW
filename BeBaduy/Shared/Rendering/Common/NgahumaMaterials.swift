@@ -2,8 +2,7 @@ import SceneKit
 import UIKit
 
 /// Spatial 3-layer environment and HomeView-matched 3D assets for the Narawas AR experience.
-@MainActor
-struct NgahumaMaterials {
+struct NgahumaMaterials: Sendable {
     let skyTexture: UIImage
     let mountainTexture: UIImage
     let horizonGrassTexture: UIImage
@@ -22,7 +21,7 @@ struct NgahumaMaterials {
     let woodSplinterSprite: UIImage
     let woodChipSprite: UIImage
 
-    static func load() async throws -> Self {
+    @concurrent static func load() async throws -> Self {
         guard let environment = UIImage(named: "HumaEnvironment"),
               let envCG = environment.cgImage else {
             throw CocoaError(.fileNoSuchFile)
@@ -42,7 +41,6 @@ struct NgahumaMaterials {
         let charredSoilTexture = Self.buildCharredSoilTexture(from: soilCG)
 
         let grassBladeTexture = UIImage(named: "HumaGrassTexture")
-            ?? UIImage(contentsOfFile: Bundle.main.path(forResource: "ngahuma-grass", ofType: "png") ?? "")
             ?? UIImage()
 
         let rawTree = UIImage(named: "HumaTreeNatural")
@@ -484,42 +482,13 @@ struct NgahumaMaterials {
     static func buildSoilTexture(from source: CGImage) -> CGImage? {
         let outSize = 1024
 
-        // If the dedicated high-definition terrain texture (1254 × 1254) is available in bundle,
-        // use its authentic Baduy soil clods, pebbles, and organic micro-relief.
-        let terrainSource = UIImage(named: "HumaTerrainTexture")?.cgImage
-        let targetCG = terrainSource ?? source
-
-        guard let data = targetCG.dataProvider?.data,
-              let srcPtr = CFDataGetBytePtr(data) else { return nil }
-        let srcW = targetCG.width
-        let srcH = targetCG.height
-        let bpr = targetCG.bytesPerRow
-        let bpp = max(4, targetCG.bitsPerPixel / 8)
-
-        func samplePix(_ x: Double, _ y: Double) -> (Double, Double, Double) {
-            let cx = max(0.0, min(Double(srcW - 2), x))
-            let cy = max(0.0, min(Double(srcH - 2), y))
-            let x0 = Int(cx), y0 = Int(cy)
-            let fx = cx - Double(x0), fy = cy - Double(y0)
-            func pix(_ ix: Int, _ iy: Int) -> (Double, Double, Double) {
-                let p = iy * bpr + ix * bpp
-                return (Double(srcPtr[p]), Double(srcPtr[p + 1]), Double(srcPtr[p + 2]))
-            }
-            let c00 = pix(x0, y0), c10 = pix(x0 + 1, y0)
-            let c01 = pix(x0, y0 + 1), c11 = pix(x0 + 1, y0 + 1)
-            return (
-                (1 - fx) * (1 - fy) * c00.0 + fx * (1 - fy) * c10.0 + (1 - fx) * fy * c01.0 + fx * fy * c11.0,
-                (1 - fx) * (1 - fy) * c00.1 + fx * (1 - fy) * c10.1 + (1 - fx) * fy * c01.1 + fx * fy * c11.1,
-                (1 - fx) * (1 - fy) * c00.2 + fx * (1 - fy) * c10.2 + (1 - fx) * fy * c01.2 + fx * fy * c11.2
-            )
-        }
-
         var outPixels = [UInt8](repeating: 255, count: outSize * outSize * 4)
 
         // Direct extraction from HumaEnvironment photographic soil region so the 3D terrain floor
         // has the exact same natural photographic earth colors and texture as HomeView
-        let envData = source.dataProvider?.data
-        let envPtr = envData.flatMap { CFDataGetBytePtr($0) } ?? srcPtr
+        guard let envData = source.dataProvider?.data,
+              let envPtr = CFDataGetBytePtr(envData) else { return nil }
+        defer { withExtendedLifetime(envData) {} }
         let envW = source.width
         let envH = source.height
         let envBPR = source.bytesPerRow

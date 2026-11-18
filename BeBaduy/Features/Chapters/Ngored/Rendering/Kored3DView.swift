@@ -8,15 +8,17 @@ import simd
 /// the existing tap/drag swing motion on its normalized model root.
 struct Kored3DView: View {
     var isDragging = false
+    var isVisible = true
     var swingCount = 0
     var bladeCentered = false
     var body: some View {
-        KoredSceneView(isDragging: isDragging, swingCount: swingCount, bladeCentered: bladeCentered)
+        KoredSceneView(isVisible: isVisible, isDragging: isDragging, swingCount: swingCount, bladeCentered: bladeCentered)
             .accessibilityHidden(true)
     }
 }
 
 private struct KoredSceneView: UIViewRepresentable {
+    let isVisible: Bool
     let isDragging: Bool
     let swingCount: Int
     let bladeCentered: Bool
@@ -32,14 +34,17 @@ private struct KoredSceneView: UIViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
-        view.isPlaying = true
-        view.rendersContinuously = true
+        view.isPlaying = isVisible
+        view.rendersContinuously = isVisible
 
         context.coordinator.setupScene(in: view)
+        context.coordinator.update(isDragging: isDragging, swingCount: swingCount)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
+        view.isPlaying = isVisible
+        view.rendersContinuously = isVisible
         context.coordinator.update(isDragging: isDragging, swingCount: swingCount)
     }
 
@@ -47,7 +52,7 @@ private struct KoredSceneView: UIViewRepresentable {
         coordinator.cleanup()
     }
 
-    final class Coordinator: NSObject {
+    @MainActor final class Coordinator: NSObject {
         private let bladeCentered: Bool
         private weak var scnView: SCNView?
         private var tool: SCNNode?

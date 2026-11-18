@@ -27,13 +27,14 @@ struct NarawasView: View {
                 .allowsHitTesting(message == nil && model.session.isActive)
                 .accessibilityHidden(message != nil || !model.session.isActive)
                 .accessibilityIdentifier("narawas.field")
-            if let struckTree = model.struckTree, !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 60, paused: scenePhase != .active)) { _ in
-                    if let target = model.scene.projectedTreeChopPoint(at: struckTree) {
-                        Golok3DView(swingCount: model.swingCount)
-                            .frame(width: 300, height: 300)
-                            .position(x: target.x, y: target.y - 24)
-                    }
+            if model.swingCount > 0, !reduceMotion {
+                TimelineView(.animation(minimumInterval: 1.0 / 60, paused: model.struckTree == nil || scenePhase != .active)) { _ in
+                    let point = model.struckTree.flatMap { model.scene.projectedTreeChopPoint(at: $0) }
+                    let visible = point != nil && scenePhase == .active
+                    Golok3DView(isVisible: visible, swingCount: model.swingCount)
+                        .frame(width: 300, height: 300)
+                        .position(x: point?.x ?? 0, y: (point?.y ?? 0) - 24)
+                        .opacity(visible ? 1 : 0)
                 }
                 .allowsHitTesting(false)
             }
@@ -90,7 +91,10 @@ struct NarawasView: View {
         .onChange(of: model.stage) { _, stage in
             if stage == .prepared { message = .cleared }
             if stage == .complete {
-                if let outcome = model.session.outcome { journey.record(.narawas, outcome: outcome) }
+                if let outcome = model.session.outcome {
+                    journey.record(.narawas, outcome: outcome)
+                    advance()
+                }
             }
         }
         .onChange(of: message) { _, value in model.setHelpVisible(value != nil) }

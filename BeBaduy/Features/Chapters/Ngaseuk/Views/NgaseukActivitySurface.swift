@@ -124,7 +124,8 @@ struct NgaseukActivitySurface: View {
                 ) {
                     RiceSeed3DView(isDragging: model.isDraggingSeed,
                                    isInteractable: true,
-                                   isPouring: model.isBasketTilting || model.isPouring)
+                                   isPouring: model.isBasketTilting || model.isPouring,
+                                   isVisible: card.mode == .hidden && (model.peekTarget == nil || model.isDraggingSeed))
                         .accessibilityIdentifier("field.seed")
                         .position(seedDragLocation ?? homeSeedBowlPosition(in: geometry.size))
                         .contentShape(Rectangle())
@@ -137,9 +138,10 @@ struct NgaseukActivitySurface: View {
                     let isPeeking = model.peekTarget != nil && card.mode == .hidden
                     NgaseukSeedPeekView(model: model,
                                         target: model.peekTarget ?? model.nextSeedTarget ?? 0,
+                                        isVisible: isPeeking,
                                         dragActive: model.isDraggingSeed,
                                         canPlant: model.isSeedInPlantingRange)
-                        .opacity(isPeeking ? 1 : 0.001)
+                        .opacity(isPeeking ? 1 : 0)
                         .scaleEffect(isPeeking || reduceMotion ? 1 : 0.96)
                         .allowsHitTesting(isPeeking)
                         .accessibilityHidden(!isPeeking)

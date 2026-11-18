@@ -1438,19 +1438,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         uprootedNgoredWeeds.removeAll()
     }
 
-    @discardableResult
-    private func addBlade(
-        to root: SCNNode,
-        base: SCNVector3,
-        height: Float,
-        width: Float,
-        yaw: Float,
-        mass: CGFloat,
-        response: Float,
-        tint: UIColor,
-        phase: Float,
-        materials: NgahumaMaterials
-    ) -> SCNMaterial {
+    private var bladeShapes: [SIMD3<Float>: SCNGeometry] = [:]
+    private var sharedBladeMaterial: SCNMaterial?
+
+    private func bladeMaterial(using materials: NgahumaMaterials) -> SCNMaterial {
+        if let sharedBladeMaterial { return sharedBladeMaterial }
         let material = SCNMaterial()
         material.lightingModel = .physicallyBased
         material.normal.contents = materials.leafNormal
@@ -1467,13 +1459,33 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         material.diffuse.wrapS = .repeat
         material.diffuse.wrapT = .clamp
         NgahumaMaterials.smoothTextureSampling(material.diffuse)
+        sharedBladeMaterial = material
+        return material
+    }
 
-        let geometry = SceneGeometry.makeBladeGeometry(
-            height: height,
-            width: width,
-            arch: height * (0.20 + response * 0.05),
-            material: material
-        )
+    @discardableResult
+    private func addBlade(
+        to root: SCNNode,
+        base: SCNVector3,
+        height: Float,
+        width: Float,
+        yaw: Float,
+        mass: CGFloat,
+        response: Float,
+        tint: UIColor,
+        phase: Float,
+        materials: NgahumaMaterials
+    ) -> SCNMaterial {
+        let material = bladeMaterial(using: materials)
+        let arch = height * (0.20 + response * 0.05)
+        let shape = SIMD3(height, width, arch)
+        let geometry: SCNGeometry
+        if let cached = bladeShapes[shape] {
+            geometry = cached
+        } else {
+            geometry = SceneGeometry.makeBladeGeometry(height: height, width: width, arch: arch, material: material)
+            bladeShapes[shape] = geometry
+        }
         let pivot = SCNNode(geometry: geometry)
         pivot.name = "blade"
         pivot.position = base
@@ -2237,6 +2249,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let stagger = Float(bladeIdx % 6) * 0.08
             let bladeBurnT = min(1.0, max(0.0, (Float(localTime / 6.5) - stagger) / max(0.1, 0.72 - stagger)))
             if bladeBurnT > 0.001 {
+                if let geometry = blade.pivot.geometry, let sharedBladeMaterial,
+                   geometry.firstMaterial === sharedBladeMaterial {
+                    let scorchedGeometry = geometry.copy() as? SCNGeometry
+                    scorchedGeometry?.firstMaterial = sharedBladeMaterial.copy() as? SCNMaterial
+                    blade.pivot.geometry = scorchedGeometry
+                }
                 if bladeBurnT < 0.45 {
                     // Scorching amber-brown phase as flames engulf the grass blade
                     let t = bladeBurnT / 0.45

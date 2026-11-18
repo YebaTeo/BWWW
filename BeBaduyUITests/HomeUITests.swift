@@ -1,6 +1,6 @@
 import XCTest
 @MainActor final class HomeUITests: XCTestCase {
-    func testMenuNgaseukOpensNgaseukHomeStageBeforeActivity() {
+    func testMenuNgaseukOpensActivityDirectly() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngored"]
         app.launch()
@@ -8,11 +8,6 @@ import XCTest
         let ngaseuk = app.buttons["phase_ngaseuk"]
         XCTAssertTrue(ngaseuk.waitForExistence(timeout: 10))
         ngaseuk.tap()
-        waitForPreviewTitle("NGASEUK", in: app)
-        XCTAssertTrue(app.buttons["resume"].exists)
-        XCTAssertFalse(app.buttons["lesson.equipment.reveal"].exists)
-
-        app.buttons["resume"].tap()
         XCTAssertTrue(app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 15))
     }
 

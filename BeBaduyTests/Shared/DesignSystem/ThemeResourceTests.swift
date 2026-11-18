@@ -4,13 +4,10 @@ import UIKit
 
 final class ThemeResourceTests: XCTestCase {
     @MainActor func testSceneAssetsResolveFromAppBundle() {
-        for phase in PhaseCatalog.all {
-            for state in [phase.before, phase.after] {
-                let image = UIImage(named: state.assetName)
-                XCTAssertNotNil(image, state.assetName)
-                XCTAssertGreaterThan(image?.size.width ?? 0, 0)
-            }
+        for phase in PhaseID.allCases {
+            XCTAssertNotNil(UIImage(named: "Journey-\(phase.rawValue)"))
         }
+        XCTAssertNotNil(UIImage(named: LandscapeState(phase: .ngaleuitkeunPare, isResult: true).assetName))
         XCTAssertNotNil(Bundle.main.url(forResource: "ngahuma-fire", withExtension: "wav"))
         XCTAssertNotNil(Bundle.main.url(forResource: "ngahuma-ignite", withExtension: "wav"))
     }

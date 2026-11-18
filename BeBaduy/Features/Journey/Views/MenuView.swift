@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuView: View {
     let journey: JourneyViewModel
+    var showsBackground = true
     let onPrologue: () -> Void
     let open: (PhaseID) -> Void
     let onScroll: (CGFloat, CGFloat) -> Void
@@ -24,7 +25,7 @@ struct MenuView: View {
         .onScrollPhaseChange { _, newPhase in
             isUserScrolling = newPhase == .interacting
         }
-        .background { MenuBackground(progress: journey.progress) }
+        .background { if showsBackground { MenuBackground(progress: journey.progress) } }
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
     }

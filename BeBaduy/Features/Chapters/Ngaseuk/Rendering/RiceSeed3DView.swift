@@ -10,6 +10,10 @@ struct RiceSeed3DView: View {
     var isDragging: Bool = false
     var isInteractable: Bool = false
     var isPouring = false
+    var isVisible = true
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var animating: Bool { isVisible && scenePhase == .active && !reduceMotion }
     @State private var isPulsing = false
 
     var body: some View {
@@ -24,7 +28,7 @@ struct RiceSeed3DView: View {
                     .accessibilityHidden(true)
             }
 
-            RiceSeedSceneView()
+            RiceSeedSceneView(animating: animating)
                 .frame(width: 130, height: 110)
                 .shadow(color: Color(red: 0.15, green: 0.10, blue: 0.05).opacity(0.45), radius: 8, x: 0, y: 6)
         }
@@ -33,14 +37,15 @@ struct RiceSeed3DView: View {
         .rotationEffect(.degrees(isPouring ? -65 : 0))
         .animation(.spring(response: 0.28, dampingFraction: 0.78), value: isDragging)
         .animation(.easeInOut(duration: 0.42), value: isPouring)
-        .animation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: isPulsing)
-        .onAppear { if isInteractable { isPulsing = true } }
+        .animation(isPulsing ? .easeInOut(duration: 0.95).repeatForever(autoreverses: true) : nil, value: isPulsing)
+        .onChange(of: animating && isInteractable && !isDragging && !isPouring, initial: true) { _, active in isPulsing = active }
         .accessibilityLabel("Wadah benih padi huma 3 dimensi")
         .accessibilityHint("Seret baskom benih ini ke lubang tanah yang telah dibuat")
     }
 }
 
 private struct RiceSeedSceneView: UIViewRepresentable {
+    let animating: Bool
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
@@ -53,19 +58,23 @@ private struct RiceSeedSceneView: UIViewRepresentable {
         view.antialiasingMode = .multisampling2X
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
-        view.rendersContinuously = true
+        view.rendersContinuously = animating
 
         context.coordinator.setupScene(in: view)
+        context.coordinator.setAnimating(animating)
         return view
     }
 
-    func updateUIView(_ view: SCNView, context: Context) {}
+    func updateUIView(_ view: SCNView, context: Context) {
+        view.rendersContinuously = animating
+        context.coordinator.setAnimating(animating)
+    }
 
     static func dismantleUIView(_ view: SCNView, coordinator: Coordinator) {
         coordinator.cleanup()
     }
 
-    final class Coordinator: NSObject {
+    @MainActor final class Coordinator: NSObject {
         private weak var scnView: SCNView?
         private var floatingSeedNode: SCNNode?
         private var displayLink: CADisplayLink?
@@ -199,6 +208,8 @@ private struct RiceSeedSceneView: UIViewRepresentable {
             node.position.y = 0.115 + sin(t * 2.8) * 0.012
             node.eulerAngles.y = t * 0.75
         }
+
+        func setAnimating(_ active: Bool) { displayLink?.isPaused = !active }
 
         func cleanup() {
             displayLink?.invalidate()

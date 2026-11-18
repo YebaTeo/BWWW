@@ -9,6 +9,21 @@ import XCTest
     func save(_ progress: JourneyProgress) throws { value = progress; writes += 1 }
 }
 final class JourneyTests: XCTestCase {
+    @MainActor func testCycleCardAwardsSurviveRelaunchAndReplay() {
+        let store = MemoryStore()
+        let journey = JourneyViewModel(store: store)
+        for phase in PhaseID.allCases {
+            journey.record(phase, outcome: .observed)
+            XCTAssertEqual(journey.newlyEarnedCards, phase.next == nil ? [.chapter(phase), .epic] : [.chapter(phase)])
+            journey.record(phase, outcome: .performed)
+            XCTAssertTrue(journey.newlyEarnedCards.isEmpty)
+        }
+        let restored = JourneyViewModel(store: store)
+        XCTAssertTrue(ChapterCard.epic.isEarned(in: restored.progress))
+        restored.record(.ngaleuitkeunPare, outcome: .performed)
+        XCTAssertTrue(restored.newlyEarnedCards.isEmpty)
+    }
+
     func testCatalogAndResources() {
         XCTAssertEqual(PhaseCatalog.all.map(\.id), PhaseID.allCases)
         XCTAssertEqual(PhaseID.allCases.count, 6)
@@ -77,13 +92,10 @@ final class JourneyTests: XCTestCase {
         XCTAssertEqual(preview.selectedStage, 0)
 
         home.open(.narawas, journey: journey)
-        XCTAssertEqual(home.path, [.preview(.narawas)])
+        XCTAssertEqual(home.path, [.activity(.narawas)])
         XCTAssertEqual(journey.progress.currentPhase, .narawas)
         home.open(.ngaseuk, journey: journey)
-        XCTAssertEqual(home.path, [.preview(.ngaseuk)])
-        XCTAssertEqual(journey.progress.currentPhase, .narawas)
-        home.start(.ngaseuk, journey: journey)
-        XCTAssertEqual(home.path, [.preview(.ngaseuk), .activity(.ngaseuk)])
+        XCTAssertEqual(home.path, [.activity(.ngaseuk)])
         XCTAssertEqual(journey.progress.currentPhase, .ngaseuk)
         let restored = JourneyViewModel(store: store).progress
         XCTAssertTrue(restored.record(for: .narawas).performed)

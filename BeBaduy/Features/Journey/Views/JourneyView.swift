@@ -5,7 +5,6 @@ struct JourneyView: View {
     var showsRecap = false
     var onPrologue: (() -> Void)? = nil
     let open: (PhaseID) -> Void
-    private let thumbnailStore = StageThumbnailStore.shared
 
     private let ivory = Color(red: 0.99, green: 0.95, blue: 0.87)
     private let gold = Color(red: 1, green: 0.69, blue: 0.40)
@@ -55,7 +54,6 @@ struct JourneyView: View {
             }
         }
         .padding(.horizontal, 20)
-        .task { thumbnailStore.ensureLoaded() }
     }
 
     private var prologueCard: some View {
@@ -78,7 +76,7 @@ struct JourneyView: View {
 
     private func phaseCard(_ phase: PhaseContent, unlocked: Bool) -> some View {
         return ZStack(alignment: .leading) {
-            StageCardScene(thumbnail: thumbnailStore.thumbnails[phase.id])
+            StageCardScene(thumbnail: UIImage(named: "Journey-\(phase.id.rawValue)"))
                 .saturation(unlocked ? 1 : 0)
             if unlocked {
                 LinearGradient(

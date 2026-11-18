@@ -3,27 +3,12 @@ import SwiftUI
 /// Items are earned when the corresponding phase is completed and persisted.
 struct CardCollectionView: View {
     let journey: JourneyViewModel
+    var showsBackground = true
     let onScroll: (CGFloat, CGFloat) -> Void
     @State private var isUserScrolling = false
 
-    private struct Item: Identifiable {
-        let id: PhaseID
-        let name: String
-        let symbol: String
-        let description: String
-    }
-
-    private let items: [Item] = [
-        Item(id: .narawas, name: "Golok", symbol: "leaf.fill", description: "Alat untuk membersihkan lahan pada tahap Narawas."),
-        Item(id: .ngaseuk, name: "Aseuk", symbol: "leaf.arrow.triangle.circlepath", description: "Tongkat kayu untuk membuat lubang tanam benih pare."),
-        Item(id: .ngored, name: "Kored", symbol: "leaf.circle.fill", description: "Alat untuk membersihkan gulma di sekitar pare."),
-        Item(id: .mipit, name: "Etem", symbol: "scissors", description: "Alat kecil untuk memanen tangkai pare."),
-        Item(id: .ngalantai, name: "Lantayan", symbol: "sun.max.fill", description: "Tempat menggantung dan mengeringkan hasil panen."),
-        Item(id: .ngaleuitkeunPare, name: "Leuit", symbol: "house.fill", description: "Lumbung untuk menyimpan pare hasil perjalanan Ngahuma.")
-    ]
-
-    private var earned: [Item] {
-        items.filter { journey.progress.record(for: $0.id).explanationAvailable }
+    private var earned: [ChapterCard] {
+        ChapterCard.all.filter { $0.isEarned(in: journey.progress) }
     }
 
     private var cardSurface: some View {
@@ -39,7 +24,7 @@ struct CardCollectionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("\(earned.count) dari \(items.count) item terkumpul")
+                Text("\(earned.count) dari \(ChapterCard.all.count) kartu terkumpul")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.cream)
                     .padding(.horizontal, 16)
@@ -53,7 +38,7 @@ struct CardCollectionView: View {
                         Text("Koleksimu belum terisi")
                             .font(.headline)
                             .foregroundStyle(AppTheme.cream)
-                        Text("Selesaikan tahapan Ngahuma untuk mendapatkan item koleksi.")
+                        Text("Selesaikan tahapan Ngahuma untuk mendapatkan kartu koleksi.")
                             .font(.subheadline)
                             .foregroundStyle(AppTheme.cream.opacity(0.82))
                             .multilineTextAlignment(.center)
@@ -63,25 +48,23 @@ struct CardCollectionView: View {
                     .background { cardSurface }
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 16) {
-                        ForEach(earned) { item in
-                            VStack(alignment: .leading, spacing: 12) {
-                                Image(systemName: item.symbol)
-                                    .font(.system(size: 38))
-                                    .foregroundStyle(AppTheme.heading)
-                                    .frame(maxWidth: .infinity, minHeight: 80)
-                                    .background(AppTheme.heading.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
-                                    .accessibilityHidden(true)
-                                Text(item.name)
-                                    .font(.headline)
-                                    .foregroundStyle(AppTheme.cream)
-                                Text(item.description)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.cream.opacity(0.82))
-                                Spacer(minLength: 0)
+                        ForEach(earned) { card in
+                            NavigationLink {
+                                GeometryReader { bounds in
+                                    let width = min(330, bounds.size.width * 0.88, bounds.size.height * 0.65)
+                                    ChapterCardFace(card: card, width: width)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                                .navigationTitle(card.title)
+                                .navigationBarTitleDisplayMode(.inline)
+                            } label: {
+                                GeometryReader { bounds in
+                                    ChapterCardFace(card: card, width: bounds.size.width, compact: true)
+                                }
+                                .aspectRatio(0.7, contentMode: .fit)
                             }
-                            .padding(18)
-                            .frame(maxWidth: .infinity, minHeight: 230, alignment: .topLeading)
-                            .background { cardSurface }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(card.title)
                         }
                     }
                 }
@@ -99,8 +82,47 @@ struct CardCollectionView: View {
         .onScrollPhaseChange { _, newPhase in
             isUserScrolling = newPhase == .interacting
         }
-        .background { MenuBackground(progress: journey.progress) }
+        .background { if showsBackground { MenuBackground(progress: journey.progress) } }
         .toolbarBackground(.hidden, for: .navigationBar)
-        .navigationTitle("Koleksi Item")
+        .navigationTitle("Koleksi Kartu")
+    }
+}
+
+struct ChapterCardFace: View {
+    let card: ChapterCard
+    let width: CGFloat
+    var front = true
+    var compact = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 22)
+                .fill(.linearGradient(colors: card == .epic ? [.indigo, .black, .purple] : [.brown, .black], startPoint: .topLeading, endPoint: .bottomTrailing))
+            if front {
+                VStack(spacing: 8) {
+                    Image(card.imageName)
+                        .resizable().scaledToFill()
+                        .frame(width: width - 24, height: width * (compact ? 0.65 : 0.32)).clipped()
+                        .accessibilityHidden(true)
+                    Text(card.title)
+                        .font(compact ? .headline : .title2.bold()).accessibilityAddTraits(.isHeader)
+                    if !compact {
+                        ScrollView {
+                            Text(card.explanation)
+                                .multilineTextAlignment(.center).padding(.horizontal)
+                        }
+                        .accessibilityIdentifier("lesson.explanation.page")
+                    }
+                }
+                .padding(.vertical)
+            } else {
+                Image(systemName: "leaf.fill").font(.largeTitle).foregroundStyle(.yellow)
+            }
+        }
+        .frame(width: width, height: width / 0.7)
+        .overlay { RoundedRectangle(cornerRadius: 22).strokeBorder(
+            .linearGradient(colors: card == .epic ? [.cyan, .white, .purple, .yellow] : [.yellow, .white, .orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 3) }
+        .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+        .foregroundStyle(.white)
     }
 }

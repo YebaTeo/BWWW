@@ -204,7 +204,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         .onChange(of: session.event) { _, _ in
             if let outcome = session.outcome {
                 journey.record(content.id, outcome: outcome)
-                flow.completed()
+                advance()
             }
         }
         .onChange(of: flow.screen) { _, value in

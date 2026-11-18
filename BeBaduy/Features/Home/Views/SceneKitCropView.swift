@@ -35,6 +35,7 @@ struct SceneKitCropView: UIViewRepresentable {
     var rackTransitionTimeConstant = 0.16
     var rackScale: Float = 0.92
     var leuitActivity: LeuitActivitySceneState? = nil
+    var onSettledFrame: (() -> Void)? = nil
     var onFirstFrame: (() -> Void)? = nil
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -79,6 +80,14 @@ struct SceneKitCropView: UIViewRepresentable {
         if renderer.leuitActivity != leuitActivity { renderer.leuitActivity = leuitActivity }
         renderer.setActive(shouldRender, in: view, reduceMotion: reduceMotion)
         renderer.update(progress: progress)
+        if let onSettledFrame {
+            renderer.afterSettling = { [weak renderer, weak view] in
+                guard let renderer, let view else { return }
+                renderer.notifyAfterFirstFrame(in: view, action: onSettledFrame)
+            }
+        } else {
+            renderer.afterSettling = nil
+        }
     }
 
     static func dismantleUIView(_ view: SCNView, coordinator: HomeSceneRenderer) {

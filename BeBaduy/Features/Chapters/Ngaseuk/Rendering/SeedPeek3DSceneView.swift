@@ -7,6 +7,7 @@ import SwiftUI
 struct SeedPeek3DSceneView: UIViewRepresentable {
     let filled: Bool
     let isPouring: Bool
+    var active = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -20,14 +21,16 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
         view.antialiasingMode = .multisampling2X
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
-        view.rendersContinuously = isPouring
+        view.rendersContinuously = active && isPouring
+        view.isPlaying = active && isPouring
 
         context.coordinator.setupScene(in: view, filled: filled, isPouring: isPouring)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        view.rendersContinuously = isPouring
+        view.rendersContinuously = active && isPouring
+        view.isPlaying = active && isPouring
         context.coordinator.update(filled: filled, isPouring: isPouring)
     }
 

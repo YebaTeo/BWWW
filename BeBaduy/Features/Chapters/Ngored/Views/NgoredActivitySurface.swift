@@ -96,16 +96,18 @@ struct NgoredActivitySurface: View {
                         }
                     }
                 }
-                if let struckWeed, !reduceMotion {
-                    TimelineView(.animation(minimumInterval: 1.0 / 60, paused: scenePhase != .active)) { _ in
-                        let targets = model.scene.projectedNgoredWeedPoints()
-                        if targets.indices.contains(struckWeed), targets[struckWeed].x >= 0 {
-                            let target = targets[struckWeed]
-                            KoredTool(swingCount: swingCount, bladeCentered: true)
-                                .frame(width: 300, height: 300)
-                                .scaleEffect(x: 1, y: -1)
-                                .position(x: target.x, y: target.y - 24)
+                if swingCount > 0, !reduceMotion {
+                    TimelineView(.animation(minimumInterval: 1.0 / 60, paused: struckWeed == nil || scenePhase != .active)) { _ in
+                        let point = struckWeed.flatMap { index -> CGPoint? in
+                            let points = model.scene.projectedNgoredWeedPoints()
+                            return points.indices.contains(index) && points[index].x >= 0 ? points[index] : nil
                         }
+                        let visible = point != nil && scenePhase == .active
+                        Kored3DView(isVisible: visible, swingCount: swingCount, bladeCentered: true)
+                            .frame(width: 300, height: 300)
+                            .scaleEffect(x: 1, y: -1)
+                            .position(x: point?.x ?? 0, y: (point?.y ?? 0) - 24)
+                            .opacity(visible ? 1 : 0)
                     }
                     .allowsHitTesting(false)
                 }

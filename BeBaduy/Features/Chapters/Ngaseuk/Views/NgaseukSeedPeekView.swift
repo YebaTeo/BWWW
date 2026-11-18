@@ -4,6 +4,8 @@ struct NgaseukSeedPeekView: View {
     @Environment(\.activitySceneInsets) private var sceneInsets
     let model: NgaseukViewModel
     let target: Int
+    var isVisible = true
+    @Environment(\.scenePhase) private var scenePhase
     var dragActive = false
     var canPlant = false
     private var filled: Bool { model.seeds.contains(target) }
@@ -13,7 +15,7 @@ struct NgaseukSeedPeekView: View {
         GeometryReader { geometry in
             ZStack {
                 // 3D SceneKit Viewport: 3D soil ground plane, excavated dibble hole, and 3D golden seeds
-                SeedPeek3DSceneView(filled: filled, isPouring: model.isPouring)
+                SeedPeek3DSceneView(filled: filled, isPouring: model.isPouring, active: isVisible && scenePhase == .active)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
                     .ignoresSafeArea()

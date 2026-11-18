@@ -253,7 +253,7 @@ struct Aseuk3DView: UIViewRepresentable {
         private func buildBambooAseukModel() -> SCNNode {
             let root = SCNNode()
 
-            let detailNormal = makeDetailNormal(frequency: 22, strength: 0.12)
+            let detailNormal = Self.detailNormal
 
             // 1. Seasoned Yellow Bamboo (bright golden bamboo matching Jemuran Padi)
             let bambooMat = SCNMaterial()
@@ -379,7 +379,9 @@ struct Aseuk3DView: UIViewRepresentable {
             property.maxAnisotropy       = 8
         }
 
-        private func makeDetailNormal(frequency: Float, strength: Float) -> UIImage {
+        private static let detailNormal = makeDetailNormal(frequency: 22, strength: 0.12)
+
+        private static func makeDetailNormal(frequency: Float, strength: Float) -> UIImage {
             let size = 128
             var pixels = [UInt8](repeating: 255, count: size * size * 4)
             for y in 0..<size {

@@ -13,7 +13,14 @@ import Observation
         guard progress.isUnlocked(phase) else { return }
         progress.currentPhase = phase; persist()
     }
-    func record(_ phase: PhaseID, outcome: ActivityOutcome) { progress.complete(phase, outcome: outcome); persist() }
+    private(set) var newlyEarnedCards: [ChapterCard] = []
+
+    func record(_ phase: PhaseID, outcome: ActivityOutcome) {
+        let previous = progress
+        progress.complete(phase, outcome: outcome)
+        newlyEarnedCards = ChapterCard.all.filter { !$0.isEarned(in: previous) && $0.isEarned(in: progress) }
+        persist()
+    }
     func continueFrom(_ phase: PhaseID) -> PhaseID? {
         guard progress.record(for: phase).explanationAvailable, let next = phase.next else { return nil }
         open(next); return next
@@ -24,6 +31,7 @@ import Observation
     }
     func finishIntroduction() { progress.introductionSeen = true; persist() }
     func restart() {
+        newlyEarnedCards = []
         progress = JourneyProgress()
         progress.introductionSeen = true
         persist()

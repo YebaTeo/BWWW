@@ -29,38 +29,31 @@ struct HomeView: View {
                     NavigationStack(path: $model.path) {
                         MenuView(
                             journey: journey,
+                            showsBackground: selectedTab == .menu && model.path.isEmpty,
                             onPrologue: { showsPrologue = true },
-                            open: openPreview,
+                            open: startActivity,
                             onScroll: { oldOffset, newOffset in
                                 updateTabBar(for: .menu, from: oldOffset, to: newOffset)
                             }
                         )
                         .navigationDestination(for: HomeRoute.self) { route in
                             switch route {
-                            case .preview(let phase):
-                                WelcomeHomeView(
-                                    journey: journey,
-                                    initialPhase: phase,
-                                    onFirstFrame: {
-                                        if loadingDestination == .preview(phase) { loadingDestination = nil }
-                                    },
-                                    pendingTransitionFrom: .constant(nil),
-                                    onOpen: startActivity,
-                                    onJourney: { model.path = [] },
-                                    onCompletion: { model.showsCompletion = true },
-                                    isActive: model.path.last == .preview(phase)
-                                )
-                                .id(phase)
-                                .toolbar(.hidden, for: .navigationBar)
-                                .toolbar(.hidden, for: .tabBar)
-                            case .activity(let phase):
-                                PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
+                            case .transition(let phase):
+                                ChapterTransitionView(phase: phase, journey: journey) {
                                     if journey.continueFrom(phase) == nil,
                                        phase == .ngaleuitkeunPare, journey.progress.allComplete {
                                         journey.finishJourney()
                                         model.showsCompletion = true
                                     }
                                     model.path = []
+                                }
+                                .toolbar(.hidden, for: .navigationBar)
+                                .toolbar(.hidden, for: .tabBar)
+                            case .activity(let phase):
+                                PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
+                                    guard model.path.last == .activity(phase) else { return }
+                                    loadingDestination = nil
+                                    model.path = [.transition(phase)]
                                 }
                                 .id(phase)
                                 .environment(\.navigationSceneReady, {
@@ -74,7 +67,7 @@ struct HomeView: View {
                     .tag(HomeTab.menu)
                     .toolbar(.hidden, for: .tabBar)
                     NavigationStack {
-                        CardCollectionView(journey: journey) { oldOffset, newOffset in
+                        CardCollectionView(journey: journey, showsBackground: selectedTab == .collection) { oldOffset, newOffset in
                             updateTabBar(for: .collection, from: oldOffset, to: newOffset)
                         }
                     }
@@ -131,23 +124,13 @@ struct HomeView: View {
         .preferredColorScheme(.dark)
     }
 
-    private func openPreview(_ phase: PhaseID) {
-        guard journey.progress.isUnlocked(phase), loadingDestination == nil else { return }
-        loadingDestination = .preview(phase)
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(30))
-            guard loadingDestination == .preview(phase) else { return }
-            model.open(phase, journey: journey)
-        }
-    }
-
     private func startActivity(_ phase: PhaseID) {
         guard journey.progress.isUnlocked(phase), loadingDestination == nil else { return }
         loadingDestination = .activity(phase)
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(30))
             guard loadingDestination == .activity(phase) else { return }
-            model.start(phase, journey: journey)
+            model.open(phase, journey: journey)
         }
     }
 
@@ -159,6 +142,136 @@ struct HomeView: View {
         guard shouldCollapse != isTabCollapsed else { return }
         withAnimation(.smooth(duration: 0.28)) {
             isTabCollapsed = shouldCollapse
+        }
+    }
+}
+
+private struct ChapterTransitionView: View {
+    let phase: PhaseID
+    let journey: JourneyViewModel
+    let continueJourney: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var preview = HomePreviewViewModel()
+    @State private var ready = false
+    @State private var started = false
+    @State private var showsInformation = false
+    @State private var rewardIndex = 0
+
+    var body: some View {
+        let progress = started ? preview.progress : GrowthStage.allStages[phase.index].targetProgress
+        ZStack {
+            CinematicAtmosphereView(progress: progress, isActive: scenePhase == .active)
+            SceneKitCropView(progress: progress, isActive: scenePhase == .active,
+                             showsTreeFallEffects: started && !showsInformation,
+                             onSettledFrame: started && !preview.isTransitioning && !showsInformation && scenePhase == .active ? {
+                                 guard scenePhase == .active else { return }
+                                 showsInformation = true
+                             } : nil,
+                             onFirstFrame: { ready = true })
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+            if showsInformation {
+                if journey.newlyEarnedCards.indices.contains(rewardIndex) {
+                    let card = journey.newlyEarnedCards[rewardIndex]
+                    ChapterRewardCard(card: card) {
+                        if rewardIndex + 1 < journey.newlyEarnedCards.count {
+                            rewardIndex += 1
+                        } else {
+                            continueJourney()
+                        }
+                    }
+                    .id(card.id)
+                } else {
+                    ChapterRewardCard(card: .chapter(phase), alreadyOwned: true, continueJourney: continueJourney)
+                }
+            } else if !ready {
+                LaunchLoadingIndicator(message: "Menyiapkan tahap…")
+            }
+        }
+        .task(id: ready && scenePhase == .active) {
+            guard ready, scenePhase == .active, !showsInformation else { return }
+            preview.selectStage(phase.index, journey: journey.progress, reduceMotion: true)
+            started = true
+            preview.selectStage(phase.index + 1, journey: journey.progress, reduceMotion: reduceMotion)
+
+        }
+        .onChange(of: scenePhase) { _, state in
+            if state != .active { preview.stop() }
+        }
+        .onChange(of: reduceMotion) { _, enabled in
+            if enabled && preview.isTransitioning { preview.stop() }
+        }
+        .onDisappear { preview.stop() }
+    }
+}
+
+private struct ChapterRewardCard: View {
+    let card: ChapterCard
+    var alreadyOwned = false
+    let continueJourney: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var glow = 0.0
+    @State private var emerging = false
+    @State private var angle = 0.0
+    @State private var turned = false
+    @State private var readable = false
+
+    var body: some View {
+        GeometryReader { bounds in
+            let width = min(330, bounds.size.width * 0.85, max(120, (bounds.size.height - 96) * 0.7))
+            VStack(spacing: 16) {
+                Spacer(minLength: 0)
+                ChapterCardFace(card: card, width: width, front: turned || reduceMotion)
+                .overlay(alignment: .top) {
+                    if alreadyOwned && readable {
+                        Label("Sudah ada di koleksi", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(.black.opacity(0.88), in: Capsule())
+                            .padding(.top, 10)
+                    }
+                }
+                .rotation3DEffect(.degrees(reduceMotion ? 0 : angle), axis: (0, 1, 0))
+                .scaleEffect(reduceMotion || emerging ? 1 : 1.45)
+                .opacity(reduceMotion || emerging ? 1 : 0)
+                .background {
+                    RadialGradient(colors: [.white, .yellow.opacity(0.9), .orange.opacity(0.4), .clear],
+                                   center: .center, startRadius: 0, endRadius: width * 0.92)
+                        .frame(width: width * 2, height: width * 2)
+                        .opacity(reduceMotion ? 0 : glow)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                .accessibilityHidden(!readable)
+                Spacer(minLength: 0)
+                LessonButton(title: "Ayo lanjut!", identifier: "continue", action: continueJourney)
+                    .opacity(readable ? 1 : 0).disabled(!readable).accessibilityHidden(!readable)
+                    .padding(.horizontal, 24)
+            }
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+        }
+        .foregroundStyle(.white)
+        .background(.black.opacity(reduceMotion || emerging ? 0.52 : 0))
+        .task(id: reduceMotion) {
+            if reduceMotion { emerging = true; glow = 0; angle = 0; turned = true; readable = true; return }
+            guard !readable else { return }
+            do {
+                withAnimation(.easeOut(duration: 0.32)) { glow = 1 }
+                try await Task.sleep(for: .milliseconds(320))
+                withAnimation(.easeOut(duration: 0.58)) { emerging = true }
+                withAnimation(.easeInOut(duration: 0.85)) { glow = 0 }
+                try await Task.sleep(for: .milliseconds(440))
+                withAnimation(.easeIn(duration: 0.2)) { angle = -90 }
+                try await Task.sleep(for: .milliseconds(200))
+            } catch { return }
+            turned = true
+            angle = 90
+            do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+            withAnimation(.easeOut(duration: 0.48), completionCriteria: .removed) {
+                angle = 0
+            } completion: { readable = true }
         }
     }
 }

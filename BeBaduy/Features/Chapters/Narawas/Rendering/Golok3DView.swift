@@ -3,15 +3,17 @@ import SwiftUI
 
 /// 3D Traditional Baduy "Golok" (Machete) overlay shown when swiping trees in Narawas.
 struct Golok3DView: View {
+    var isVisible = true
     var swingCount = 0
 
     var body: some View {
-        GolokSceneView(swingCount: swingCount)
+        GolokSceneView(isVisible: isVisible, swingCount: swingCount)
             .accessibilityHidden(true)
     }
 }
 
 private struct GolokSceneView: UIViewRepresentable {
+    let isVisible: Bool
     let swingCount: Int
 
     func makeCoordinator() -> Coordinator {
@@ -26,8 +28,8 @@ private struct GolokSceneView: UIViewRepresentable {
         view.antialiasingMode = .multisampling4X
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
-        view.isPlaying = true
-        view.rendersContinuously = true
+        view.isPlaying = isVisible
+        view.rendersContinuously = isVisible
 
         context.coordinator.setupScene(in: view)
         context.coordinator.update(swingCount: swingCount)
@@ -35,6 +37,8 @@ private struct GolokSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
+        view.isPlaying = isVisible
+        view.rendersContinuously = isVisible
         context.coordinator.update(swingCount: swingCount)
     }
 
