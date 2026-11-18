@@ -49,6 +49,9 @@ struct ActivityCardPanel<Content: View>: View {
     var previewsOpaqueSurface = false
     @ViewBuilder var content: () -> Content
 
+    private let outline = Color(red: 251.0 / 255, green: 208.0 / 255, blue: 163.0 / 255) // #FBD0A3
+    private let warmSurface = Color(red: 81.0 / 255, green: 66.0 / 255, blue: 54.0 / 255)
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
         ViewThatFits(in: .vertical) {
@@ -64,15 +67,16 @@ struct ActivityCardPanel<Content: View>: View {
         .background {
             Group {
                 if reduceTransparency || contrast == .increased || previewsOpaqueSurface {
-                    shape.fill(Color(white: 0.19))
+                    shape.fill(warmSurface)
                 } else {
-                    shape.fill(Color(white: 0.12).opacity(0.58))
-                        .glassEffect(.regular.tint(Color(white: 216.0 / 255).opacity(0.15)), in: shape)
+                    // Let the scene show through the material instead of covering it with gray.
+                    shape.fill(.clear)
+                        .glassEffect(.regular.tint(warmSurface.opacity(0.24)), in: shape)
                 }
             }
             .allowsHitTesting(false)
         }
-        .overlay { shape.strokeBorder(AppTheme.cream, lineWidth: 1).allowsHitTesting(false) }
+        .overlay { shape.strokeBorder(outline, lineWidth: 1).allowsHitTesting(false) }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("activity.navigation.card")
     }
@@ -129,6 +133,11 @@ private struct ActivityCardPreview: View {
 
 #Preview("Card · middle instruction") {
     ActivityCardPreview()
+}
+
+#Preview("Card · warm glass reference") {
+    ActivityCardPreview(placement: .bottom,
+                        message: "Arahkan ponselmu ke sekeliling, lalu ketuk pohon-pohon di sekitarmu untuk menebangnya.")
 }
 
 #Preview("Card · bottom status, landscape", traits: .landscapeLeft) {
