@@ -77,7 +77,14 @@ final class JourneyTests: XCTestCase {
         XCTAssertEqual(preview.selectedStage, 0)
 
         home.open(.narawas, journey: journey)
-        XCTAssertEqual(home.path, [.narawas])
+        XCTAssertEqual(home.path, [.preview(.narawas)])
+        XCTAssertEqual(journey.progress.currentPhase, .narawas)
+        home.open(.ngaseuk, journey: journey)
+        XCTAssertEqual(home.path, [.preview(.ngaseuk)])
+        XCTAssertEqual(journey.progress.currentPhase, .narawas)
+        home.start(.ngaseuk, journey: journey)
+        XCTAssertEqual(home.path, [.preview(.ngaseuk), .activity(.ngaseuk)])
+        XCTAssertEqual(journey.progress.currentPhase, .ngaseuk)
         let restored = JourneyViewModel(store: store).progress
         XCTAssertTrue(restored.record(for: .narawas).performed)
         preview.swipe(direction: 1, journey: restored, reduceMotion: true)

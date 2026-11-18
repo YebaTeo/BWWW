@@ -3,6 +3,7 @@ import SwiftUI
 /// Full-screen stage preview with a minimal title, narrative, and primary action.
 struct WelcomeHomeView: View {
     let journey: JourneyViewModel
+    let initialPhase: PhaseID
     var onFirstFrame: (() -> Void)? = nil
     @Binding var pendingTransitionFrom: Int?
     let onOpen: (PhaseID) -> Void
@@ -144,7 +145,7 @@ struct WelcomeHomeView: View {
                 return
             }
             #endif
-            if let stage = GrowthStage.allStages.first(where: { $0.phase == journey.progress.currentPhase }) {
+            if let stage = GrowthStage.allStages.first(where: { $0.phase == initialPhase }) {
                 preview.selectStage(stage.id, journey: journey.progress, reduceMotion: true)
                 displayedStage = stage.id
             }

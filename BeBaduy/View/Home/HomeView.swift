@@ -34,17 +34,33 @@ struct HomeView: View {
                                 updateTabBar(for: .menu, from: oldOffset, to: newOffset)
                             }
                         )
-                        .navigationDestination(for: PhaseID.self) { phase in
-                            PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
-                                if journey.continueFrom(phase) == nil,
-                                   phase == .ngaleuitkeunPare, journey.progress.allComplete {
-                                    journey.finishJourney()
-                                    model.showsCompletion = true
+                        .navigationDestination(for: HomeRoute.self) { route in
+                            switch route {
+                            case .preview(let phase):
+                                WelcomeHomeView(
+                                    journey: journey,
+                                    initialPhase: phase,
+                                    pendingTransitionFrom: .constant(nil),
+                                    onOpen: { model.start($0, journey: journey) },
+                                    onJourney: { model.path = [] },
+                                    onCompletion: { model.showsCompletion = true },
+                                    isActive: model.path.last == .preview(phase)
+                                )
+                                .id(phase)
+                                .toolbar(.hidden, for: .navigationBar)
+                                .toolbar(.hidden, for: .tabBar)
+                            case .activity(let phase):
+                                PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
+                                    if journey.continueFrom(phase) == nil,
+                                       phase == .ngaleuitkeunPare, journey.progress.allComplete {
+                                        journey.finishJourney()
+                                        model.showsCompletion = true
+                                    }
+                                    model.path = []
                                 }
-                                model.path = []
+                                .id(phase)
+                                .toolbar(.hidden, for: .tabBar)
                             }
-                            .id(phase)
-                            .toolbar(.hidden, for: .tabBar)
                         }
                     }
                     .tabItem { Label("Menu", systemImage: "square.grid.2x2.fill") }

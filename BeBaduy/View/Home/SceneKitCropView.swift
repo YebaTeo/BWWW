@@ -45,6 +45,9 @@ struct SceneKitCropView: UIViewRepresentable {
         let view = SCNView(frame: .zero, options: [
             SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
         ])
+        #if DEBUG
+        print("SceneKitCropView uses Metal: \(view.renderingAPI == .metal)")
+        #endif
         context.coordinator.install(in: view)
         if let onFirstFrame { context.coordinator.notifyAfterFirstFrame(in: view, action: onFirstFrame) }
         context.coordinator.showsRice = showsRice
