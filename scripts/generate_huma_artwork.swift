@@ -108,13 +108,13 @@ let fW = CGFloat(W)
 let fH = CGFloat(H)
 
 print("Loading reference textures...")
-guard let humaEnv = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaEnvironment.imageset/huma-environment.png"),
-      let terrainTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaTerrainTexture.imageset/terrain.png"),
-      let youngRiceTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaYoungRice.imageset/huma-young-rice.png"),
-      let naturalTreeTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaTreeNatural.imageset/tree-natural.png"),
-      let woodTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaWoodTexture.imageset/texture.png"),
-      let thatchTex = loadCGImage(at: "BeBaduy/Asset/Home/PoCPadi.xcassets/HumaThatchTexture.imageset/texture.png"),
-      let ashTex = loadCGImage(at: "BeBaduy/Asset/Narawas/ngahuma-ash.png") else {
+guard let humaEnv = loadCGImage(at: "BeBaduy/Shared/Rendering/Huma/Resources/PoCPadi.xcassets/HumaEnvironment.imageset/huma-environment.png"),
+      let terrainTex = loadCGImage(at: "BeBaduy/Shared/Rendering/Huma/Resources/PoCPadi.xcassets/HumaTerrainTexture.imageset/terrain.png"),
+      let youngRiceTex = loadCGImage(at: "BeBaduy/Shared/Rendering/Huma/Resources/PoCPadi.xcassets/HumaYoungRice.imageset/huma-young-rice.png"),
+      let naturalTreeTex = loadCGImage(at: "BeBaduy/Shared/Rendering/Huma/Resources/PoCPadi.xcassets/HumaTreeNatural.imageset/tree-natural.png"),
+      let woodTex = loadCGImage(at: "BeBaduy/Shared/Rendering/Huma/Resources/PoCPadi.xcassets/HumaWoodTexture.imageset/texture.png"),
+      let thatchTex = loadCGImage(at: "BeBaduy/Shared/Rendering/Huma/Resources/PoCPadi.xcassets/HumaThatchTexture.imageset/texture.png"),
+      let ashTex = loadCGImage(at: "BeBaduy/Features/Chapters/Narawas/Resources/ngahuma-ash.png") else {
     fatalError("Failed to load required source textures!")
 }
 
@@ -320,7 +320,7 @@ do {
     drawImage(in: ctx, image: naturalTreeTex, x: 680, y: 420, width: 380, height: 530, contextHeight: fH)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Narawas/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Narawas/Resources/Ngahuru.xcassets/ngahuru_before.imageset/ngahuru_before.png")
 }
 
 // MARK: - 2. Narawas After (ngahuru_after)
@@ -343,7 +343,7 @@ do {
     )
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Narawas/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Narawas/Resources/Ngahuru.xcassets/ngahuru_after.imageset/ngahuru_after.png")
 }
 
 // MARK: - 3. Ngaseuk Before (ngaseuk_before) - Reference Chapter!
@@ -373,7 +373,7 @@ do {
     
     // Clean soil ready for dibbling - ABSOLUTELY NO STICK!
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Ngaseuk/Ngaseuk.xcassets/ngaseuk_before.imageset/ngaseuk_before.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Ngaseuk/Resources/Ngaseuk.xcassets/ngaseuk_before.imageset/ngaseuk_before.png")
 }
 
 // MARK: - 4. Ngaseuk After (ngaseuk_after)
@@ -396,7 +396,7 @@ do {
     drawDibbleHole(in: ctx, center: CGPoint(x: 768, y: 937), width: 68, height: 36, withSeeds: true)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Ngaseuk/Ngaseuk.xcassets/ngaseuk_after.imageset/ngaseuk_after.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Ngaseuk/Resources/Ngaseuk.xcassets/ngaseuk_after.imageset/ngaseuk_after.png")
 }
 
 // MARK: - 5. Ngored Before (ngored_before)
@@ -411,7 +411,7 @@ do {
     drawImage(in: ctx, image: youngRiceTex, x: 620, y: 565, width: 340, height: 340, contextHeight: fH)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Ngored/Ngored.xcassets/ngored_before.imageset/ngored_before.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Ngored/Resources/Ngored.xcassets/ngored_before.imageset/ngored_before.png")
 }
 
 // MARK: - 6. Ngored After (ngored_after) - Cleaned Field, NO WEEDS in background!
@@ -436,7 +436,7 @@ do {
     )
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Ngored/Ngored.xcassets/ngored_after.imageset/ngored_after.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Ngored/Resources/Ngored.xcassets/ngored_after.imageset/ngored_after.png")
 }
 
 // MARK: - 7. Mipit Before (mipit_before) - Aligned with Harvest Targets!
@@ -468,7 +468,7 @@ do {
     drawRipePanicle(in: ctx, origin: CGPoint(x: 747 - 30, y: 814 - 55), bendDirection: 1, scale: 1.20)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/mipit_before.imageset/mipit_before.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Mipit/Resources/Mipit.xcassets/mipit_before.imageset/mipit_before.png")
 }
 
 // MARK: - 8. Mipit After (mipit_after)
@@ -483,7 +483,7 @@ do {
     drawRiceBundle(in: ctx, center: CGPoint(x: 650, y: 910), width: 105, height: 155)
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/mipit_after.imageset/mipit_after.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Mipit/Resources/Mipit.xcassets/mipit_after.imageset/mipit_after.png")
 }
 
 // MARK: - 9. Drying Rice Before (drying_rice_before) - Dedicated Landscape Balancing View!
@@ -506,7 +506,7 @@ do {
     )
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/drying_rice_before.imageset/drying_rice_before.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Mipit/Resources/Mipit.xcassets/drying_rice_before.imageset/drying_rice_before.png")
 }
 
 // MARK: - 10. Drying Rice After (drying_rice_after) - Bamboo Drying Rack (Lantayan)
@@ -558,7 +558,7 @@ do {
     }
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/Mipit/Mipit.xcassets/drying_rice_after.imageset/drying_rice_after.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/Mipit/Resources/Mipit.xcassets/drying_rice_after.imageset/drying_rice_after.png")
 }
 
 // MARK: - 11. Leuit Before (ngaleuitkeun_pare_before) - Granary Beside Shared Huma
@@ -639,7 +639,7 @@ do {
     ctx.restoreGState()
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/NgaleuitkeunPare/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_before.imageset/ngaleuitkeun_pare_before.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/NgaleuitkeunPare/Resources/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_before.imageset/ngaleuitkeun_pare_before.png")
 }
 
 // MARK: - 12. Leuit After (ngaleuitkeun_pare_after) - Granary Interior View!
@@ -694,7 +694,7 @@ do {
     )
     
     guard let img = ctx.makeImage() else { fatalError() }
-    savePNG(image: img, to: "BeBaduy/Asset/NgaleuitkeunPare/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_after.imageset/ngaleuitkeun_pare_after.png")
+    savePNG(image: img, to: "BeBaduy/Features/Chapters/NgaleuitkeunPare/Resources/NgaleuitkeunPare.xcassets/ngaleuitkeun_pare_after.imageset/ngaleuitkeun_pare_after.png")
 }
 
 print("All 12 huma artwork images successfully generated!")
