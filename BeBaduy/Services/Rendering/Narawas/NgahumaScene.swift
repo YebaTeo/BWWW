@@ -954,12 +954,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 let action = SCNAction.customAction(duration: duration) { node, elapsed in
                     let t = min(1, max(0, Float(elapsed / CGFloat(duration))))
                     let value = current + (target - current) * HomeSceneRenderer.riceGrowthAmount(t)
-                    self.applyNgoredRiceGrowth(node, growth: value)
+                    Self.applyNgoredRiceGrowth(node, growth: value)
                 }
                 plant.runAction(action, forKey: "ngoredGrowth")
                 continue
             }
-            applyNgoredRiceGrowth(plant, growth: target)
+            Self.applyNgoredRiceGrowth(plant, growth: target)
         }
     }
 
@@ -1029,7 +1029,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let overall = (Float(cycle) + localProgress) / Float(cycles)
             let rawGrowth = growthFrom + (growthTo - growthFrom) * overall
             for plant in self.ngoredRiceRoots {
-                self.applyNgoredRiceGrowth(plant, growth: HomeSceneRenderer.riceGrowthAmount(rawGrowth))
+                Self.applyNgoredRiceGrowth(plant, growth: HomeSceneRenderer.riceGrowthAmount(rawGrowth))
             }
         }
         ngoredCycleFrame?(0)
@@ -1189,7 +1189,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    private func applyNgoredRiceGrowth(_ plant: SCNNode, growth: Float) {
+    private nonisolated static func applyNgoredRiceGrowth(_ plant: SCNNode, growth: Float) {
         let leaves = plant.childNode(withName: "homeRiceLeaves", recursively: false)
         leaves?.opacity = CGFloat(min(1, growth * 9))
         for blade in leaves?.childNodes ?? [] {
@@ -1210,7 +1210,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let duration: TimeInterval = reduceMotion ? 0.05 : 8.0
             let growth = SCNAction.customAction(duration: duration) { node, elapsed in
                 let progress = min(1, max(0, Float(elapsed) / Float(duration)))
-                self.applyNgoredRiceGrowth(node, growth: HomeSceneRenderer.riceGrowthAmount(progress))
+                Self.applyNgoredRiceGrowth(node, growth: HomeSceneRenderer.riceGrowthAmount(progress))
             }
             plant.runAction(growth, forKey: "riceGrowth")
         }
@@ -1221,7 +1221,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             plant.removeAction(forKey: "riceGrowth")
             plant.removeAction(forKey: "ngoredGrowth")
             plant.scale = SCNVector3(1, 1, 1)
-            applyNgoredRiceGrowth(plant, growth: 0)
+            Self.applyNgoredRiceGrowth(plant, growth: 0)
             plant.isHidden = false
         }
     }
