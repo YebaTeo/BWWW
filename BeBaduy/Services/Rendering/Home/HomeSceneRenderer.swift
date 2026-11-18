@@ -13,7 +13,11 @@ final class HomeSceneRenderer: NSObject {
     var rackScale: Float = 0.92 { didSet { if oldValue != rackScale { needsApply = true } } }
     var leuitActivity: LeuitActivitySceneState? { didSet { if oldValue != leuitActivity { needsApply = true } } }
     var mipitHarvested: Set<Int> = [] { didSet { if oldValue != mipitHarvested { needsApply = true } } }
-    private var needsApply = true
+    private var needsApply = true {
+        didSet {
+            if needsApply, lastActive == true { displayLink?.isPaused = false }
+        }
+    }
     private var lastActive: Bool?
     private var lastReduceMotion: Bool?
     private var mipitStandingNodes: [SCNNode] = []
@@ -203,7 +207,11 @@ final class HomeSceneRenderer: NSObject {
             }
         }
         let hasTimeAnimation = displayedProgress < 0.27 || leuitActivity != nil
-        guard isSettling || needsApply || hasTimeAnimation else { return }
+        guard isSettling || needsApply || hasTimeAnimation else {
+            // SceneKit keeps rendering its actions and physics independently.
+            link.isPaused = true
+            return
+        }
         SCNTransaction.begin()
         SCNTransaction.disableActions = true
         applyProgress(displayedProgress)
