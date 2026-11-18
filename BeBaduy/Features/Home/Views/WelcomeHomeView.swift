@@ -14,6 +14,7 @@ struct WelcomeHomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var preview = HomePreviewViewModel()
+    @State private var sceneReady = false
     @State private var initializedPreview = false
     @State private var openingChapter = false
     @State private var displayedStage = 0
@@ -33,7 +34,12 @@ struct WelcomeHomeView: View {
             ZStack {
                 CinematicAtmosphereView(progress: progress, isActive: isActive, scrollCueStart: scrollCueStart)
                     .accessibilityHidden(true)
-                SceneKitCropView(progress: progress, isActive: isActive, onFirstFrame: onFirstFrame)
+                SceneKitCropView(progress: progress, isActive: isActive,
+                                 showsTreeFallEffects: preview.isTransitioning,
+                                 onFirstFrame: {
+                                     sceneReady = true
+                                     onFirstFrame?()
+                                 })
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
@@ -99,6 +105,11 @@ struct WelcomeHomeView: View {
                     }
                     .padding(.leading, 20)
                     .padding(.top, 8)
+                }
+                if !sceneReady {
+                    Color.black.opacity(0.72).ignoresSafeArea()
+                    LaunchLoadingIndicator(message: "Menyiapkan tahap…")
+                        .accessibilityIdentifier("home.loading")
                 }
             }
         }

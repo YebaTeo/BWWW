@@ -5,6 +5,8 @@ import SwiftUI
 /// Owns the Home SceneKit graph, frame loop, materials, and visual effects.
 @MainActor
 final class HomeSceneRenderer: NSObject {
+    private static let granarySceneCache = NSCache<NSString, SCNScene>()
+
     var showsTreeFallEffects = true
     var showsRice = true { didSet { if oldValue != showsRice { needsApply = true } } }
     var showsRackPosts = true { didSet { if oldValue != showsRackPosts { needsApply = true } } }
@@ -1787,16 +1789,23 @@ final class HomeSceneRenderer: NSObject {
     // MARK: Stage 5 – Harvested rice on a bamboo rack
     // ════════════════════════════════════════════════════════════════════
 
+    private static func loadGranarySourceScene() -> SCNScene? {
+        let cacheKey = "lumbung.usdz" as NSString
+        if let scene = granarySceneCache.object(forKey: cacheKey) { return scene }
+
+        let modelURL = Bundle.main.url(forResource: "lumbung", withExtension: "usdz")
+            ?? Bundle.main.url(forResource: "lumbung", withExtension: "usdz", subdirectory: "Shared/Rendering/Huma/Resources")
+        guard let modelURL, let scene = try? SCNScene(url: modelURL, options: nil) else { return nil }
+        granarySceneCache.setObject(scene, forKey: cacheKey)
+        return scene
+    }
+
     private func buildGranaryPreview() {
         granaryRoot.name = "leuitGranaryRoot"
         granaryMaterials.removeAll()
 
-        // Load authentic Baduy Leuit 3D model (lumbung.usdz)
-        let modelURL = Bundle.main.url(forResource: "lumbung", withExtension: "usdz")
-            ?? Bundle.main.url(forResource: "lumbung", withExtension: "usdz", subdirectory: "Shared/Rendering/Huma/Resources")
-
         var loadedModel: SCNNode?
-        if let url = modelURL, let sourceScene = try? SCNScene(url: url, options: nil) {
+        if let sourceScene = Self.loadGranarySourceScene() {
             let lumbungNode = SCNNode()
             lumbungNode.name = "lumbungUSDZMesh"
 
@@ -1821,7 +1830,11 @@ final class HomeSceneRenderer: NSObject {
                 if node.light != nil || node.camera != nil {
                     node.removeFromParentNode()
                 }
-                if let geometry = node.geometry {
+                if let sourceGeometry = node.geometry {
+                    // Cloned nodes share geometry and materials with the cached scene.
+                    let geometry = sourceGeometry.copy() as! SCNGeometry
+                    geometry.materials = sourceGeometry.materials.map { $0.copy() as! SCNMaterial }
+                    node.geometry = geometry
                     for material in geometry.materials {
                         material.isDoubleSided = true
                         material.lightingModel = .physicallyBased

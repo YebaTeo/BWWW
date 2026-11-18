@@ -109,6 +109,25 @@ struct NgoredActivitySurface: View {
                     }
                     .allowsHitTesting(false)
                 }
+                if model.scene.loadingAssets {
+                    LessonBackdrop(asset: "LaunchLandscape")
+                        .ignoresSafeArea()
+                    LaunchLoadingIndicator(message: "Menyiapkan lahan…")
+                        .accessibilityIdentifier("ngored.loading")
+                } else if let error = model.scene.assetError {
+                    LessonBackdrop(asset: "LaunchLandscape")
+                        .ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        Text(error)
+                        Button("Coba lagi") {
+                            Task { await model.scene.prepareAssets() }
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .padding(24)
+                    .background(.black.opacity(0.68), in: RoundedRectangle(cornerRadius: 20))
+                    .padding(24)
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .contentShape(Rectangle())

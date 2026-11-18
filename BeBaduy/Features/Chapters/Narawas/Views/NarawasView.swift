@@ -9,6 +9,7 @@ struct NarawasView: View {
     @State private var initialized = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.navigationSceneReady) private var navigationSceneReady
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let orange = Color(red: 1, green: 0.65, blue: 0.25)
 
@@ -82,6 +83,7 @@ struct NarawasView: View {
             model.configureLookMotion(reduceMotion: reduceMotion)
             model.scene.muted = !ActivityAudio.shared.enabled
             await model.scene.prepareAssets()
+            navigationSceneReady?()
             await model.scene.loadAudio()
             if message == .explanation { model.scene.showBurnedField() }
         }

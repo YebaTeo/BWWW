@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var selectedTab: HomeTab = .menu
     @State private var isTabCollapsed = false
     @State private var showsPrologue = false
+    @State private var loadingDestination: HomeRoute?
 
     var body: some View {
         Group {
@@ -29,7 +30,7 @@ struct HomeView: View {
                         MenuView(
                             journey: journey,
                             onPrologue: { showsPrologue = true },
-                            open: { model.open($0, journey: journey) },
+                            open: openPreview,
                             onScroll: { oldOffset, newOffset in
                                 updateTabBar(for: .menu, from: oldOffset, to: newOffset)
                             }
@@ -40,8 +41,11 @@ struct HomeView: View {
                                 WelcomeHomeView(
                                     journey: journey,
                                     initialPhase: phase,
+                                    onFirstFrame: {
+                                        if loadingDestination == .preview(phase) { loadingDestination = nil }
+                                    },
                                     pendingTransitionFrom: .constant(nil),
-                                    onOpen: { model.start($0, journey: journey) },
+                                    onOpen: startActivity,
                                     onJourney: { model.path = [] },
                                     onCompletion: { model.showsCompletion = true },
                                     isActive: model.path.last == .preview(phase)
@@ -59,6 +63,9 @@ struct HomeView: View {
                                     model.path = []
                                 }
                                 .id(phase)
+                                .environment(\.navigationSceneReady, {
+                                    if loadingDestination == .activity(phase) { loadingDestination = nil }
+                                })
                                 .toolbar(.hidden, for: .tabBar)
                             }
                         }
@@ -86,6 +93,16 @@ struct HomeView: View {
                     }
                 }
                 .tint(AppTheme.heading)
+                .overlay {
+                    if loadingDestination != nil {
+                        ZStack {
+                            Color(red: 0.20, green: 0.12, blue: 0.08)
+                            LaunchLoadingIndicator(message: "Menyiapkan tahap…")
+                                .accessibilityIdentifier("navigation.loading")
+                        }
+                        .ignoresSafeArea()
+                    }
+                }
                 .fullScreenCover(isPresented: $model.showsCompletion) {
                     CompletionView(journey: journey) { model.showsCompletion = false }
                 }
@@ -112,6 +129,26 @@ struct HomeView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func openPreview(_ phase: PhaseID) {
+        guard journey.progress.isUnlocked(phase), loadingDestination == nil else { return }
+        loadingDestination = .preview(phase)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(30))
+            guard loadingDestination == .preview(phase) else { return }
+            model.open(phase, journey: journey)
+        }
+    }
+
+    private func startActivity(_ phase: PhaseID) {
+        guard journey.progress.isUnlocked(phase), loadingDestination == nil else { return }
+        loadingDestination = .activity(phase)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(30))
+            guard loadingDestination == .activity(phase) else { return }
+            model.start(phase, journey: journey)
+        }
     }
 
     private func updateTabBar(for tab: HomeTab, from oldOffset: CGFloat, to newOffset: CGFloat) {

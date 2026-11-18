@@ -3,6 +3,7 @@ import SwiftUI
 /// The scene may extend under system chrome. Its informational overlays still use these insets.
 extension EnvironmentValues {
     @Entry var activitySceneInsets = EdgeInsets()
+    @Entry var navigationSceneReady: (() -> Void)? = nil
 }
 
 enum ActivityCardPlacement {

@@ -43,7 +43,8 @@ struct IntroductionView: View {
             ZStack {
                 ZStack {
                     CinematicAtmosphereView(progress: stageProgress, isActive: true)
-                    SceneKitCropView(progress: stageProgress, isActive: true, onFirstFrame: onFirstFrame)
+                    SceneKitCropView(progress: stageProgress, isActive: true,
+                                     showsTreeFallEffects: false, onFirstFrame: onFirstFrame)
                 }
                 .accessibilityHidden(true)
                 .allowsHitTesting(false)

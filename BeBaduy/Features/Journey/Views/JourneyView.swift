@@ -124,6 +124,9 @@ private struct StageCardScene: View {
                     .resizable()
                     .scaledToFill()
                     .transition(.opacity)
+            } else {
+                ProgressView()
+                    .tint(.white)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
