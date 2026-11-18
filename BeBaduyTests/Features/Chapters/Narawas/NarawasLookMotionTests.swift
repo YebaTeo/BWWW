@@ -42,6 +42,17 @@ final class NarawasLookMotionTests: XCTestCase {
         XCTAssertEqual(yawResult.imag.z, 0, accuracy: 0.0001)
         XCTAssertGreaterThan(abs(yawResult.imag.y), 0.1)
     }
+    @MainActor func testReturningFromBeyondLookLimitRestoresStartingHeading() {
+        let scene = NgahumaScene()
+        scene.beginMotionLook()
+        let angles: [Float] = [1.2, 2.0, 3.1, 3.3, 3.1, 2.0, 1.2, 0]
+        for angle in angles {
+            scene.applyMotionLook(simd_quatf(angle: angle, axis: [0, 1, 0]), fixedPosition: true)
+            let expected = min(angle, .pi / 2)
+            XCTAssertEqual(2 * atan2(scene.motionOrientation.imag.y, scene.motionOrientation.real), expected, accuracy: 0.001)
+            XCTAssertEqual(scene.lookEdge, angle >= .pi / 2 ? .left : nil)
+        }
+    }
     @MainActor func testMotionLifecycleRecenterAndLateCallback() {
         let motion = FakeMotion()
         let model = NarawasViewModel(motion: motion)

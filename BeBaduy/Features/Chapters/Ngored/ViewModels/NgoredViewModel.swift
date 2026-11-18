@@ -46,6 +46,7 @@ import Foundation
     }
 
     private func stopLookMotion() {
+        scene.clearLookEdge()
         motionGeneration += 1
         motion?.stop()
     }

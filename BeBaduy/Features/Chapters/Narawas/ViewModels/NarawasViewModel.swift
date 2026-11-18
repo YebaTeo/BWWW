@@ -138,10 +138,11 @@ import Foundation
                 self.motionEnabled = false
                 return
             }
-            if let rotation = self.lookMotion.consume(sample) { self.scene.applyMotionLook(rotation) }
+            if let rotation = self.lookMotion.consume(sample) { self.scene.applyMotionLook(rotation, fixedPosition: true) }
         }
     }
     private func stopLookMotion() {
+        scene.clearLookEdge()
         motionGeneration += 1
         if motionActive { motion?.stop() }
         motionActive = false; lookMotion.reset()

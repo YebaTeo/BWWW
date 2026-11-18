@@ -1,7 +1,31 @@
 import SceneKit
 import SwiftUI
 
-struct NarawasSurface: UIViewRepresentable {
+struct NarawasSurface: View {
+    let scene: NgahumaScene
+
+    var body: some View {
+        NarawasSceneView(scene: scene)
+            .overlay {
+                if let edge = scene.lookEdge {
+                    GeometryReader { bounds in
+                        let left = edge == .left
+                        LinearGradient(colors: [.red.opacity(0.8), .clear],
+                                       startPoint: UnitPoint(x: left ? 0 : 1, y: 0.5),
+                                       endPoint: UnitPoint(x: left ? 1 : 0, y: 0.5))
+                            .frame(width: min(40, bounds.size.width * 0.1))
+                            .position(x: left ? min(20, bounds.size.width * 0.05)
+                                      : bounds.size.width - min(20, bounds.size.width * 0.05),
+                                      y: bounds.size.height / 2)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+            }
+    }
+}
+
+private struct NarawasSceneView: UIViewRepresentable {
     let scene: NgahumaScene
 
     func makeUIView(context: Context) -> SCNView {

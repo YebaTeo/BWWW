@@ -135,7 +135,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var slashedInCurrentStroke = false
     private(set) var motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var motionReference = simd_quatf(angle: 0, axis: [0, 1, 0])
-    private var lastRawYaw: Float?
     private let feedback = UIImpactFeedbackGenerator(style: .medium)
 
     private let soilY: Float = 0.038
@@ -1940,16 +1939,61 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         return nil
     }
 
-    func beginMotionLook() {
+    enum LookEdge { case left, right }
+    private(set) var lookEdge: LookEdge?
+
+    @ObservationIgnored private var edgeImpact: UIImpactFeedbackGenerator?
+    @ObservationIgnored private var nextEdgeImpactTime: CFTimeInterval = 0
+
+    func clearLookEdge() {
+        guard lookEdge != nil else { return }
+        lookEdge = nil
+        edgeImpact = nil
+    }
+
+    private func updateLookEdge(yaw: Float) {
+        let side: LookEdge = yaw > 0 ? .left : .right
+        // Release a few degrees inside the limit so sensor noise cannot repeat the impact.
+        if abs(yaw) < Self.arHalfTurn - .pi / 60 {
+            clearLookEdge()
+        } else if abs(yaw) >= Self.arHalfTurn - 0.001, lookEdge != side {
+            lookEdge = side
+            if let view {
+                edgeImpact = UIImpactFeedbackGenerator(style: .medium, view: view)
+                nextEdgeImpactTime = 0
+                pulseLookEdge(at: CACurrentMediaTime())
+            }
+        }
+    }
+
+    private func pulseLookEdge(at time: CFTimeInterval) {
+        guard let side = lookEdge, let edgeImpact, let view, view.window != nil,
+              time >= nextEdgeImpactTime else { return }
+        let point = CGPoint(x: side == .left ? view.bounds.minX : view.bounds.maxX,
+                            y: view.bounds.midY)
+        edgeImpact.impactOccurred(intensity: 0.8, at: point)
+        nextEdgeImpactTime = time + 0.3
+    }
+
+    @ObservationIgnored private var previousHeading: Float = 0
+    @ObservationIgnored private var headingOffset: Float = 0
+
+    private func resetHeading() {
         motionReference = motionOrientation
-        lastRawYaw = nil
+        previousHeading = 2 * atan2(motionOrientation.imag.y, motionOrientation.real)
+        headingOffset = 0
+        clearLookEdge()
+    }
+
+    func beginMotionLook() {
+        resetHeading()
+        updatePreviewCamera(fixedPosition: true)
     }
 
     func focusNgoredRice() {
         // The first rice clump is on the right side of the forward field.
         motionOrientation = simd_quatf(angle: -Self.ngoredRiceAngles[0], axis: [0, 1, 0])
-        motionReference = motionOrientation
-        lastRawYaw = nil
+        resetHeading()
         updatePreviewCamera(fixedPosition: true)
     }
 
@@ -1959,21 +2003,24 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let yawVector = SIMD4<Float>(0, combined.imag.y, 0, combined.real)
         let rawYaw = 2 * atan2(yawVector.y, yawVector.w)
         let signedYaw = atan2(sin(rawYaw), cos(rawYaw))
-        let previousYaw = 2 * atan2(motionOrientation.imag.y, motionOrientation.real)
-        let change = lastRawYaw.map { last in
-            atan2(sin(signedYaw - last), cos(signedYaw - last))
-        } ?? 0
-        let limitedYaw = max(-Self.arHalfTurn, min(Self.arHalfTurn, previousYaw + change))
+        // Clamp the absolute heading. Integrating sample deltas loses motion
+        // beyond the limit, so returning to the starting pose leaves an offset.
+        // Keep the same edge when the signed heading wraps behind the user.
+        let change = signedYaw - previousHeading
+        if change < -.pi { headingOffset += 2 * .pi }
+        if change > .pi { headingOffset -= 2 * .pi }
+        previousHeading = signedYaw
+        let heading = signedYaw + headingOffset
+        updateLookEdge(yaw: heading)
+        let limitedYaw = max(-Self.arHalfTurn, min(Self.arHalfTurn, heading))
         motionOrientation = simd_quatf(angle: limitedYaw, axis: [0, 1, 0])
-        lastRawYaw = signedYaw
         updatePreviewCamera(fixedPosition: fixedPosition)
     }
 
     func recenterLook() {
         motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
-        motionReference = motionOrientation
-        lastRawYaw = nil
-        updatePreviewCamera()
+        resetHeading()
+        updatePreviewCamera(fixedPosition: true)
         feedback.impactOccurred(intensity: 0.45)
     }
 
@@ -2036,6 +2083,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func advanceFrame(_ link: CADisplayLink) {
         let dt = lastFrameTimestamp == 0 ? 1.0 / 60.0 : min(link.timestamp - lastFrameTimestamp, 0.1)
         lastFrameTimestamp = link.timestamp
+        pulseLookEdge(at: link.timestamp)
         update(dt)
     }
 
@@ -2435,6 +2483,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func setSuspended(_ value: Bool) {
         suspended = value
+        if value { clearLookEdge() }
         lastFrameTimestamp = 0
         displayLink?.isPaused = value
         view?.isPlaying = !value
@@ -2447,6 +2496,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func stop() {
+        clearLookEdge()
         clearGolokSwing()
         ngoredCycleFrame = nil
         ngoredCycleCompletion = nil
