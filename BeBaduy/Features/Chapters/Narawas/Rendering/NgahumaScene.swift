@@ -1953,44 +1953,55 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     enum LookEdge { case left, right }
     private(set) var lookEdge: LookEdge?
+    private(set) var edgeReturnDegrees = 0
 
     @ObservationIgnored private var edgeImpact: UIImpactFeedbackGenerator?
     @ObservationIgnored private var nextEdgeImpactTime: CFTimeInterval = 0
+    private enum AimTarget: Hashable { case tree(Int), soil(Int), weed(Int) }
+    @ObservationIgnored private var visibleInteractionTargets = Set<AimTarget>()
+    private let visibleTargetFeedback = UINotificationFeedbackGenerator()
+    var activeWeedTargets: (() -> Range<Int>)?
 
     func clearLookEdge() {
         guard lookEdge != nil else { return }
         lookEdge = nil
+        edgeReturnDegrees = 0
         edgeImpact = nil
     }
 
     private func updateLookEdge(yaw: Float) {
-        let side: LookEdge = yaw > 0 ? .left : .right
-        // Release a few degrees inside the limit so sensor noise cannot repeat the impact.
         if abs(yaw) < Self.arHalfTurn - .pi / 60 {
             clearLookEdge()
-        } else if abs(yaw) >= Self.arHalfTurn - 0.001, lookEdge != side {
-            lookEdge = side
-            if let view {
-                edgeImpact = UIImpactFeedbackGenerator(style: .medium, view: view)
-                nextEdgeImpactTime = 0
-                pulseLookEdge(at: CACurrentMediaTime())
-            }
+            return
+        }
+        guard abs(yaw) >= Self.arHalfTurn - 0.001 || lookEdge != nil else { return }
+        let remaining = abs(yaw) - (Self.arHalfTurn - .pi / 60)
+        edgeReturnDegrees = max(1, Int(ceil(remaining * 180 / .pi)))
+        let side: LookEdge = yaw > 0 ? .left : .right
+        guard lookEdge != side else { return }
+        lookEdge = side
+        if let view {
+            edgeImpact = UIImpactFeedbackGenerator(style: .rigid, view: view)
+            edgeImpact?.prepare()
+            nextEdgeImpactTime = 0
+            pulseLookEdge(at: CACurrentMediaTime())
         }
     }
 
     private func pulseLookEdge(at time: CFTimeInterval) {
         guard let side = lookEdge, let edgeImpact, let view, view.window != nil,
               time >= nextEdgeImpactTime else { return }
-        let point = CGPoint(x: side == .left ? view.bounds.minX : view.bounds.maxX,
-                            y: view.bounds.midY)
-        edgeImpact.impactOccurred(intensity: 0.8, at: point)
-        nextEdgeImpactTime = time + 0.3
+        let x = side == .left ? view.bounds.minX : view.bounds.maxX - 1
+        edgeImpact.impactOccurred(intensity: 1, at: CGPoint(x: x, y: view.bounds.midY))
+        edgeImpact.prepare()
+        nextEdgeImpactTime = time + 0.00075
     }
 
     @ObservationIgnored private var previousHeading: Float = 0
     @ObservationIgnored private var headingOffset: Float = 0
 
     private func resetHeading() {
+        visibleInteractionTargets.removeAll()
         motionReference = motionOrientation
         previousHeading = 2 * atan2(motionOrientation.imag.y, motionOrientation.real)
         headingOffset = 0
@@ -2000,6 +2011,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     func beginMotionLook() {
         resetHeading()
         updatePreviewCamera(fixedPosition: true)
+        updateVisibleTargetFeedback()
     }
 
     func focusNgoredRice() {
@@ -2007,6 +2019,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         motionOrientation = simd_quatf(angle: -Self.ngoredRiceAngles[0], axis: [0, 1, 0])
         resetHeading()
         updatePreviewCamera(fixedPosition: true)
+        updateVisibleTargetFeedback()
     }
 
     func applyMotionLook(_ relative: simd_quatf, fixedPosition: Bool = false) {
@@ -2027,6 +2040,41 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let limitedYaw = max(-Self.arHalfTurn, min(Self.arHalfTurn, heading))
         motionOrientation = simd_quatf(angle: limitedYaw, axis: [0, 1, 0])
         updatePreviewCamera(fixedPosition: fixedPosition)
+        updateVisibleTargetFeedback()
+    }
+
+    private func updateVisibleTargetFeedback() {
+        guard let view, view.window != nil else {
+            visibleInteractionTargets.removeAll()
+            return
+        }
+        var visible = Set<AimTarget>()
+        func consider(_ target: AimTarget, at position: SCNVector3) {
+            let point = view.projectPoint(position)
+            guard point.z > 0, point.z < 1 else { return }
+            let margin: CGFloat = visibleInteractionTargets.contains(target) ? -0.04 : 0.06
+            let bounds = view.bounds.insetBy(dx: view.bounds.width * margin, dy: view.bounds.height * margin)
+            if bounds.contains(CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))) { visible.insert(target) }
+        }
+        if ngoredFieldPresented {
+            for i in activeWeedTargets?() ?? 0..<0 where ngoredWeedRoots.indices.contains(i) && !uprootedNgoredWeeds.contains(i) {
+                consider(.weed(i), at: ngoredWeedRoots[i].presentation.worldPosition)
+            }
+        } else if stage == .clearing {
+            for (i, tree) in treeEntries.enumerated() where treeCutStartTimes[i] == nil {
+                var point = tree.worldBasePosition
+                point.y = soilY + 0.42
+                consider(.tree(i), at: point)
+            }
+        } else if stage == .prepared || stage == .burning {
+            for i in patchPositions.indices where ignitionTimes[i] == nil {
+                consider(.soil(i), at: patchPositions[i])
+            }
+        }
+        if !visible.subtracting(visibleInteractionTargets).isEmpty {
+            visibleTargetFeedback.notificationOccurred(.success)
+        }
+        visibleInteractionTargets = visible
     }
 
     func recenterLook() {

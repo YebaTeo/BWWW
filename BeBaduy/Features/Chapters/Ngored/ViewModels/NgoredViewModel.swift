@@ -17,6 +17,14 @@ import Foundation
 
     init(motion: (any MotionProviding)? = nil) {
         self.motion = motion
+        scene.activeWeedTargets = { [weak self] in
+            guard let self, self.session.isActive, !self.isDemonstrating else { return 0..<0 }
+            switch self.step {
+            case .weeding: return 0..<4
+            case .secondWeeding: return 4..<7
+            default: return 0..<0
+            }
+        }
         scene.activityStage = { .complete }
         scene.onReady = { [weak self] in
             guard let self else { return }
