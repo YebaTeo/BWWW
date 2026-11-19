@@ -40,15 +40,18 @@ struct NarawasView: View {
                 }
                 .allowsHitTesting(false)
             }
-            if isLoading || model.scene.assetError != nil {
+            if model.scene.assetError != nil && isLoading == false {
                 LessonBackdrop(asset: "LaunchLandscape")
                     .allowsHitTesting(false)
             }
             if let message {
                 messageOverlay(message)
             } else if isLoading {
-                LaunchLoadingIndicator(message: "Menyiapkan lahan…")
-                    .accessibilityIdentifier("narawas.loading")
+                ReusableLoadingView(
+                    message: "Menyiapkan lahan…",
+                    style: .fullscreen(backdrop: "LaunchLandscape"),
+                    identifier: "narawas.loading"
+                )
             } else {
                 fieldOverlay
                     .padding(.top, 44)

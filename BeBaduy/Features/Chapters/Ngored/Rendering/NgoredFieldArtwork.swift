@@ -5,8 +5,14 @@ struct KoredTool: View {
     var isDragging = false
     var swingCount = 0
     var bladeCentered = false
+    var showsLoading = false
     var body: some View {
-        Kored3DView(isDragging: isDragging, swingCount: swingCount, bladeCentered: bladeCentered)
-            .accessibilityHidden(true)
+        Kored3DView(
+            isDragging: isDragging,
+            swingCount: swingCount,
+            bladeCentered: bladeCentered,
+            showsLoading: showsLoading
+        )
+        .accessibilityHidden(true)
     }
 }

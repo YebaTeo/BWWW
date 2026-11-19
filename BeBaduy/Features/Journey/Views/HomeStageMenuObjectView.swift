@@ -23,8 +23,35 @@ struct HomeStageMenuObjectView: View {
     }
 }
 
-private struct HomeStageSceneIcon: UIViewRepresentable {
+private struct HomeStageSceneIcon: View {
     let phase: PhaseID
+    @State private var isReady = false
+
+    var body: some View {
+        ZStack {
+            HomeStageSCNView(phase: phase) {
+                isReady = true
+            }
+            .opacity(isReady ? 1 : 0)
+
+            if !isReady {
+                ReusableLoadingView(message: "Memuat ikon tahap…", style: .compact)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if !isReady { isReady = true }
+        }
+    }
+}
+
+private struct HomeStageSCNView: UIViewRepresentable {
+    let phase: PhaseID
+    let onFirstFrame: @MainActor () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero, options: [
@@ -38,10 +65,30 @@ private struct HomeStageSceneIcon: UIViewRepresentable {
         view.rendersContinuously = false
         view.isPlaying = false
         view.allowsCameraControl = false
+        context.coordinator.observeFirstFrame(in: view, action: onFirstFrame)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {}
+
+    static func dismantleUIView(_ view: SCNView, coordinator: Coordinator) {
+        coordinator.invalidate()
+    }
+
+    @MainActor
+    final class Coordinator {
+        private var observer: SceneFirstFrameObserver?
+
+        func observeFirstFrame(in view: SCNView, action: @escaping @MainActor () -> Void) {
+            observer?.invalidate()
+            observer = SceneFirstFrameObserver(view: view, action: action)
+        }
+
+        func invalidate() {
+            observer?.invalidate()
+            observer = nil
+        }
+    }
 }
 
 @MainActor

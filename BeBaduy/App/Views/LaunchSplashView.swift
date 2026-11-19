@@ -21,6 +21,9 @@ struct LaunchSplashView: View {
                     Text("BeBaduy")
                         .font(.system(size: 25, weight: .bold))
                         .foregroundStyle(.white)
+                    ReusableLoadingView(message: "Menyiapkan perjalanan…", style: .compact)
+                        .opacity(0.85)
+                        .padding(.top, 8)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -35,11 +38,7 @@ struct LaunchLoadingIndicator: View {
     var message: LocalizedStringKey = "Menyiapkan perjalanan…"
 
     var body: some View {
-        ProgressView(message)
-            .tint(.white)
-            .foregroundStyle(.white)
-            .padding(24)
-            .background(.black.opacity(0.68), in: RoundedRectangle(cornerRadius: 20))
+        ReusableLoadingView(message: message, style: .card)
     }
 }
 

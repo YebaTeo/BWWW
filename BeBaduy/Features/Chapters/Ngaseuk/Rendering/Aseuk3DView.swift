@@ -20,6 +20,7 @@ struct Aseuk3DView: UIViewRepresentable {
     var defaultPitch: Float = 0.22
     var defaultYaw: Float = 0.45
     var defaultRoll: Float = -0.08
+    var onFirstFrame: (@MainActor () -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -42,7 +43,7 @@ struct Aseuk3DView: UIViewRepresentable {
         view.rendersContinuously = autoRotate
 
         context.coordinator.rotationSpeed = rotationSpeed
-        context.coordinator.setupScene(in: view)
+        context.coordinator.setupScene(in: view, onFirstFrame: onFirstFrame)
         return view
     }
 
@@ -62,6 +63,7 @@ struct Aseuk3DView: UIViewRepresentable {
         coordinator.cleanup()
     }
 
+    @MainActor
     final class Coordinator: NSObject {
         var interactive: Bool
         var autoRotate: Bool
@@ -76,6 +78,7 @@ struct Aseuk3DView: UIViewRepresentable {
         private var displayLink: CADisplayLink?
         private var lastTime: CFTimeInterval = 0
         private var isUserDragging = false
+        private var firstFrameObserver: SceneFirstFrameObserver?
 
         init(interactive: Bool, autoRotate: Bool, pitch: Float, yaw: Float, roll: Float) {
             self.interactive = interactive
@@ -85,8 +88,12 @@ struct Aseuk3DView: UIViewRepresentable {
             self.roll = roll
         }
 
-        func setupScene(in view: SCNView) {
+        func setupScene(in view: SCNView, onFirstFrame: (@MainActor () -> Void)? = nil) {
             self.scnView = view
+            firstFrameObserver?.invalidate()
+            if let onFirstFrame {
+                firstFrameObserver = SceneFirstFrameObserver(view: view, action: onFirstFrame)
+            }
             let scene = SCNScene()
             view.scene = scene
 
@@ -193,6 +200,8 @@ struct Aseuk3DView: UIViewRepresentable {
         }
 
         func cleanup() {
+            firstFrameObserver?.invalidate()
+            firstFrameObserver = nil
             stopDisplayLink()
             if let pan = panGesture, let view = scnView {
                 view.removeGestureRecognizer(pan)

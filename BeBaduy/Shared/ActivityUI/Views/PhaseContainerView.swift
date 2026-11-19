@@ -174,9 +174,11 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     }
                 }
                 if sceneIsVisible && !sceneReady {
-                    Color.black.opacity(0.72).ignoresSafeArea()
-                    LaunchLoadingIndicator(message: "Menyiapkan tahap…")
-                        .accessibilityIdentifier("lesson.loading")
+                    ReusableLoadingView(
+                        message: "Menyiapkan tahap…",
+                        style: .fullscreen(),
+                        identifier: "lesson.loading"
+                    )
                 }
             }
         }
@@ -229,6 +231,14 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             }
         }
         .onDisappear { activityVisibility(false); suspend(); ActivityAudio.shared.stop() }
+        .task(id: sceneIsVisible && !sceneReady) {
+            guard sceneIsVisible, !sceneReady else { return }
+            try? await Task.sleep(for: .seconds(10))
+            if !sceneReady {
+                sceneReady = true
+                navigationSceneReady?()
+            }
+        }
     }
 
     private func setHelpVisible(_ visible: Bool) {
@@ -308,9 +318,9 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     @ViewBuilder private var equipmentArtwork: some View {
         switch content.id {
         case .ngaseuk:
-            AseukTool(interactive: true, autoRotate: true).frame(width: 68)
+            AseukTool(interactive: true, autoRotate: true, showsLoading: true).frame(width: 68)
         case .ngored:
-            KoredTool().frame(width: 150, height: 120)
+            KoredTool(showsLoading: true).frame(width: 150, height: 120)
         case .mipit:
             Image("mipit_etem").resizable().scaledToFit().frame(maxWidth: 160, maxHeight: 140)
         default:

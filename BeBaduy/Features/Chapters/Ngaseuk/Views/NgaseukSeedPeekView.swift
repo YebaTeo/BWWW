@@ -8,6 +8,7 @@ struct NgaseukSeedPeekView: View {
     @Environment(\.scenePhase) private var scenePhase
     var dragActive = false
     var canPlant = false
+    @State private var sceneReady = false
     private var filled: Bool { model.seeds.contains(target) }
     private var isPourSequenceActive: Bool { model.isBasketEntering || model.isBasketTilting || model.isPouring }
 
@@ -15,10 +16,23 @@ struct NgaseukSeedPeekView: View {
         GeometryReader { geometry in
             ZStack {
                 // 3D SceneKit Viewport: 3D soil ground plane, excavated dibble hole, and 3D golden seeds
-                SeedPeek3DSceneView(filled: filled, isPouring: model.isPouring, active: isVisible && scenePhase == .active)
+                SeedPeek3DSceneView(
+                    filled: filled,
+                    isPouring: model.isPouring,
+                    active: isVisible && scenePhase == .active,
+                    onFirstFrame: { sceneReady = true }
+                )
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
                     .ignoresSafeArea()
+
+                if isVisible && !sceneReady {
+                    ReusableLoadingView(
+                        message: "Menyiapkan lubang tanam…",
+                        style: .fullscreen(),
+                        identifier: "ngaseuk.peek.loading"
+                    )
+                }
 
                 if isPourSequenceActive {
                     NgaseukPouringBowl(
@@ -75,6 +89,11 @@ struct NgaseukSeedPeekView: View {
             .allowsHitTesting(!dragActive)
         }
         .accessibilityLabel("Tampilan dekat lubang tanam 3 dimensi")
+        .task(id: isVisible) {
+            guard isVisible, !sceneReady else { return }
+            try? await Task.sleep(for: .milliseconds(900))
+            if !sceneReady { sceneReady = true }
+        }
     }
 
     private var statusText: String {

@@ -81,3 +81,32 @@ enum SceneEffects {
         ]
     }
 }
+
+/// Fires a one-shot main-actor callback once an `SCNView` draws its first frame.
+@MainActor
+final class SceneFirstFrameObserver: NSObject, SCNSceneRendererDelegate {
+    private var didFire = false
+    private weak var observedView: SCNView?
+    private let action: @MainActor () -> Void
+
+    init(view: SCNView, action: @escaping @MainActor () -> Void) {
+        self.observedView = view
+        self.action = action
+        super.init()
+        view.delegate = self
+    }
+
+    func invalidate() {
+        observedView?.delegate = nil
+        observedView = nil
+    }
+
+    nonisolated func renderer(_ renderer: any SCNSceneRenderer, didRenderScene scene: SCNScene, atTime time: TimeInterval) {
+        Task { @MainActor [weak self] in
+            guard let self, !self.didFire else { return }
+            self.didFire = true
+            self.invalidate()
+            self.action()
+        }
+    }
+}

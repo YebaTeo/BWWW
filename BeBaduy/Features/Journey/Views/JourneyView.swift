@@ -97,8 +97,7 @@ private struct StageCardScene: View {
                     .scaledToFill()
                     .transition(.opacity)
             } else {
-                ProgressView()
-                    .tint(.white)
+                ReusableLoadingView(message: "Memuat tahap…", style: .compact)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

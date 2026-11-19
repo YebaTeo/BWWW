@@ -54,13 +54,11 @@ struct HomeView: View {
                     .allowsHitTesting(onboardingReady)
                     .accessibilityHidden(!onboardingReady)
                     if !onboardingReady {
-                        ZStack {
-                            Image("HumaSunsetValley")
-                                .resizable()
-                                .scaledToFill()
-                                .ignoresSafeArea()
-                            LaunchLoadingIndicator(message: "Menyiapkan perjalanan…")
-                        }
+                        ReusableLoadingView(
+                            message: "Menyiapkan perjalanan…",
+                            style: .fullscreen(backdrop: "HumaSunsetValley"),
+                            identifier: "onboarding.loading"
+                        )
                     }
                 }
                 .task {
@@ -158,12 +156,11 @@ struct HomeView: View {
                 }
                 .overlay {
                     if loadingDestination != nil {
-                        ZStack {
-                            Color(red: 0.20, green: 0.12, blue: 0.08)
-                            LaunchLoadingIndicator(message: "Menyiapkan tahap…")
-                                .accessibilityIdentifier("navigation.loading")
-                        }
-                        .ignoresSafeArea()
+                        ReusableLoadingView(
+                            message: "Menyiapkan tahap…",
+                            style: .fullscreen(),
+                            identifier: "navigation.loading"
+                        )
                     }
                 }
                 .task(id: loadingDestination) {
@@ -412,6 +409,7 @@ private struct LandingIntroText: View {
 private struct StagePreviewScreen: View {
     let stage: GrowthStage
     let openSelectedChapter: () -> Void
+    @State private var sceneReady = false
     private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
     private let gold = Color(red: 1, green: 0.62, blue: 0.14)
 
@@ -419,8 +417,13 @@ private struct StagePreviewScreen: View {
         GeometryReader { viewport in
             ZStack(alignment: .bottom) {
                 CinematicAtmosphereView(progress: stage.targetProgress, isActive: true)
-                SceneKitCropView(progress: stage.targetProgress, isActive: true, showsTreeFallEffects: false)
-                    .ignoresSafeArea()
+                SceneKitCropView(
+                    progress: stage.targetProgress,
+                    isActive: true,
+                    showsTreeFallEffects: false,
+                    onFirstFrame: { sceneReady = true }
+                )
+                .ignoresSafeArea()
                 VStack(spacing: 0) {
                     stageCard
                     actions
@@ -428,9 +431,23 @@ private struct StagePreviewScreen: View {
                 .frame(maxWidth: 440)
                 .padding(.horizontal, 12)
                 .padding(.bottom, viewport.size.height * 0.14)
+                .allowsHitTesting(sceneReady)
+                .accessibilityHidden(!sceneReady)
+
+                if !sceneReady {
+                    ReusableLoadingView(
+                        message: "Menyiapkan tahap…",
+                        style: .fullscreen(),
+                        identifier: "stage.preview.loading"
+                    )
+                }
             }
         }
         .foregroundStyle(ivory)
+        .task {
+            try? await Task.sleep(for: .seconds(8))
+            if !sceneReady { sceneReady = true }
+        }
     }
 
     private var stageCard: some View {
@@ -514,7 +531,11 @@ private struct ChapterTransitionView: View {
                     ChapterRewardCard(card: .chapter(phase), alreadyOwned: true) { showsInformation = false }
                 }
             } else if !ready {
-                LaunchLoadingIndicator(message: "Menyiapkan tahap…")
+                ReusableLoadingView(
+                    message: "Menyiapkan tahap…",
+                    style: .fullscreen(),
+                    identifier: "transition.loading"
+                )
             }
             if started && !showsInformation {
                 Button("Lewati animasi") {
@@ -528,6 +549,11 @@ private struct ChapterTransitionView: View {
                 .padding(20)
                 .accessibilityIdentifier("transition.skip")
             }
+        }
+        .task(id: !showsInformation && !ready) {
+            guard !showsInformation, !ready else { return }
+            try? await Task.sleep(for: .seconds(8))
+            if !ready { ready = true }
         }
         .task(id: ready && !showsInformation && scenePhase == .active) {
             guard ready, scenePhase == .active, !showsInformation, !started else { return }

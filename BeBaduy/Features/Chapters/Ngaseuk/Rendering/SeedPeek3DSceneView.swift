@@ -8,6 +8,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
     let filled: Bool
     let isPouring: Bool
     var active = true
+    var onFirstFrame: (@MainActor () -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -24,7 +25,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
         view.rendersContinuously = active && isPouring
         view.isPlaying = active && isPouring
 
-        context.coordinator.setupScene(in: view, filled: filled, isPouring: isPouring)
+        context.coordinator.setupScene(in: view, filled: filled, isPouring: isPouring, onFirstFrame: onFirstFrame)
         return view
     }
 
@@ -45,6 +46,7 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
         private var holeGroup: SCNNode?
         private var wasPouring = false
         private var wasFilled = false
+        private var firstFrameObserver: SceneFirstFrameObserver?
 
         private struct SeedSpot {
             let x: Float
@@ -63,8 +65,12 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
             SeedSpot(x: -0.005, y: 0.003, z: -0.012, rotX: -0.35, rotY:  0.85, rotZ: -0.15)
         ]
 
-        func setupScene(in view: SCNView, filled: Bool, isPouring: Bool) {
+        func setupScene(in view: SCNView, filled: Bool, isPouring: Bool, onFirstFrame: (@MainActor () -> Void)? = nil) {
             self.scnView = view
+            firstFrameObserver?.invalidate()
+            if let onFirstFrame {
+                firstFrameObserver = SceneFirstFrameObserver(view: view, action: onFirstFrame)
+            }
             let scene = SCNScene()
             view.scene = scene
 
@@ -222,6 +228,8 @@ struct SeedPeek3DSceneView: UIViewRepresentable {
         }
 
         func cleanup() {
+            firstFrameObserver?.invalidate()
+            firstFrameObserver = nil
             for node in seedNodes {
                 node.removeAllActions()
             }

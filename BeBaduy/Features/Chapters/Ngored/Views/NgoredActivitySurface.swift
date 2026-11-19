@@ -130,10 +130,11 @@ struct NgoredActivitySurface: View {
                     .allowsHitTesting(false)
                 }
                 if model.scene.loadingAssets {
-                    LessonBackdrop(asset: "LaunchLandscape")
-                        .ignoresSafeArea()
-                    LaunchLoadingIndicator(message: "Menyiapkan lahan…")
-                        .accessibilityIdentifier("ngored.loading")
+                    ReusableLoadingView(
+                        message: "Menyiapkan lahan…",
+                        style: .fullscreen(backdrop: "LaunchLandscape"),
+                        identifier: "ngored.loading"
+                    )
                 } else if let error = model.scene.assetError {
                     LessonBackdrop(asset: "LaunchLandscape")
                         .ignoresSafeArea()

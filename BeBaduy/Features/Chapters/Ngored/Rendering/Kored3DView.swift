@@ -11,9 +11,35 @@ struct Kored3DView: View {
     var isVisible = true
     var swingCount = 0
     var bladeCentered = false
+    var showsLoading = false
+    @State private var isReady = false
+
     var body: some View {
-        KoredSceneView(isVisible: isVisible, isDragging: isDragging, swingCount: swingCount, bladeCentered: bladeCentered)
-            .accessibilityHidden(true)
+        ZStack {
+            KoredSceneView(
+                isVisible: isVisible,
+                isDragging: isDragging,
+                swingCount: swingCount,
+                bladeCentered: bladeCentered,
+                onFirstFrame: firstFrameHandler
+            )
+            .opacity(!showsLoading || isReady ? 1 : 0)
+
+            if showsLoading && !isReady {
+                ReusableLoadingView(message: "Memuat kored…", style: .compact)
+            }
+        }
+        .accessibilityHidden(true)
+        .task {
+            guard showsLoading, !isReady else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            if !isReady { isReady = true }
+        }
+    }
+
+    private var firstFrameHandler: (@MainActor () -> Void)? {
+        if showsLoading { return { isReady = true } }
+        return nil
     }
 }
 
@@ -22,6 +48,7 @@ private struct KoredSceneView: UIViewRepresentable {
     let isDragging: Bool
     let swingCount: Int
     let bladeCentered: Bool
+    var onFirstFrame: (@MainActor () -> Void)? = nil
     func makeCoordinator() -> Coordinator {
         Coordinator(bladeCentered: bladeCentered)
     }
@@ -37,7 +64,7 @@ private struct KoredSceneView: UIViewRepresentable {
         view.isPlaying = isVisible
         view.rendersContinuously = isVisible
 
-        context.coordinator.setupScene(in: view)
+        context.coordinator.setupScene(in: view, onFirstFrame: onFirstFrame)
         context.coordinator.update(isDragging: isDragging, swingCount: swingCount)
         return view
     }
@@ -58,6 +85,7 @@ private struct KoredSceneView: UIViewRepresentable {
         private var tool: SCNNode?
         private var dragging = false
         private var lastSwingCount = 0
+        private var firstFrameObserver: SceneFirstFrameObserver?
 
         init(bladeCentered: Bool) {
             self.bladeCentered = bladeCentered
@@ -88,8 +116,12 @@ private struct KoredSceneView: UIViewRepresentable {
             tool.runAction(rotation, forKey: "workingTilt")
         }
 
-        func setupScene(in view: SCNView) {
+        func setupScene(in view: SCNView, onFirstFrame: (@MainActor () -> Void)? = nil) {
             self.scnView = view
+            firstFrameObserver?.invalidate()
+            if let onFirstFrame {
+                firstFrameObserver = SceneFirstFrameObserver(view: view, action: onFirstFrame)
+            }
             let scene = SCNScene()
             view.scene = scene
             scene.lightingEnvironment.contents = UIImage(named: "HumaEnvironment")
@@ -191,6 +223,8 @@ private struct KoredSceneView: UIViewRepresentable {
         }
 
         func cleanup() {
+            firstFrameObserver?.invalidate()
+            firstFrameObserver = nil
             tool?.removeAllActions()
             tool = nil
             scnView?.isPlaying = false

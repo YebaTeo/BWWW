@@ -8,11 +8,37 @@ struct AseukTool: View {
     var pitch: Float = 0.22
     var yaw: Float = 0.45
     var roll: Float = -0.08
+    var showsLoading = false
+    @State private var isReady = false
 
     var body: some View {
-        Aseuk3DView(interactive: interactive, autoRotate: autoRotate, rotationSpeed: rotationSpeed,
-                    defaultPitch: pitch, defaultYaw: yaw, defaultRoll: roll)
-            .accessibilityHidden(true)
+        ZStack {
+            Aseuk3DView(
+                interactive: interactive,
+                autoRotate: autoRotate,
+                rotationSpeed: rotationSpeed,
+                defaultPitch: pitch,
+                defaultYaw: yaw,
+                defaultRoll: roll,
+                onFirstFrame: firstFrameHandler
+            )
+            .opacity(!showsLoading || isReady ? 1 : 0)
+
+            if showsLoading && !isReady {
+                ReusableLoadingView(message: "Memuat aseuk…", style: .compact)
+            }
+        }
+        .accessibilityHidden(true)
+        .task {
+            guard showsLoading, !isReady else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            if !isReady { isReady = true }
+        }
+    }
+
+    private var firstFrameHandler: (@MainActor () -> Void)? {
+        if showsLoading { return { isReady = true } }
+        return nil
     }
 }
 
