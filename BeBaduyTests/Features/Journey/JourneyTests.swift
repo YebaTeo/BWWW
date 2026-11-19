@@ -5,8 +5,11 @@ import XCTest
     var value = JourneyProgress()
     var recoveryMessage: String?
     var writes = 0
+    var arrangedCardIDs: Set<String> = []
     func load() -> JourneyProgress { value }
     func save(_ progress: JourneyProgress) throws { value = progress; writes += 1 }
+    func loadArrangedCollectionCards() -> Set<String> { arrangedCardIDs }
+    func saveArrangedCollectionCards(_ cardIDs: Set<String>) { arrangedCardIDs = cardIDs }
 }
 final class JourneyTests: XCTestCase {
     @MainActor func testCycleCardAwardsSurviveRelaunchAndReplay() {
@@ -118,5 +121,38 @@ final class JourneyTests: XCTestCase {
         preview.swipe(direction: 1, journey: progress, reduceMotion: true)
         XCTAssertTrue(GrowthStage.allStages[preview.selectedStage].isConclusion)
         XCTAssertTrue(preview.canMove(direction: -1, journey: progress))
+    }
+
+    @MainActor func testCollectionArrangementPlaysOnlyForFirstTimeCardUnlock() {
+        let store = MemoryStore()
+        let journey = JourneyViewModel(store: store)
+        XCTAssertFalse(journey.hasPendingCollectionArrangement)
+
+        journey.record(.narawas, outcome: .performed)
+        XCTAssertTrue(journey.hasPendingCollectionArrangement)
+        XCTAssertEqual(journey.pendingCollectionCards, [.chapter(.narawas)])
+
+        journey.record(.ngaseuk, outcome: .observed)
+        XCTAssertTrue(journey.hasPendingCollectionArrangement)
+        XCTAssertEqual(journey.pendingCollectionCards, [.chapter(.narawas), .chapter(.ngaseuk)])
+
+        // Viewing the collection page marks all earned cards as arranged.
+        journey.markCollectionArrangementSeen()
+        XCTAssertFalse(journey.hasPendingCollectionArrangement)
+        XCTAssertTrue(journey.pendingCollectionCards.isEmpty)
+
+        // Replaying an already completed stage does not re-trigger the arrangement animation.
+        journey.record(.ngaseuk, outcome: .performed)
+        XCTAssertFalse(journey.hasPendingCollectionArrangement)
+
+        // Persists across relaunches.
+        let relaunched = JourneyViewModel(store: store)
+        XCTAssertFalse(relaunched.hasPendingCollectionArrangement)
+
+        // Restarting clears arranged state cleanly.
+        relaunched.restart()
+        XCTAssertFalse(relaunched.hasPendingCollectionArrangement)
+        relaunched.record(.narawas, outcome: .observed)
+        XCTAssertTrue(relaunched.hasPendingCollectionArrangement)
     }
 }

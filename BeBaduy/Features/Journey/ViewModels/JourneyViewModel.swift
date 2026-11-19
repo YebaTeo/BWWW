@@ -6,8 +6,12 @@ import Observation
     private(set) var storageMessage: String?
     func dismissStorageMessage() { storageMessage = nil }
     private let store: any ProgressStoring
+    private var arrangedCollectionCardIDs: Set<String> = []
     init(store: any ProgressStoring) {
-        self.store = store; progress = store.load(); storageMessage = store.recoveryMessage
+        self.store = store
+        progress = store.load()
+        storageMessage = store.recoveryMessage
+        arrangedCollectionCardIDs = store.loadArrangedCollectionCards()
     }
     var completedCount: Int { PhaseID.allCases.filter { progress.record(for: $0).explanationAvailable }.count }
     func open(_ phase: PhaseID) {
@@ -15,6 +19,22 @@ import Observation
         progress.currentPhase = phase; persist()
     }
     private(set) var newlyEarnedCards: [ChapterCard] = []
+
+    var pendingCollectionCards: [ChapterCard] {
+        ChapterCard.all.filter { $0.isEarned(in: progress) && !arrangedCollectionCardIDs.contains($0.imageName) }
+    }
+
+    var hasPendingCollectionArrangement: Bool { !pendingCollectionCards.isEmpty }
+
+    func markCollectionArrangementSeen() {
+        let earnedIDs = ChapterCard.all
+            .filter { $0.isEarned(in: progress) }
+            .map(\.imageName)
+        let updated = arrangedCollectionCardIDs.union(earnedIDs)
+        guard updated != arrangedCollectionCardIDs else { return }
+        arrangedCollectionCardIDs = updated
+        store.saveArrangedCollectionCards(updated)
+    }
 
     func record(_ phase: PhaseID, outcome: ActivityOutcome) {
         let previous = progress
@@ -33,6 +53,8 @@ import Observation
     func finishIntroduction() { progress.introductionSeen = true; persist() }
     func restart() {
         newlyEarnedCards = []
+        arrangedCollectionCardIDs = []
+        store.saveArrangedCollectionCards([])
         progress = JourneyProgress()
         progress.introductionSeen = true
         persist()

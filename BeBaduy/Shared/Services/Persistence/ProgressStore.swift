@@ -3,10 +3,17 @@ import Foundation
     func load() -> JourneyProgress
     func save(_ progress: JourneyProgress) throws
     var recoveryMessage: String? { get }
+    func loadArrangedCollectionCards() -> Set<String>
+    func saveArrangedCollectionCards(_ cardIDs: Set<String>)
+}
+extension ProgressStoring {
+    func loadArrangedCollectionCards() -> Set<String> { [] }
+    func saveArrangedCollectionCards(_ cardIDs: Set<String>) {}
 }
 @MainActor final class ProgressStore: ProgressStoring {
     private let defaults: UserDefaults
     private let key = "BeBaduy.journey.v2"
+    private let arrangedCardsKey = "BeBaduy.collection.arranged.v1"
     private(set) var recoveryMessage: String?
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
     func load() -> JourneyProgress {
@@ -50,4 +57,14 @@ import Foundation
         return progress
     }
     func save(_ progress: JourneyProgress) throws { defaults.set(try JSONEncoder().encode(progress), forKey: key) }
+    func loadArrangedCollectionCards() -> Set<String> {
+        Set(defaults.stringArray(forKey: arrangedCardsKey) ?? [])
+    }
+    func saveArrangedCollectionCards(_ cardIDs: Set<String>) {
+        if cardIDs.isEmpty {
+            defaults.removeObject(forKey: arrangedCardsKey)
+        } else {
+            defaults.set(Array(cardIDs).sorted(), forKey: arrangedCardsKey)
+        }
+    }
 }

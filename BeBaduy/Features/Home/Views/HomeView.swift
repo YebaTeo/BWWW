@@ -125,6 +125,7 @@ struct HomeView: View {
                         CardCollectionView(
                             journey: journey,
                             showsBackground: selectedTab == .collection && collectionPath.isEmpty,
+                            isActive: selectedTab == .collection && collectionPath.isEmpty,
                             onSelect: { selectedCollectionCard = $0 },
                             onScroll: { oldOffset, newOffset in
                                 updateTabBar(for: .collection, from: oldOffset, to: newOffset)

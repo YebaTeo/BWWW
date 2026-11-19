@@ -3,11 +3,17 @@ import SwiftUI
 /// Items are earned when the corresponding phase is completed and persisted.
 struct CardCollectionView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let journey: JourneyViewModel
     var showsBackground = true
+    var isActive = true
     let onSelect: (ChapterCard) -> Void
     let onScroll: (CGFloat, CGFloat) -> Void
     @State private var isUserScrolling = false
+    @State private var isArranging = false
+    @State private var arrangedCards: Set<ChapterCard> = []
+    @State private var highlightedCards: Set<ChapterCard> = []
+    @State private var arrangementRunID = UUID()
 
     var body: some View {
         ScrollView {
@@ -26,13 +32,24 @@ struct CardCollectionView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 20),
                                     GridItem(.flexible(), spacing: 20)], spacing: 24) {
-                    ForEach(ChapterCard.all) { card in
+                    ForEach(Array(ChapterCard.all.enumerated()), id: \.element.id) { index, card in
                         let isEarned = card.isEarned(in: journey.progress)
                         if isEarned {
+                            let isRevealed = !isArranging || arrangedCards.contains(card)
+                            let isHighlighted = highlightedCards.contains(card)
+                            let column = index % 2
+                            let row = index / 2
                             Button { onSelect(card) } label: {
-                                collectionTile(for: card)
+                                collectionTile(for: card, isHighlighted: isHighlighted)
                             }
                             .buttonStyle(.plain)
+                            .offset(
+                                x: isRevealed ? 0 : (column == 0 ? 44 : -44),
+                                y: isRevealed ? 0 : 48 + CGFloat(row) * 18
+                            )
+                            .rotationEffect(isRevealed ? .zero : .degrees(column == 0 ? -7 : 7))
+                            .scaleEffect(isRevealed ? 1 : 0.80)
+                            .opacity(isRevealed ? 1 : 0)
                             .accessibilityIdentifier("collection.card.\(card.imageName)")
                             .accessibilityLabel(card.title)
                         } else {
@@ -63,9 +80,51 @@ struct CardCollectionView: View {
         }
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: isActive, initial: true) { _, active in
+            guard active else {
+                isArranging = false
+                arrangedCards.removeAll()
+                highlightedCards.removeAll()
+                return
+            }
+            guard journey.hasPendingCollectionArrangement else { return }
+            let pending = Set(journey.pendingCollectionCards)
+            journey.markCollectionArrangementSeen()
+            guard !reduceMotion else { return }
+            highlightedCards = pending
+            arrangedCards = []
+            isArranging = true
+            arrangementRunID = UUID()
+        }
+        .task(id: arrangementRunID) {
+            guard isArranging, isActive else { return }
+            let earned = ChapterCard.all.filter { $0.isEarned(in: journey.progress) }
+            guard !earned.isEmpty else {
+                isArranging = false
+                return
+            }
+            // Wait one beat for the tab switch to settle before dealing all earned cards.
+            do { try await Task.sleep(for: .milliseconds(110)) } catch { return }
+            let stepDelaysMs: [Int] = [0, 75, 60, 50, 40, 35, 30]
+            for (index, card) in earned.enumerated() {
+                let stepMs = stepDelaysMs[min(index, stepDelaysMs.count - 1)]
+                if stepMs > 0 {
+                    do { try await Task.sleep(for: .milliseconds(stepMs)) } catch { return }
+                }
+                withAnimation(.spring(response: 0.48, dampingFraction: 0.78)) {
+                    _ = arrangedCards.insert(card)
+                }
+            }
+            do { try await Task.sleep(for: .milliseconds(520)) } catch { return }
+            withAnimation(.easeOut(duration: 0.35)) {
+                highlightedCards.removeAll()
+            }
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            isArranging = false
+        }
     }
 
-    private func collectionTile(for card: ChapterCard) -> some View {
+    private func collectionTile(for card: ChapterCard, isHighlighted: Bool) -> some View {
         GeometryReader { geometry in
             let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
             VStack(alignment: .leading, spacing: 0) {
@@ -97,8 +156,12 @@ struct CardCollectionView: View {
             }
             .clipShape(shape)
             .overlay {
-                shape.strokeBorder(AppTheme.orange, lineWidth: 1.5)
+                shape.strokeBorder(
+                    isHighlighted ? Color(red: 1, green: 0.86, blue: 0.45) : AppTheme.orange,
+                    lineWidth: isHighlighted ? 2.5 : 1.5
+                )
             }
+            .shadow(color: isHighlighted ? AppTheme.orange.opacity(0.65) : .clear, radius: isHighlighted ? 12 : 0)
         }
         .aspectRatio(0.75, contentMode: .fit)
     }
