@@ -13,6 +13,7 @@ import Foundation
     private var initialRainPending = false
     private var initialRainRunning = false
     private var motionAllowed = true
+    var needsTouchTargets: Bool { !motionAllowed || motion?.available != true }
     private var motionGeneration = 0
 
     init(motion: (any MotionProviding)? = nil) {

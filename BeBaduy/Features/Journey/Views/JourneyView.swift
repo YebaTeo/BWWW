@@ -1,9 +1,9 @@
 import SwiftUI
 
 struct JourneyView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let journey: JourneyViewModel
     var showsRecap = false
-    var onPrologue: (() -> Void)? = nil
     let open: (PhaseID) -> Void
 
     private let ivory = Color(red: 0.99, green: 0.95, blue: 0.87)
@@ -33,14 +33,6 @@ struct JourneyView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 12)
 
-            if let onPrologue {
-                Button(action: onPrologue) {
-                    prologueCard
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("journey.prologue")
-            }
-
             ForEach(PhaseCatalog.all) { phase in
                 let unlocked = journey.progress.isUnlocked(phase.id)
                 let completed = journey.progress.record(for: phase.id).explanationAvailable
@@ -54,24 +46,6 @@ struct JourneyView: View {
             }
         }
         .padding(.horizontal, 20)
-    }
-
-    private var prologueCard: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 18)
-                .fill(.white.opacity(0.9))
-            VStack(spacing: 4) {
-                Text("PROLOGUE")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppTheme.orange)
-                Text("Kisah awal")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.black)
-            }
-        }
-        .frame(height: 90)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.8), lineWidth: 1))
     }
 
     private func phaseCard(_ phase: PhaseContent, unlocked: Bool) -> some View {
@@ -96,8 +70,8 @@ struct JourneyView: View {
                     .font(.system(.headline, design: .rounded, weight: .bold))
                     .foregroundStyle(unlocked ? gold : Color(red: 0.74, green: 0.69, blue: 0.63))
                 Text(showsRecap ? recap[phase.id.index] : unlocked ? phase.introduction : "Selesaikan \(PhaseContent.content(for: PhaseID.allCases[phase.id.index - 1]).title) untuk lanjut ke tahap ini.")
-                    .font(.system(size: 13.5))
-                    .lineLimit(3)
+                    .font(.subheadline)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 3)
                     .foregroundStyle(ivory.opacity(unlocked ? 1 : 0.72))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -105,7 +79,7 @@ struct JourneyView: View {
             .padding(.leading, 22)
             .padding(.trailing, 8)
         }
-        .frame(height: 116)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 150 : 116)
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ivory.opacity(unlocked ? 0.38 : 0.3), lineWidth: 0.6))
     }

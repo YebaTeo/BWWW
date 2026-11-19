@@ -7,10 +7,12 @@ struct HomeView: View {
     @State private var onboardingReady = false
     @State private var selectedTab: HomeTab = .menu
     @State private var isTabCollapsed = false
-    @State private var showsPrologue = false
     @State private var loadingDestination: HomeRoute?
     @State private var showsHomeLanding = true
+    @State private var returnsToLanding = false
     @State private var showsSplash = true
+    @State private var landscapeViewportHeight: CGFloat?
+    @State private var collectionPath = NavigationPath()
 
     private var skipsLaunchPresentationForTests: Bool {
         #if DEBUG
@@ -29,8 +31,15 @@ struct HomeView: View {
                         try? await Task.sleep(for: .milliseconds(650))
                         showsSplash = false
                     }
+            } else if returnsToLanding {
+                LandingToMenuTransition(journey: journey, returning: true) { height in
+                    landscapeViewportHeight = height
+                    returnsToLanding = false
+                    showsHomeLanding = true
+                }
             } else if !skipsLaunchPresentationForTests && showsHomeLanding {
-                HomeLandingView {
+                LandingToMenuTransition(journey: journey) { height in
+                    landscapeViewportHeight = height
                     showsHomeLanding = false
                 }
             } else if !journey.progress.introductionSeen {
@@ -53,24 +62,40 @@ struct HomeView: View {
                         }
                     }
                 }
+                .task {
+                    try? await Task.sleep(for: .seconds(12))
+                    if !onboardingReady { onboardingReady = true }
+                }
             } else {
                 TabView(selection: $selectedTab) {
                     NavigationStack(path: $model.path) {
                         MenuView(
                             journey: journey,
                             showsBackground: selectedTab == .menu && model.path.isEmpty,
-                            onPrologue: { showsPrologue = true },
-                            open: startActivity,
+                            landscapeViewportHeight: landscapeViewportHeight,
+                            onPullToLanding: {
+                                guard model.path.isEmpty, collectionPath.isEmpty else { return }
+                                isTabCollapsed = false
+                                returnsToLanding = true
+                            },
+                            open: { model.path = [.stage($0)] },
                             onScroll: { oldOffset, newOffset in
                                 updateTabBar(for: .menu, from: oldOffset, to: newOffset)
                             }
                         )
                         .navigationDestination(for: HomeRoute.self) { route in
                             switch route {
+                            case .stage(let phase):
+                                StagePreviewScreen(stage: GrowthStage.allStages[phase.index]) {
+                                    startActivity(phase)
+                                }
                             case .transition(let phase):
                                 ChapterTransitionView(phase: phase, journey: journey) {
-                                    if journey.continueFrom(phase) == nil,
-                                       phase == .ngaleuitkeunPare, journey.progress.allComplete {
+                                    if let next = journey.continueFrom(phase) {
+                                        model.path = [.stage(next)]
+                                        return
+                                    }
+                                    if phase == .ngaleuitkeunPare, journey.progress.allComplete {
                                         journey.finishJourney()
                                         model.showsCompletion = true
                                     }
@@ -92,11 +117,11 @@ struct HomeView: View {
                             }
                         }
                     }
-                    .tabItem { Label("Menu", systemImage: "square.grid.2x2.fill") }
+                    .tabItem { Label("Ngahuma", systemImage: "leaf.fill") }
                     .tag(HomeTab.menu)
                     .toolbar(.hidden, for: .tabBar)
-                    NavigationStack {
-                        CardCollectionView(journey: journey, showsBackground: selectedTab == .collection) { oldOffset, newOffset in
+                    NavigationStack(path: $collectionPath) {
+                        CardCollectionView(journey: journey, showsBackground: selectedTab == .collection && collectionPath.isEmpty) { oldOffset, newOffset in
                             updateTabBar(for: .collection, from: oldOffset, to: newOffset)
                         }
                     }
@@ -105,7 +130,7 @@ struct HomeView: View {
                     .toolbar(.hidden, for: .tabBar)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if model.path.isEmpty {
+                    if model.path.isEmpty && collectionPath.isEmpty {
                         HStack {
                             CollapsibleHomeTabBar(selection: $selectedTab, isCollapsed: $isTabCollapsed)
                             Spacer(minLength: 0)
@@ -125,28 +150,16 @@ struct HomeView: View {
                         .ignoresSafeArea()
                     }
                 }
+                .task(id: loadingDestination) {
+                    guard case .activity(let phase) = loadingDestination else { return }
+                    do { try await Task.sleep(for: .milliseconds(30)) } catch { return }
+                    guard loadingDestination == .activity(phase) else { return }
+                    model.open(phase, journey: journey)
+                    do { try await Task.sleep(for: .seconds(12)) } catch { return }
+                    if loadingDestination == .activity(phase) { loadingDestination = nil }
+                }
                 .fullScreenCover(isPresented: $model.showsCompletion) {
                     CompletionView(journey: journey) { model.showsCompletion = false }
-                }
-                .fullScreenCover(isPresented: $showsPrologue) {
-                    ZStack(alignment: .topTrailing) {
-                        IntroductionView(
-                            stageProgress: GrowthStage.onboardingStage(for: journey.progress).targetProgress
-                        ) {
-                            showsPrologue = false
-                        }
-                        Button { showsPrologue = false } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 44, height: 44)
-                                .background(.black.opacity(0.45), in: Circle())
-                        }
-                        .accessibilityLabel("Tutup prologue")
-                        .padding(.top, 12)
-                        .padding(.trailing, 20)
-                    }
-                    .preferredColorScheme(.dark)
                 }
             }
         }
@@ -156,11 +169,6 @@ struct HomeView: View {
     private func startActivity(_ phase: PhaseID) {
         guard journey.progress.isUnlocked(phase), loadingDestination == nil else { return }
         loadingDestination = .activity(phase)
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(30))
-            guard loadingDestination == .activity(phase) else { return }
-            model.open(phase, journey: journey)
-        }
     }
 
     private func updateTabBar(for tab: HomeTab, from oldOffset: CGFloat, to newOffset: CGFloat) {
@@ -175,77 +183,282 @@ struct HomeView: View {
     }
 }
 
-private struct HomeLandingView: View {
-    let continueToJourney: () -> Void
+private struct LandingToMenuTransition: View {
+    let journey: JourneyViewModel
+    let returning: Bool
+    let complete: (CGFloat) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isSharp = false
+    @State private var progress: CGFloat
+    @State private var dragStartProgress: CGFloat?
+    @State private var didComplete = false
+    @State private var tabSelection: HomeTab = .menu
+    @State private var tabCollapsed = false
 
+    init(journey: JourneyViewModel, returning: Bool = false, complete: @escaping (CGFloat) -> Void) {
+        self.journey = journey
+        self.returning = returning
+        self.complete = complete
+        _progress = State(initialValue: returning ? 1 : 0)
+    }
+
+    var body: some View {
+        GeometryReader { safeGeometry in
+            GeometryReader { geometry in
+                let height = geometry.size.height
+                ZStack {
+                    MenuView(
+                        journey: journey,
+                        showsIntroText: false,
+                        transitionTopInset: safeGeometry.safeAreaInsets.top,
+                        landscapeViewportHeight: height,
+                        open: { _ in },
+                        onScroll: { _, _ in }
+                    )
+                    .offset(y: (1 - progress) * height)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+
+                    HomeLandingView()
+                        .offset(y: -progress * height)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(landingDrag(height: height))
+
+                    VStack {
+                        Spacer()
+                        Button {
+                            snapToMenu(fromGesture: false, viewportHeight: height)
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: geometry.size.width - 80, height: 48)
+                        }
+                        .accessibilityLabel("Lanjut ke perjalanan")
+                        .accessibilityIdentifier("home.landing.continue")
+                        .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20) + 12)
+                    }
+                    .opacity(1 - progress)
+                    .offset(y: -progress * height)
+
+                    LandingIntroText(progress: progress, topSafeAreaInset: safeGeometry.safeAreaInsets.top)
+                        .allowsHitTesting(false)
+
+                    VStack {
+                        Spacer()
+                        HStack {
+                            CollapsibleHomeTabBar(selection: $tabSelection, isCollapsed: $tabCollapsed)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 20)
+                        .frame(height: 70, alignment: .bottom)
+                    }
+                    .opacity(progress)
+                    .offset(y: (1 - progress) * 24)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+                .frame(width: geometry.size.width, height: height)
+                .clipped()
+                .task {
+                    guard returning else { return }
+                    try? await Task.sleep(for: .milliseconds(30))
+                    snapToLanding(viewportHeight: height)
+                }
+            }
+            .ignoresSafeArea()
+        }
+        .background(Color(red: 0.19, green: 0.20, blue: 0.15))
+        .preferredColorScheme(.light)
+    }
+
+    private func landingDrag(height: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { value in
+                guard !didComplete else { return }
+                if dragStartProgress == nil { dragStartProgress = progress }
+                progress = min(1, max(0, (dragStartProgress ?? 0) - value.translation.height / height))
+            }
+            .onEnded { value in
+                dragStartProgress = nil
+                let projected = progress - (value.predictedEndTranslation.height - value.translation.height) / height
+                if progress > 0.28 || projected > 0.50 {
+                    snapToMenu(fromGesture: true, viewportHeight: height)
+                } else {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.96)) {
+                        progress = 0
+                    }
+                }
+            }
+    }
+
+    private func snapToMenu(fromGesture: Bool, viewportHeight: CGFloat) {
+        guard !didComplete else { return }
+        if reduceMotion {
+            finish(viewportHeight: viewportHeight)
+            return
+        }
+        let animation: Animation = fromGesture
+            ? .spring(response: 0.46, dampingFraction: 0.98)
+            : .smooth(duration: 0.42)
+        withAnimation(animation, completionCriteria: .logicallyComplete) {
+            progress = 1
+        } completion: {
+            guard progress > 0.999 else { return }
+            finish(viewportHeight: viewportHeight)
+        }
+    }
+
+    private func snapToLanding(viewportHeight: CGFloat) {
+        guard !didComplete else { return }
+        if reduceMotion {
+            finish(viewportHeight: viewportHeight)
+            return
+        }
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.98), completionCriteria: .logicallyComplete) {
+            progress = 0
+        } completion: {
+            guard progress < 0.001 else { return }
+            finish(viewportHeight: viewportHeight)
+        }
+    }
+
+    private func finish(viewportHeight: CGFloat) {
+        guard !didComplete else { return }
+        didComplete = true
+        if !returning && !journey.progress.introductionSeen { journey.finishIntroduction() }
+        complete(viewportHeight)
+    }
+}
+
+private struct HomeLandingView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
-                Image("HumaSunsetValley")
+                Image("JourneyLandscapeSoil")
                     .resizable()
-                    .scaledToFill()
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .frame(width: geometry.size.width, height: geometry.size.height * 1.9)
+                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
                     .clipped()
-                    .blur(radius: isSharp || reduceMotion ? 0 : 18)
                     .accessibilityHidden(true)
 
                 LinearGradient(
                     stops: [
-                        .init(color: .clear, location: 0.53),
-                        .init(color: .black.opacity(0.24), location: 0.73),
-                        .init(color: .black.opacity(0.78), location: 1)
+                        .init(color: .clear, location: 0.62),
+                        .init(color: .black.opacity(0.12), location: 0.78),
+                        .init(color: .black.opacity(0.42), location: 1)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .allowsHitTesting(false)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Perjalanan Ngahuma")
-                        .font(.system(size: 25, weight: .bold))
-                        .accessibilityAddTraits(.isHeader)
-                    Text("Tradisi berladang masyarakat Baduy yang diwariskan turun-temurun untuk menjaga keseimbangan hidup antara manusia dan alam, melalui rangkaian tahapan yang dilakukan setiap tahun.")
-                        .font(.system(size: 15))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Button(action: continueToJourney) {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 22, weight: .semibold))
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                    }
-                    .accessibilityLabel("Lanjut ke perjalanan")
-                    .accessibilityIdentifier("home.landing.continue")
-                    .padding(.top, 3)
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: 350, alignment: .leading)
-                .padding(.horizontal, 40)
-                .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20) + 12)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 30)
-                    .onEnded { value in
-                        if value.translation.height < -60 {
-                            continueToJourney()
-                        }
-                    }
-            )
-        }
-        .ignoresSafeArea()
-        .background(Color(red: 0.19, green: 0.20, blue: 0.15))
-        .preferredColorScheme(.light)
-        .task {
-            guard !reduceMotion else { isSharp = true; return }
-            try? await Task.sleep(for: .milliseconds(150))
-            withAnimation(.easeOut(duration: 0.8)) {
-                isSharp = true
-            }
         }
     }
+}
+
+private struct LandingIntroText: View {
+    let progress: CGFloat
+    let topSafeAreaInset: CGFloat
+    @ScaledMetric(relativeTo: .title) private var landingTitleSize: CGFloat = 25
+    @ScaledMetric(relativeTo: .title) private var menuTitleSize: CGFloat = 29
+    @ScaledMetric(relativeTo: .body) private var landingBodySize: CGFloat = 18
+    @ScaledMetric(relativeTo: .body) private var menuBodySize: CGFloat = 17
+    @State private var copyHeight: CGFloat = 170
+
+    var body: some View {
+        GeometryReader { geometry in
+            let horizontal: CGFloat = 27
+            let width = geometry.size.width - 2 * horizontal
+            let landingBottom = geometry.size.height - max(geometry.safeAreaInsets.bottom, 20) - 75
+            let menuTop = topSafeAreaInset + 26
+            let top = (landingBottom - copyHeight) * (1 - progress) + menuTop * progress
+            VStack(alignment: .leading, spacing: 20 - 6 * progress) {
+                Text(JourneyIntroCopy.title)
+                    .font(.system(size: landingTitleSize + (menuTitleSize - landingTitleSize) * progress,
+                                  weight: .bold, design: .rounded))
+                    .accessibilityAddTraits(.isHeader)
+                Text(JourneyIntroCopy.description)
+                    .font(.system(size: landingBodySize + (menuBodySize - landingBodySize) * progress,
+                                  weight: .medium))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.65), radius: 5, y: 2)
+            .frame(width: width, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _, newHeight in
+                copyHeight = newHeight
+            }
+            .position(x: horizontal + width / 2, y: top + copyHeight / 2)
+        }
+        .accessibilityHidden(progress > 0.5)
+    }
+}
+
+private struct StagePreviewScreen: View {
+    let stage: GrowthStage
+    let openSelectedChapter: () -> Void
+    private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
+    private let gold = Color(red: 1, green: 0.62, blue: 0.14)
+
+    var body: some View {
+        GeometryReader { viewport in
+            ZStack(alignment: .bottom) {
+                CinematicAtmosphereView(progress: stage.targetProgress, isActive: true)
+                SceneKitCropView(progress: stage.targetProgress, isActive: true, showsTreeFallEffects: false)
+                    .ignoresSafeArea()
+                VStack(spacing: 0) {
+                    stageCard
+                    actions
+                }
+                .frame(maxWidth: 440)
+                .padding(.horizontal, 12)
+                .padding(.bottom, viewport.size.height * 0.14)
+            }
+        }
+        .foregroundStyle(ivory)
+    }
+
+    private var stageCard: some View {
+        VStack(spacing: 8) {
+            Text(stage.name)
+                .font(.system(size: 44, weight: .black, design: .rounded))
+                .fontWidth(.condensed)
+                .tracking(1)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(gold)
+                .shadow(color: .black.opacity(0.78), radius: 10, y: 3)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("home.stage.title")
+            Text(stage.narrative)
+                .font(.body)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .shadow(color: .black.opacity(0.9), radius: 7, y: 2)
+
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 8)
+    }
+
+    private var actions: some View {
+        Button(action: openSelectedChapter) {
+            Text(stage.isConclusion ? "Lihat Rangkuman" : "Ikut \(PhaseContent.content(for: stage.phase).title)")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(ivory)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(Color(red: 0.86, green: 0.35, blue: 0.01), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(red: 1, green: 0.62, blue: 0.24), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("resume")
+        .padding(.horizontal, 32)
+        .padding(.top, 24)
+        .padding(.bottom, 18)
+    }
+
 }
 
 private struct ChapterTransitionView: View {
@@ -257,7 +470,7 @@ private struct ChapterTransitionView: View {
     @State private var preview = HomePreviewViewModel()
     @State private var ready = false
     @State private var started = false
-    @State private var showsInformation = false
+    @State private var showsInformation = true
     @State private var rewardIndex = 0
 
     var body: some View {
@@ -268,7 +481,7 @@ private struct ChapterTransitionView: View {
                              showsTreeFallEffects: started && !showsInformation,
                              onSettledFrame: started && !preview.isTransitioning && !showsInformation && scenePhase == .active ? {
                                  guard scenePhase == .active else { return }
-                                 showsInformation = true
+                                 continueJourney()
                              } : nil,
                              onFirstFrame: { ready = true })
                 .ignoresSafeArea()
@@ -280,19 +493,31 @@ private struct ChapterTransitionView: View {
                         if rewardIndex + 1 < journey.newlyEarnedCards.count {
                             rewardIndex += 1
                         } else {
-                            continueJourney()
+                            showsInformation = false
                         }
                     }
                     .id(card.id)
                 } else {
-                    ChapterRewardCard(card: .chapter(phase), alreadyOwned: true, continueJourney: continueJourney)
+                    ChapterRewardCard(card: .chapter(phase), alreadyOwned: true) { showsInformation = false }
                 }
             } else if !ready {
                 LaunchLoadingIndicator(message: "Menyiapkan tahap…")
             }
+            if started && !showsInformation {
+                Button("Lewati animasi") {
+                    preview.stop()
+                    continueJourney()
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(12)
+                .background(.black.opacity(0.7), in: Capsule())
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(20)
+                .accessibilityIdentifier("transition.skip")
+            }
         }
-        .task(id: ready && scenePhase == .active) {
-            guard ready, scenePhase == .active, !showsInformation else { return }
+        .task(id: ready && !showsInformation && scenePhase == .active) {
+            guard ready, scenePhase == .active, !showsInformation, !started else { return }
             preview.selectStage(phase.index, journey: journey.progress, reduceMotion: true)
             started = true
             preview.selectStage(phase.index + 1, journey: journey.progress, reduceMotion: reduceMotion)
@@ -316,6 +541,7 @@ private struct ChapterRewardCard: View {
     @State private var glow = 0.0
     @State private var emerging = false
     @State private var angle = 0.0
+    @State private var tapped = false
     @State private var turned = false
     @State private var readable = false
 
@@ -324,7 +550,7 @@ private struct ChapterRewardCard: View {
             let width = min(330, bounds.size.width * 0.85, max(120, (bounds.size.height - 96) * 0.7))
             VStack(spacing: 16) {
                 Spacer(minLength: 0)
-                ChapterCardFace(card: card, width: width, front: turned || reduceMotion)
+                ChapterCardFace(card: card, width: width, front: turned)
                 .overlay(alignment: .top) {
                     if alreadyOwned && readable {
                         Label("Sudah ada di koleksi", systemImage: "checkmark.circle.fill")
@@ -345,7 +571,12 @@ private struct ChapterRewardCard: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                .accessibilityHidden(!readable)
+                .overlay {
+                    if !tapped {
+                        Button { tapped = true } label: { Color.clear.contentShape(Rectangle()) }
+                            .accessibilityLabel("Ketuk untuk membuka kartu")
+                    }
+                }
                 Spacer(minLength: 0)
                 LessonButton(title: "Ayo lanjut!", identifier: "continue", action: continueJourney)
                     .opacity(readable ? 1 : 0).disabled(!readable).accessibilityHidden(!readable)
@@ -356,7 +587,9 @@ private struct ChapterRewardCard: View {
         }
         .foregroundStyle(.white)
         .background(.black.opacity(reduceMotion || emerging ? 0.52 : 0))
-        .task(id: reduceMotion) {
+        .task(id: tapped) {
+            emerging = true
+            guard tapped else { return }
             if reduceMotion { emerging = true; glow = 0; angle = 0; turned = true; readable = true; return }
             guard !readable else { return }
             do {
@@ -384,14 +617,14 @@ private enum HomeTab: Hashable {
 
     var title: String {
         switch self {
-        case .menu: "Menu"
+        case .menu: "Ngahuma"
         case .collection: "Koleksi"
         }
     }
 
     var symbol: String {
         switch self {
-        case .menu: "square.grid.2x2.fill"
+        case .menu: "leaf.fill"
         case .collection: "rectangle.stack.fill"
         }
     }
@@ -417,10 +650,9 @@ private struct CollapsibleHomeTabBar: View {
                 tabButton(.collection)
             }
         }
-        .foregroundStyle(AppTheme.heading)
         .padding(4)
-        .background(Color(red: 0.21, green: 0.13, blue: 0.09).opacity(0.94), in: Capsule())
-        .overlay(Capsule().strokeBorder(AppTheme.heading.opacity(0.4)))
+        .background(Color(red: 0.88, green: 0.86, blue: 0.77).opacity(0.84), in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.7)))
         .animation(.smooth(duration: 0.28), value: isCollapsed)
     }
 
@@ -434,8 +666,9 @@ private struct CollapsibleHomeTabBar: View {
                 Text(tab.title)
                     .font(.system(size: 12, weight: .semibold))
             }
+            .foregroundStyle(selection == tab ? AppTheme.orange : .black)
             .frame(width: 82, height: 52)
-            .background(selection == tab ? AppTheme.heading.opacity(0.22) : .clear, in: Capsule())
+            .background(selection == tab ? .white.opacity(0.36) : .clear, in: Capsule())
         }
         .accessibilityAddTraits(selection == tab ? .isSelected : [])
     }

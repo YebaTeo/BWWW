@@ -23,6 +23,8 @@ import Foundation
                 if progress.isValid { return progress }
             }
             defaults.set(data, forKey: key + ".recovery")
+            defaults.removeObject(forKey: key)
+            try? save(JourneyProgress())
             recoveryMessage = "Progres tidak dapat dibaca. Salinan data lama disimpan di perangkat."
             return JourneyProgress()
         }
@@ -30,6 +32,8 @@ import Foundation
         struct Legacy: Decodable { let version: Int; let phases: [String: PhaseProgress] }
         guard let old = try? JSONDecoder().decode(Legacy.self, from: data), old.version == 1 else {
             defaults.set(data, forKey: "BeBaduy.journey.v1.recovery")
+            defaults.removeObject(forKey: "BeBaduy.journey.v1")
+            try? save(JourneyProgress())
             recoveryMessage = "Progres lama tidak dapat dibaca. Data lama tetap disimpan."
             return JourneyProgress()
         }

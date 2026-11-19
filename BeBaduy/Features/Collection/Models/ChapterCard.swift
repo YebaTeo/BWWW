@@ -7,7 +7,7 @@ enum ChapterCard: Hashable, Identifiable {
     var title: String {
         switch self {
         case .chapter(let phase): PhaseContent.content(for: phase).title
-        case .epic: "EpicCard"
+        case .epic: "Perjalanan Ngahuma"
         }
     }
 

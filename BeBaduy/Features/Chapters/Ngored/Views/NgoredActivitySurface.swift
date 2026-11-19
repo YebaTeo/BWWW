@@ -4,6 +4,8 @@ struct NgoredActivitySurface: View {
     @Environment(\.activitySceneInsets) private var sceneInsets
     @Environment(ActivityCardState.self) private var card
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @State private var showsTouchTargets = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var swingCount = 0
     @State private var struckWeed: Int?
@@ -93,6 +95,22 @@ struct NgoredActivitySurface: View {
                                 Text(model.session.feedback).font(.subheadline.bold())
                                     .accessibilityIdentifier("ngored.rice.feedback")
                             }
+                        }
+                        if model.needsTouchTargets || voiceOverEnabled || showsTouchTargets {
+                            ScrollView(.horizontal) {
+                                HStack(spacing: 8) {
+                                    ForEach(Array(currentWeedTargets), id: \.self) { index in
+                                        Button("Sapukan gulma \(index + 1)") { strike(index) }
+                                            .disabled(model.removed.contains(index))
+                                            .font(.caption.weight(.semibold))
+                                            .padding(9)
+                                            .background(.brown.opacity(0.85), in: Capsule())
+                                    }
+                                }
+                            }
+                        } else {
+                            Button("Gunakan tombol target") { showsTouchTargets = true }
+                                .font(.caption.weight(.semibold))
                         }
                     }
                 }

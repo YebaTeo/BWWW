@@ -11,6 +11,8 @@ struct NarawasView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.navigationSceneReady) private var navigationSceneReady
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @State private var showsTouchTargets = false
     private let orange = Color(red: 1, green: 0.65, blue: 0.25)
 
     init(journey: JourneyViewModel, motion: any MotionProviding, advance: @escaping () -> Void) {
@@ -201,6 +203,29 @@ struct NarawasView: View {
                             .accessibilityLabel("Progres pembakaran")
                     }
                     motionHint
+                }
+                if model.stage == .clearing || model.stage == .prepared || model.stage == .burning {
+                    if !model.motionActive || voiceOverEnabled || showsTouchTargets {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(0..<NarawasViewModel.treeCount, id: \.self) { index in
+                                    let available = model.stage == .clearing
+                                        ? !model.collected.contains(index) : !model.ignited.contains(index)
+                                    Button(model.stage == .clearing ? "Tebang pohon \(index + 1)" : "Nyalakan petak \(index + 1)") {
+                                        if model.stage == .clearing { model.collect(index) }
+                                        else { model.burn(startingAt: index) }
+                                    }
+                                    .disabled(!available)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(9)
+                                    .background(.brown.opacity(0.85), in: Capsule())
+                                }
+                            }
+                        }
+                    } else {
+                        Button("Gunakan tombol target") { showsTouchTargets = true }
+                            .font(.caption.weight(.semibold))
+                    }
                 }
                 if allLit {
                     ActivityAcknowledgement(title: "Tampilkan kondisi setelah api reda", identifier: "narawas.finishBurn",

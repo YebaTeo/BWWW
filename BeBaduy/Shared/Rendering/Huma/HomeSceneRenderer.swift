@@ -1549,12 +1549,8 @@ final class HomeSceneRenderer: NSObject {
     /// from the next stage (Ngalantai / Stage 5) WITHOUT the drying tarp ("tanpa terpalnya").
     /// Features cut straw butts, split-bamboo tali awian / sulam tie collar with knot and trailing tails,
     /// 32 lush golden blades, and 14 drooping panicles laden with 3D grains resting on the soil.
-    static func makeNgalantaiHarvestedSheaf() -> SCNNode {
-        let bundle = SCNNode()
-        bundle.name = "ngalantaiHarvestedSheaf"
-
+    private static func riceBundleMaterials() -> (grain: SCNMaterial, leaf: SCNMaterial, straw: SCNMaterial) {
         let normal = sharedLeafNormal
-
         // 1. Panicle Grains & Rachis Material (Matching Mipit/Ngalantai)
         let grainMat = SCNMaterial()
         grainMat.lightingModel = .physicallyBased
@@ -1595,6 +1591,17 @@ final class HomeSceneRenderer: NSObject {
         strawMat.roughness.contents = 0.85
         strawMat.metalness.contents = 0.0
         NgahumaMaterials.smoothTextureSampling(strawMat.diffuse)
+
+        return (grainMat, leafMat, strawMat)
+    }
+
+    static func makeNgalantaiHarvestedSheaf() -> SCNNode {
+        let bundle = SCNNode()
+        bundle.name = "ngalantaiHarvestedSheaf"
+
+        let normal = sharedLeafNormal
+
+        let (grainMat, leafMat, strawMat) = riceBundleMaterials()
 
         let buttNode = SCNNode()
         buttNode.name = "strawButt"
@@ -1789,6 +1796,17 @@ final class HomeSceneRenderer: NSObject {
         guard let modelURL, let scene = try? SCNScene(url: modelURL, options: nil) else { return nil }
         granarySceneCache.setObject(scene, forKey: cacheKey)
         return scene
+    }
+
+    /// A static icon of the same decorated leuit used in Home's final stage.
+    static func makeMenuGranaryPreview() -> SCNNode {
+        let renderer = HomeSceneRenderer()
+        renderer.buildGranaryPreview()
+        let icon = renderer.granaryRoot.clone()
+        icon.opacity = 1
+        icon.isHidden = false
+        icon.position = SCNVector3Zero
+        return icon
     }
 
     private func buildGranaryPreview() {
@@ -2595,46 +2613,7 @@ final class HomeSceneRenderer: NSObject {
     private func storageMakeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
         let bundle = SCNNode()
 
-        // 1. Panicle Grains & Rachis Material (Matching Mipit ricePanicles with HumaYoungRice texture)
-        let grainMaterial = SCNMaterial()
-        grainMaterial.lightingModel = .physicallyBased
-        grainMaterial.normal.contents = leafNormal
-        grainMaterial.normal.intensity = 0.12
-        grainMaterial.diffuse.contents = UIImage(named: "HumaGrassTexture")
-            ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
-        grainMaterial.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
-        grainMaterial.roughness.contents = 0.58
-        grainMaterial.metalness.contents = 0.02
-        grainMaterial.isDoubleSided = true
-        grainMaterial.writesToDepthBuffer = true
-        smoothTextureSampling(grainMaterial.diffuse)
-
-        // 2. Golden Rice Blade / Leaf Material (Matching Mipit leafMaterials)
-        let leafMat = SCNMaterial()
-        leafMat.lightingModel = .physicallyBased
-        leafMat.normal.contents = leafNormal
-        leafMat.normal.intensity = 0.08
-        leafMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
-            ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
-        leafMat.multiply.contents = UIColor(red: 0.98, green: 0.82, blue: 0.32, alpha: 1)
-        leafMat.roughness.contents = 0.85
-        leafMat.metalness.contents = 0.0
-        leafMat.isDoubleSided = true
-        leafMat.transparencyMode = .aOne
-        leafMat.writesToDepthBuffer = true
-        smoothTextureSampling(leafMat.diffuse)
-
-        // 3. Cut Straw Butt (Puntung Jerami Ani-ani mengarah ke atas di atas palang bambu)
-        let strawMat = SCNMaterial()
-        strawMat.lightingModel = .physicallyBased
-        strawMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
-            ?? UIColor(red: 0.88, green: 0.74, blue: 0.32, alpha: 1)
-        strawMat.multiply.contents = UIColor(red: 0.92, green: 0.78, blue: 0.36, alpha: 1)
-        strawMat.normal.contents = leafNormal
-        strawMat.normal.intensity = 0.10
-        strawMat.roughness.contents = 0.85
-        strawMat.metalness.contents = 0.0
-        smoothTextureSampling(strawMat.diffuse)
+        let (grainMaterial, leafMat, strawMat) = Self.riceBundleMaterials()
 
         let buttNode = SCNNode()
         buttNode.name = "hangingStrawButt"
@@ -2970,46 +2949,7 @@ final class HomeSceneRenderer: NSObject {
     private func makeHangingRiceBundle(from panicles: [SCNNode], tie: SCNMaterial) -> SCNNode {
         let bundle = SCNNode()
 
-        // 1. Panicle Grains & Rachis Material (Matching Mipit ricePanicles with HumaYoungRice texture)
-        let grainMaterial = SCNMaterial()
-        grainMaterial.lightingModel = .physicallyBased
-        grainMaterial.normal.contents = leafNormal
-        grainMaterial.normal.intensity = 0.12
-        grainMaterial.diffuse.contents = UIImage(named: "HumaGrassTexture")
-            ?? UIColor(red: 0.94, green: 0.78, blue: 0.26, alpha: 1)
-        grainMaterial.multiply.contents = UIColor(red: 1.00, green: 0.84, blue: 0.34, alpha: 1)
-        grainMaterial.roughness.contents = 0.58
-        grainMaterial.metalness.contents = 0.02
-        grainMaterial.isDoubleSided = true
-        grainMaterial.writesToDepthBuffer = true
-        smoothTextureSampling(grainMaterial.diffuse)
-
-        // 2. Golden Rice Blade / Leaf Material (Matching Mipit leafMaterials)
-        let leafMat = SCNMaterial()
-        leafMat.lightingModel = .physicallyBased
-        leafMat.normal.contents = leafNormal
-        leafMat.normal.intensity = 0.08
-        leafMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
-            ?? UIColor(red: 0.88, green: 0.76, blue: 0.28, alpha: 1)
-        leafMat.multiply.contents = UIColor(red: 0.98, green: 0.82, blue: 0.32, alpha: 1)
-        leafMat.roughness.contents = 0.85
-        leafMat.metalness.contents = 0.0
-        leafMat.isDoubleSided = true
-        leafMat.transparencyMode = .aOne
-        leafMat.writesToDepthBuffer = true
-        smoothTextureSampling(leafMat.diffuse)
-
-        // 3. Cut Straw Butt (Puntung Jerami Hasil Panen Ani-ani)
-        let strawMat = SCNMaterial()
-        strawMat.lightingModel = .physicallyBased
-        strawMat.diffuse.contents = UIImage(named: "HumaGrassTexture")
-            ?? UIColor(red: 0.88, green: 0.74, blue: 0.32, alpha: 1)
-        strawMat.multiply.contents = UIColor(red: 0.92, green: 0.78, blue: 0.36, alpha: 1)
-        strawMat.normal.contents = leafNormal
-        strawMat.normal.intensity = 0.10
-        strawMat.roughness.contents = 0.85
-        strawMat.metalness.contents = 0.0
-        smoothTextureSampling(strawMat.diffuse)
+        let (grainMaterial, leafMat, strawMat) = Self.riceBundleMaterials()
 
         let buttNode = SCNNode()
         buttNode.name = "strawButt"
@@ -3030,18 +2970,7 @@ final class HomeSceneRenderer: NSObject {
 
         // 4. Traditional Baduy Split-Bamboo Sheaf Tie (Tali Awian / Sulam)
         // Handcrafted organic tie band with double woven cords, knot clasp, and trailing tails.
-        let tieMaterial = SCNMaterial()
-        tieMaterial.lightingModel = .physicallyBased
-        tieMaterial.diffuse.contents = UIImage(named: "HumaThatchTexture")
-            ?? UIImage(named: "HumaWoodTexture")
-            ?? UIColor(red: 0.85, green: 0.70, blue: 0.40, alpha: 1)
-        tieMaterial.multiply.contents = UIColor(red: 0.88, green: 0.74, blue: 0.42, alpha: 1)
-        tieMaterial.normal.contents = leafNormal
-        tieMaterial.normal.intensity = 0.25
-        tieMaterial.roughness.contents = 0.82
-        tieMaterial.metalness.contents = 0.0
-        tieMaterial.isDoubleSided = true
-        smoothTextureSampling(tieMaterial.diffuse)
+        let tieMaterial = tie
 
         let tieRoot = SCNNode()
         tieRoot.name = "taliAwianTie"
@@ -4244,32 +4173,8 @@ final class HomeSceneRenderer: NSObject {
 
     // Generated once per scene. These are subtle tangent-space detail maps,
     // not claimed to be scanned normals matched to the supplied albedo.
-    private lazy var barkNormal = Self.makeDetailNormal(frequency: 12, strength: 0.32)
-    static let sharedLeafNormal: UIImage = makeDetailNormal(frequency: 22, strength: 0.12)
+    static let sharedLeafNormal: UIImage = NgahumaMaterials.makeDetailNormal(frequency: 22, strength: 0.12)
     private var leafNormal: UIImage { Self.sharedLeafNormal }
-
-    static func makeDetailNormal(frequency: Float, strength: Float) -> UIImage {
-        let size = 128
-        var pixels = [UInt8](repeating: 255, count: size * size * 4)
-        for y in 0..<size {
-            for x in 0..<size {
-                let u = Float(x) / Float(size), v = Float(y) / Float(size)
-                let slope = sin(u * frequency * 2 * .pi + sin(v * 2 * .pi) * 0.5)
-                let n = simd_normalize(SIMD3<Float>(slope * strength, 0.025 * cos(v * 2 * .pi), 1))
-                let offset = (y * size + x) * 4
-                pixels[offset] = UInt8((n.x * 0.5 + 0.5) * 255)
-                pixels[offset + 1] = UInt8((n.y * 0.5 + 0.5) * 255)
-                pixels[offset + 2] = UInt8((n.z * 0.5 + 0.5) * 255)
-            }
-        }
-        let provider = CGDataProvider(data: Data(pixels) as CFData)!
-        let image = CGImage(width: size, height: size, bitsPerComponent: 8,
-            bitsPerPixel: 32, bytesPerRow: size * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
-            provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)!
-        return UIImage(cgImage: image)
-    }
 
     private lazy var particleSprite: UIImage = {
         let format = UIGraphicsImageRendererFormat()

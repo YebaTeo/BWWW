@@ -6,6 +6,7 @@ struct IntroductionView: View {
     let finish: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var page: Story = .welcome
     @State private var incomingPage: Story?
     @State private var outgoingOffset: CGFloat = 0
@@ -61,9 +62,10 @@ struct IntroductionView: View {
                                 .offset(y: incomingOffset)
                         }
                     }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .frame(width: geometry.size.width)
+                    .frame(minHeight: geometry.size.height)
                 }
-                .scrollDisabled(true)
+                .scrollDisabled(!dynamicTypeSize.isAccessibilitySize)
                 .scrollIndicators(.hidden)
                 .accessibilityIdentifier("intro.story")
                 .gesture(storySwipe(height: geometry.size.height))
@@ -120,7 +122,8 @@ struct IntroductionView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
             .accessibilityHidden(true)
         }
-        .frame(width: size.width, height: size.height, alignment: .bottom)
+        .frame(width: size.width)
+        .frame(minHeight: size.height, alignment: .bottom)
         .clipped()
     }
 

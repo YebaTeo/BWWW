@@ -1,16 +1,38 @@
 import XCTest
 @MainActor final class HomeUITests: XCTestCase {
-    func testHomeLandingOpensIntroduction() {
+    func testHomeLandingSnapsToMenuWithoutPrologue() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress", "--show-home-landing"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Perjalanan Ngahuma"].waitForExistence(timeout: 10))
         app.buttons["home.landing.continue"].tap()
-        XCTAssertTrue(app.scrollViews["intro.story"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["phase_ngahuru"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["journey.prologue"].exists)
     }
 
-    func testMenuNgaseukOpensActivityDirectly() {
+    func testHomeLandingSwipeSnapsToMenu() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--reset-progress", "--show-home-landing"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["home.landing.continue"].waitForExistence(timeout: 10))
+        let landing = XCTAttachment(screenshot: app.screenshot())
+        landing.name = "Landing before snap"
+        landing.lifetime = .keepAlways
+        add(landing)
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.76))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.24))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(app.buttons["phase_ngahuru"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["home.landing.continue"].exists)
+        let menu = XCTAttachment(screenshot: app.screenshot())
+        menu.name = "Menu after snap"
+        menu.lifetime = .keepAlways
+        add(menu)
+    }
+
+    func testMenuNgaseukOpensStageBeforeActivity() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngored"]
         app.launch()
@@ -18,7 +40,28 @@ import XCTest
         let ngaseuk = app.buttons["phase_ngaseuk"]
         XCTAssertTrue(ngaseuk.waitForExistence(timeout: 10))
         ngaseuk.tap()
+        let start = app.buttons["resume"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        XCTAssertEqual(start.label, "Ikut Ngaseuk")
+        start.tap()
         XCTAssertTrue(app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 15))
+    }
+
+    func testMenuMapKeepsLaterStagesLocked() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngored"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["phase_ngahuru"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["phase_ngaseuk"].isEnabled)
+        app.swipeUp()
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["phase_ngaleuitkeun_pare"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["phase_ngaleuitkeun_pare"].isEnabled)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Journey stage map lower half"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 
     func testJourneyMenuShowsSceneCardsAndLocksNextStage() {
@@ -30,7 +73,7 @@ import XCTest
         XCTAssertEqual(app.buttons["home.journey"].value as? String, "1 dari 6 biji")
         app.buttons["home.journey"].tap()
         XCTAssertTrue(app.staticTexts["Perjalanan Ngahuma"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["journey.prologue"].exists)
+        XCTAssertFalse(app.buttons["journey.prologue"].exists)
         XCTAssertTrue(app.buttons["phase_ngahuru"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["phase_ngaseuk"].isEnabled)
         XCTAssertFalse(app.buttons["phase_narawas"].exists)

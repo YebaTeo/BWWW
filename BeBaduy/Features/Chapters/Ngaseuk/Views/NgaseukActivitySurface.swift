@@ -10,6 +10,7 @@ struct NgaseukActivitySurface: View {
     @State private var toolDepth: CGFloat = -65
     @State private var isStroking = false
     @State private var isSoilDisplacing = false
+    @State private var strokeGeneration = 0
     @State private var seedDragLocation: CGPoint?
     @State private var seedDragOffset: CGSize = .zero
 
@@ -28,9 +29,13 @@ struct NgaseukActivitySurface: View {
                     ForEach(0..<3) { index in
                         Group {
                             if model.step == .seeding {
-                                soilMark(index, toolTarget: toolTarget)
-                                    .allowsHitTesting(false)
-                                .accessibilityLabel("Lubang \(index + 1)")
+                                Button { model.peek(index) } label: {
+                                    soilMark(index, toolTarget: toolTarget)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(model.seeds.contains(index))
+                                .accessibilityIdentifier("field.hole.\(index)")
+                                .accessibilityLabel("Buka lubang \(index + 1)")
                                     .accessibilityValue(model.seeds.contains(index) ? "Berisi benih" : "Sudah dibuat")
                             } else if model.step == .digging {
                                 Button {
@@ -258,6 +263,18 @@ struct NgaseukActivitySurface: View {
             return
         }
         let index = model.lastDug
+        strokeGeneration += 1
+        let generation = strokeGeneration
+        defer {
+            visibleDigCounts[index] = max(visibleDigCounts[index, default: 0], count)
+            if strokeGeneration == generation {
+                isStroking = false
+                isSoilDisplacing = false
+                workingTarget = nil
+                toolDepth = -65
+                if model.step == .holesReady { card.showInstruction() }
+            }
+        }
         workingTarget = index
         // Start the strike from wherever the live-follow stick currently is, so there is no jump.
         toolDepth = -65 + CGFloat(-model.toolFollow) * 28

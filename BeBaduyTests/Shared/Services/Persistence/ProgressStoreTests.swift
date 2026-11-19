@@ -20,6 +20,9 @@ final class ProgressStoreTests: XCTestCase {
         defaults.set(Data([0, 1, 2]), forKey: "BeBaduy.journey.v2")
         let corrupt = ProgressStore(defaults: defaults)
         XCTAssertEqual(corrupt.load(), JourneyProgress()); XCTAssertNotNil(corrupt.recoveryMessage)
+        let followingLaunch = ProgressStore(defaults: defaults)
+        XCTAssertEqual(followingLaunch.load(), JourneyProgress())
+        XCTAssertNil(followingLaunch.recoveryMessage)
     }
     @MainActor func testLegacyMigrationKeepsOriginalAndSeparatesDrying() throws {
         let name = "migration.\(UUID().uuidString)"
@@ -59,6 +62,23 @@ final class ProgressStoreTests: XCTestCase {
         progress.journeyCompleted = false
         try store.save(progress)
         XCTAssertFalse(store.load().isUnlocked(.ngaleuitkeunPare))
+    }
+
+    @MainActor func testCorruptLegacyProgressWarnsOnceAndKeepsBackup() {
+        let name = "migration.corrupt.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let corruptData = Data([0, 1, 2])
+        defaults.set(corruptData, forKey: "BeBaduy.journey.v1")
+
+        let firstLaunch = ProgressStore(defaults: defaults)
+        XCTAssertEqual(firstLaunch.load(), JourneyProgress())
+        XCTAssertNotNil(firstLaunch.recoveryMessage)
+        XCTAssertEqual(defaults.data(forKey: "BeBaduy.journey.v1.recovery"), corruptData)
+
+        let nextLaunch = ProgressStore(defaults: defaults)
+        XCTAssertEqual(nextLaunch.load(), JourneyProgress())
+        XCTAssertNil(nextLaunch.recoveryMessage)
     }
 
     func testRejectInconsistentRecord() {

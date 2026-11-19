@@ -4,6 +4,7 @@ import Observation
 @Observable @MainActor final class JourneyViewModel {
     private(set) var progress: JourneyProgress
     private(set) var storageMessage: String?
+    func dismissStorageMessage() { storageMessage = nil }
     private let store: any ProgressStoring
     init(store: any ProgressStoring) {
         self.store = store; progress = store.load(); storageMessage = store.recoveryMessage
@@ -37,7 +38,7 @@ import Observation
         persist()
     }
     private func persist() {
-        do { try store.save(progress) }
+        do { try store.save(progress); storageMessage = nil }
         catch { storageMessage = "Progres belum tersimpan. Coba lagi dengan membuka tahap ini kembali." }
     }
 }

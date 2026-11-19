@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Items are earned when the corresponding phase is completed and persisted.
 struct CardCollectionView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let journey: JourneyViewModel
     var showsBackground = true
     let onScroll: (CGFloat, CGFloat) -> Void
@@ -61,7 +62,7 @@ struct CardCollectionView: View {
                                 GeometryReader { bounds in
                                     ChapterCardFace(card: card, width: bounds.size.width, compact: true)
                                 }
-                                .aspectRatio(0.7, contentMode: .fit)
+                                .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 0.58 : 0.7, contentMode: .fit)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(card.title)
@@ -89,6 +90,7 @@ struct CardCollectionView: View {
 }
 
 struct ChapterCardFace: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let card: ChapterCard
     let width: CGFloat
     var front = true
@@ -119,7 +121,7 @@ struct ChapterCardFace: View {
                 Image(systemName: "leaf.fill").font(.largeTitle).foregroundStyle(.yellow)
             }
         }
-        .frame(width: width, height: width / 0.7)
+        .frame(width: width, height: width / (compact && dynamicTypeSize.isAccessibilitySize ? 0.58 : 0.7))
         .overlay { RoundedRectangle(cornerRadius: 22).strokeBorder(
             .linearGradient(colors: card == .epic ? [.cyan, .white, .purple, .yellow] : [.yellow, .white, .orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 3) }
         .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
