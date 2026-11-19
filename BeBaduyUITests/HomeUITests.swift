@@ -1,5 +1,15 @@
 import XCTest
 @MainActor final class HomeUITests: XCTestCase {
+    func testHomeLandingOpensIntroduction() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--reset-progress", "--show-home-landing"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Perjalanan Ngahuma"].waitForExistence(timeout: 10))
+        app.buttons["home.landing.continue"].tap()
+        XCTAssertTrue(app.scrollViews["intro.story"].waitForExistence(timeout: 10))
+    }
+
     func testMenuNgaseukOpensActivityDirectly() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngored"]

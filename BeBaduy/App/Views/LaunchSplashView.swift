@@ -12,37 +12,22 @@ struct LaunchSplashView: View {
                     .clipped()
                     .accessibilityHidden(true)
 
-                VStack(spacing: 20) {
+                VStack(spacing: 12) {
                     Image("OnboardingLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 144, height: 144)
+                        .frame(width: 76, height: 76)
                         .accessibilityHidden(true)
                     Text("BeBaduy")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(AppTheme.cream)
-                        .frame(height: 41)
-                }
-                .overlay(alignment: .bottom) {
-                    VStack(spacing: 6) {
-                        ProgressView()
-                            .tint(AppTheme.cream)
-                            .frame(height: 21)
-                            .accessibilityHidden(true)
-                        Text("Menyiapkan perjalanan…")
-                            .font(.system(size: 17))
-                            .foregroundStyle(AppTheme.cream)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .frame(height: 21)
-                    }
-                    .accessibilityIdentifier("launch.loading")
-                    .alignmentGuide(.bottom) { dimensions in -dimensions.height - -30 }
+                        .font(.system(size: 25, weight: .bold))
+                        .foregroundStyle(.white)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .background(Color(red: 0.49, green: 0.39, blue: 0.29))
+        .background(Color(red: 0.19, green: 0.20, blue: 0.15))
         .ignoresSafeArea()
+        .preferredColorScheme(.light)
     }
 }
 

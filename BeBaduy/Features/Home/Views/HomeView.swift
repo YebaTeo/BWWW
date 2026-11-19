@@ -9,10 +9,31 @@ struct HomeView: View {
     @State private var isTabCollapsed = false
     @State private var showsPrologue = false
     @State private var loadingDestination: HomeRoute?
+    @State private var showsHomeLanding = true
+    @State private var showsSplash = true
+
+    private var skipsLaunchPresentationForTests: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("--uitesting") && !arguments.contains("--show-home-landing")
+        #else
+        return false
+        #endif
+    }
 
     var body: some View {
         Group {
-            if !journey.progress.introductionSeen {
+            if !skipsLaunchPresentationForTests && showsSplash {
+                LaunchSplashView()
+                    .task {
+                        try? await Task.sleep(for: .milliseconds(650))
+                        showsSplash = false
+                    }
+            } else if !skipsLaunchPresentationForTests && showsHomeLanding {
+                HomeLandingView {
+                    showsHomeLanding = false
+                }
+            } else if !journey.progress.introductionSeen {
                 ZStack {
                     IntroductionView(
                         stageProgress: GrowthStage.onboardingStage(for: journey.progress).targetProgress,
@@ -22,7 +43,15 @@ struct HomeView: View {
                     }
                     .allowsHitTesting(onboardingReady)
                     .accessibilityHidden(!onboardingReady)
-                    if !onboardingReady { LaunchSplashView() }
+                    if !onboardingReady {
+                        ZStack {
+                            Image("HumaSunsetValley")
+                                .resizable()
+                                .scaledToFill()
+                                .ignoresSafeArea()
+                            LaunchLoadingIndicator(message: "Menyiapkan perjalanan…")
+                        }
+                    }
                 }
             } else {
                 TabView(selection: $selectedTab) {
@@ -142,6 +171,79 @@ struct HomeView: View {
         guard shouldCollapse != isTabCollapsed else { return }
         withAnimation(.smooth(duration: 0.28)) {
             isTabCollapsed = shouldCollapse
+        }
+    }
+}
+
+private struct HomeLandingView: View {
+    let continueToJourney: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isSharp = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                Image("HumaSunsetValley")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                    .blur(radius: isSharp || reduceMotion ? 0 : 18)
+                    .accessibilityHidden(true)
+
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.53),
+                        .init(color: .black.opacity(0.24), location: 0.73),
+                        .init(color: .black.opacity(0.78), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Perjalanan Ngahuma")
+                        .font(.system(size: 25, weight: .bold))
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Tradisi berladang masyarakat Baduy yang diwariskan turun-temurun untuk menjaga keseimbangan hidup antara manusia dan alam, melalui rangkaian tahapan yang dilakukan setiap tahun.")
+                        .font(.system(size: 15))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button(action: continueToJourney) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 22, weight: .semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .accessibilityLabel("Lanjut ke perjalanan")
+                    .accessibilityIdentifier("home.landing.continue")
+                    .padding(.top, 3)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: 350, alignment: .leading)
+                .padding(.horizontal, 40)
+                .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20) + 12)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 30)
+                    .onEnded { value in
+                        if value.translation.height < -60 {
+                            continueToJourney()
+                        }
+                    }
+            )
+        }
+        .ignoresSafeArea()
+        .background(Color(red: 0.19, green: 0.20, blue: 0.15))
+        .preferredColorScheme(.light)
+        .task {
+            guard !reduceMotion else { isSharp = true; return }
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation(.easeOut(duration: 0.8)) {
+                isSharp = true
+            }
         }
     }
 }
