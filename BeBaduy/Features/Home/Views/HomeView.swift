@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var showsSplash = true
     @State private var landscapeViewportHeight: CGFloat?
     @State private var collectionPath = NavigationPath()
+    @State private var selectedCollectionCard: ChapterCard?
 
     private var skipsLaunchPresentationForTests: Bool {
         #if DEBUG
@@ -121,9 +122,14 @@ struct HomeView: View {
                     .tag(HomeTab.menu)
                     .toolbar(.hidden, for: .tabBar)
                     NavigationStack(path: $collectionPath) {
-                        CardCollectionView(journey: journey, showsBackground: selectedTab == .collection && collectionPath.isEmpty) { oldOffset, newOffset in
-                            updateTabBar(for: .collection, from: oldOffset, to: newOffset)
-                        }
+                        CardCollectionView(
+                            journey: journey,
+                            showsBackground: selectedTab == .collection && collectionPath.isEmpty,
+                            onSelect: { selectedCollectionCard = $0 },
+                            onScroll: { oldOffset, newOffset in
+                                updateTabBar(for: .collection, from: oldOffset, to: newOffset)
+                            }
+                        )
                     }
                     .tabItem { Label("Koleksi", systemImage: "rectangle.stack.fill") }
                     .tag(HomeTab.collection)
@@ -140,6 +146,14 @@ struct HomeView: View {
                     }
                 }
                 .tint(AppTheme.heading)
+                .overlay {
+                    if let card = selectedCollectionCard {
+                        CollectionCardPresentation(card: card) {
+                            selectedCollectionCard = nil
+                        }
+                        .id(card)
+                    }
+                }
                 .overlay {
                     if loadingDestination != nil {
                         ZStack {

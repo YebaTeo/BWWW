@@ -5,73 +5,48 @@ struct CardCollectionView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let journey: JourneyViewModel
     var showsBackground = true
+    let onSelect: (ChapterCard) -> Void
     let onScroll: (CGFloat, CGFloat) -> Void
     @State private var isUserScrolling = false
 
-    private var earned: [ChapterCard] {
-        ChapterCard.all.filter { $0.isEarned(in: journey.progress) }
-    }
-
-    private var cardSurface: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(Color(red: 0.16, green: 0.09, blue: 0.06).opacity(0.96))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(AppTheme.heading.opacity(0.6), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.38), radius: 14, y: 8)
-    }
-
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("\(earned.count) dari \(ChapterCard.all.count) kartu terkumpul")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.cream)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.black.opacity(0.5), in: Capsule())
-                if earned.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "rectangle.stack")
-                            .font(.system(size: 38))
-                            .foregroundStyle(AppTheme.heading)
-                        Text("Koleksimu belum terisi")
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.cream)
-                        Text("Selesaikan tahapan Ngahuma untuk mendapatkan kartu koleksi.")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.cream.opacity(0.82))
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 230)
-                    .padding(18)
-                    .background { cardSurface }
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 16) {
-                        ForEach(earned) { card in
-                            NavigationLink {
-                                GeometryReader { bounds in
-                                    let width = min(330, bounds.size.width * 0.88, bounds.size.height * 0.65)
-                                    ChapterCardFace(card: card, width: width)
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                }
-                                .navigationTitle(card.title)
-                                .navigationBarTitleDisplayMode(.inline)
-                            } label: {
-                                GeometryReader { bounds in
-                                    ChapterCardFace(card: card, width: bounds.size.width, compact: true)
-                                }
-                                .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 0.58 : 0.7, contentMode: .fit)
+            VStack(alignment: .leading, spacing: 30) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Koleksi Kartu")
+                        .font(.system(size: 29, weight: .bold, design: .rounded))
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Selesaikan tahapan Ngahuma dan lengkapi kartumu.")
+                        .font(.system(size: 16))
+                        .italic()
+                        .lineSpacing(3)
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.55), radius: 4, y: 2)
+
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 20),
+                                    GridItem(.flexible(), spacing: 20)], spacing: 24) {
+                    ForEach(ChapterCard.all) { card in
+                        let isEarned = card.isEarned(in: journey.progress)
+                        if isEarned {
+                            Button { onSelect(card) } label: {
+                                collectionTile(for: card)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("collection.card.\(card.imageName)")
                             .accessibilityLabel(card.title)
+                        } else {
+                            lockedTile
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel("Kartu terkunci")
                         }
                     }
                 }
             }
-            .padding(24)
-            .frame(maxWidth: 700)
+            .padding(.horizontal, 30)
+            .padding(.top, 24)
+            .padding(.bottom, 100)
+            .frame(maxWidth: 600)
             .frame(maxWidth: .infinity)
         }
         .onScrollGeometryChange(for: Int.self) { geometry in
@@ -83,9 +58,197 @@ struct CardCollectionView: View {
         .onScrollPhaseChange { _, newPhase in
             isUserScrolling = newPhase == .interacting
         }
-        .background { if showsBackground { MenuBackground(progress: journey.progress) } }
+        .background {
+            if showsBackground { CollectionSoilBackground() }
+        }
         .toolbarBackground(.hidden, for: .navigationBar)
-        .navigationTitle("Koleksi Kartu")
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func collectionTile(for card: ChapterCard) -> some View {
+        GeometryReader { geometry in
+            let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+            VStack(alignment: .leading, spacing: 0) {
+                Image(card.imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width - 12, height: geometry.size.height * 0.63)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .padding(6)
+                    .accessibilityHidden(true)
+                Text(card.title)
+                    .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 16 : 14,
+                                  weight: .bold, design: .rounded))
+                    .foregroundStyle(CollectionCardPalette.ink)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 6)
+                Spacer(minLength: 0)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .background(CollectionCardPalette.paper, in: shape)
+            .overlay(alignment: .bottomTrailing) {
+                UnevenRoundedRectangle(topLeadingRadius: 15, bottomTrailingRadius: 10)
+                    .fill(AppTheme.orange)
+                    .frame(width: 39, height: 16)
+                    .allowsHitTesting(false)
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(AppTheme.orange, lineWidth: 1.5)
+            }
+        }
+        .aspectRatio(0.75, contentMode: .fit)
+    }
+
+    private var lockedTile: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(Color(red: 0.66, green: 0.38, blue: 0.15).opacity(0.12))
+            .overlay {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.orange)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AppTheme.orange.opacity(0.75), lineWidth: 1)
+            }
+            .aspectRatio(0.75, contentMode: .fit)
+    }
+}
+
+private enum CollectionCardPalette {
+    static let paper = Color(red: 1, green: 0.95, blue: 0.87)
+    static let ink = Color(red: 0.26, green: 0.14, blue: 0.08)
+}
+
+private struct CollectionSoilBackground: View {
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                Image("JourneySoil")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                Image("JourneyLandscapeSoil")
+                    .resizable()
+                    .frame(width: geometry.size.width, height: geometry.size.height * 1.9)
+                    .offset(y: -geometry.size.height)
+                    .frame(width: geometry.size.width, height: 100, alignment: .top)
+                    .clipped()
+                    .mask {
+                        LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .bottom)
+                    }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+struct CollectionCardPresentation: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let card: ChapterCard
+    let dismiss: () -> Void
+    @State private var isFaceUp = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = min(350, geometry.size.width - 52,
+                            max(180, (geometry.size.height - 150) * 0.75))
+            ZStack {
+                Color.black.opacity(0.76)
+                    .ignoresSafeArea()
+                    .onTapGesture(perform: dismiss)
+
+                WovenRevealFaces(angle: isFaceUp ? 180 : 0) { size in
+                    CollectionCardDetails(card: card, size: size)
+                }
+                .frame(width: width, height: width * 4 / 3)
+                .shadow(color: .black.opacity(0.65), radius: 20, y: 12)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .topTrailing) {
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 19, weight: .medium))
+                        .foregroundStyle(.black)
+                        .frame(width: 44, height: 44)
+                        .background(.white.opacity(0.8), in: Circle())
+                }
+                .accessibilityLabel("Tutup kartu")
+                .accessibilityIdentifier("collection.card.close")
+                .padding(.top, max(geometry.safeAreaInsets.top, 20) + 14)
+                .padding(.trailing, 24)
+            }
+        }
+        .ignoresSafeArea()
+        .task(id: card) {
+            if reduceMotion {
+                isFaceUp = true
+                return
+            }
+            do { try await Task.sleep(for: .milliseconds(420)) } catch { return }
+            withAnimation(.easeInOut(duration: 0.62)) { isFaceUp = true }
+        }
+    }
+}
+
+private struct CollectionCardDetails: View {
+    let card: ChapterCard
+    let size: CGSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Image(card.imageName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width - 18, height: size.height * 0.53)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(9)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(card.title)
+                    .font(.system(size: 23, weight: .bold, design: .rounded))
+                    .foregroundStyle(CollectionCardPalette.ink)
+                    .accessibilityAddTraits(.isHeader)
+                ViewThatFits(in: .vertical) {
+                    explanationText
+                        .fixedSize(horizontal: false, vertical: true)
+                    ScrollView {
+                        explanationText
+                    }
+                    .scrollIndicators(.hidden)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 18)
+        }
+        .frame(width: size.width, height: size.height)
+        .background(CollectionCardPalette.paper)
+        .overlay(alignment: .bottomTrailing) {
+            UnevenRoundedRectangle(topLeadingRadius: 24, bottomTrailingRadius: 18)
+                .fill(AppTheme.orange)
+                .frame(width: 74, height: 27)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var explanationText: some View {
+        Text(card.explanation)
+            .font(.system(size: 15))
+            .foregroundStyle(Color(red: 0.25, green: 0.17, blue: 0.11))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("collection.card.explanation")
     }
 }
 

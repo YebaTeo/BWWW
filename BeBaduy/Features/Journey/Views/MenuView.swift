@@ -19,7 +19,14 @@ struct MenuView: View {
     let open: (PhaseID) -> Void
     let onScroll: (CGFloat, CGFloat) -> Void
     @State private var isUserScrolling = false
-    private var stageStep: CGFloat { dynamicTypeSize.isAccessibilitySize ? 210 : 160 }
+    @State private var pullStartedAtTop = false
+    @State private var isPullToLandingArmed = false
+    private var firstStageGap: CGFloat { dynamicTypeSize.isAccessibilitySize ? 185 : 115 }
+    private var stageStep: CGFloat { dynamicTypeSize.isAccessibilitySize ? 210 : 145 }
+
+    private func stageY(_ index: Int) -> CGFloat {
+        103 + (index == 0 ? 0 : firstStageGap + CGFloat(index - 1) * stageStep)
+    }
 
     var body: some View {
         GeometryReader { viewport in
@@ -71,12 +78,27 @@ struct MenuView: View {
             guard isUserScrolling else { return }
             onScroll(CGFloat(oldOffset * 12), CGFloat(newOffset * 12))
         }
-        .onScrollPhaseChange { _, newPhase in
-            isUserScrolling = newPhase == .interacting
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top < -65
+        } action: { _, isBeyondThreshold in
+            guard isUserScrolling, pullStartedAtTop else { return }
+            isPullToLandingArmed = isBeyondThreshold
         }
         .onScrollPhaseChange { old, new, context in
             let offset = context.geometry.contentOffset.y + context.geometry.contentInsets.top
-            if old == .interacting, new != .interacting, offset < -65 { onPullToLanding?() }
+            if new == .interacting {
+                isUserScrolling = true
+                pullStartedAtTop = offset <= 12
+                isPullToLandingArmed = false
+            } else {
+                isUserScrolling = false
+                if old == .interacting {
+                    let shouldReturn = pullStartedAtTop && (isPullToLandingArmed || offset < -65)
+                    pullStartedAtTop = false
+                    isPullToLandingArmed = false
+                    if shouldReturn { onPullToLanding?() }
+                }
+            }
         }
         .background {
             if showsBackground {
@@ -99,47 +121,80 @@ struct MenuView: View {
             let right = geometry.size.width * 0.72
             ZStack(alignment: .topLeading) {
                 Canvas { context, _ in
-                    var path = Path()
                     for index in 0..<(PhaseID.allCases.count - 1) {
+                        var path = Path()
                         let start = CGPoint(x: index.isMultiple(of: 2) ? left : right,
-                                            y: 103 + CGFloat(index) * stageStep)
+                                            y: stageY(index))
                         let end = CGPoint(x: index.isMultiple(of: 2) ? right : left,
-                                          y: 103 + CGFloat(index + 1) * stageStep)
+                                          y: stageY(index + 1))
                         path.move(to: start)
-                        path.addCurve(to: end,
-                                      control1: CGPoint(x: end.x, y: start.y),
-                                      control2: CGPoint(x: start.x, y: end.y))
+                        if index == 0 {
+                            let bend = min(78, (end.y - start.y) * 0.68)
+                            path.addLine(to: CGPoint(x: end.x - bend, y: start.y))
+                            path.addQuadCurve(to: CGPoint(x: end.x, y: start.y + bend),
+                                              control: CGPoint(x: end.x, y: start.y))
+                            path.addLine(to: end)
+                        } else {
+                            let middleY = (start.y + end.y) / 2
+                            let direction: CGFloat = end.x > start.x ? 1 : -1
+                            let bend: CGFloat = 62
+                            path.addLine(to: CGPoint(x: start.x, y: middleY - bend))
+                            path.addQuadCurve(to: CGPoint(x: start.x + direction * bend, y: middleY),
+                                              control: CGPoint(x: start.x, y: middleY))
+                            path.addLine(to: CGPoint(x: end.x - direction * bend, y: middleY))
+                            path.addQuadCurve(to: CGPoint(x: end.x, y: middleY + bend),
+                                              control: CGPoint(x: end.x, y: middleY))
+                            path.addLine(to: end)
+                        }
+                        let completed = journey.progress.record(for: PhaseID.allCases[index]).explanationAvailable
+                        context.stroke(path, with: .color(.white.opacity(0.94)),
+                                       style: StrokeStyle(lineWidth: 3, lineCap: .round,
+                                                          dash: completed ? [] : [8, 8]))
                     }
-                    context.stroke(path, with: .color(.white.opacity(0.94)),
-                                   style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [8, 8]))
                 }
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
                 ForEach(PhaseID.allCases) { phase in
                     let unlocked = journey.progress.isUnlocked(phase)
+                    let isCurrent = unlocked && !journey.progress.journeyCompleted && phase == journey.progress.currentPhase
                     Button { open(phase) } label: {
-                        stageMarker(phase, unlocked: unlocked)
+                        stageMarker(phase, unlocked: unlocked, isCurrent: isCurrent)
                     }
                     .buttonStyle(.plain)
                     .disabled(!unlocked)
                     .accessibilityIdentifier("phase_\(phase.rawValue)")
                     .accessibilityLabel("\(PhaseContent.content(for: phase).title), \(unlocked ? "tersedia" : "terkunci")")
                     .position(x: phase.index.isMultiple(of: 2) ? left : right,
-                              y: 103 + CGFloat(phase.index) * stageStep)
+                              y: stageY(phase.index))
                 }
             }
         }
-        .frame(height: 230 + stageStep * 5)
+        .frame(height: stageY(PhaseID.allCases.count - 1) + 127)
     }
 
-    private func stageMarker(_ phase: PhaseID, unlocked: Bool) -> some View {
+    private func stageMarker(_ phase: PhaseID, unlocked: Bool, isCurrent: Bool) -> some View {
         VStack(spacing: -25) {
-            HomeStageMenuObjectView(phase: phase)
-                .frame(width: 94, height: 92)
-                .opacity(unlocked ? 1 : 0.8)
-                .shadow(color: .black.opacity(0.35), radius: 3, y: 3)
-            stagePedestal(unlocked: unlocked)
+            ZStack {
+                if isCurrent {
+                    Ellipse()
+                        .fill(RadialGradient(
+                            colors: [.white.opacity(0.30), .white.opacity(0.12), .clear],
+                            center: .center,
+                            startRadius: 8,
+                            endRadius: 84
+                        ))
+                        .frame(width: 164, height: 148)
+                        .blur(radius: 14)
+                        .allowsHitTesting(false)
+                }
+                HomeStageMenuObjectView(phase: phase)
+                    .frame(width: 94, height: 92)
+                    .opacity(unlocked ? 1 : 0.8)
+                    .shadow(color: .black.opacity(0.35), radius: 3, y: 3)
+            }
+            .frame(width: 94, height: 92)
+            stagePedestal(unlocked: unlocked, isCurrent: isCurrent)
                 .zIndex(-1)
             Text(PhaseContent.content(for: phase).title)
                 .font(.system(size: markerLabelSize, weight: .medium))
@@ -163,13 +218,15 @@ struct MenuView: View {
         .contentShape(Rectangle())
     }
 
-    private func stagePedestal(unlocked: Bool) -> some View {
+    private func stagePedestal(unlocked: Bool, isCurrent: Bool) -> some View {
         Image("JourneyStagePlatform")
             .resizable()
             .interpolation(.high)
             .frame(width: 118, height: 61)
             .saturation(unlocked ? 1 : 0.7)
             .brightness(unlocked ? 0 : -0.35)
+            .shadow(color: isCurrent ? .white.opacity(0.28) : .clear, radius: 32)
+            .shadow(color: isCurrent ? .white.opacity(0.14) : .clear, radius: 56)
             .shadow(color: .black.opacity(0.35), radius: 3, y: 4)
     }
 

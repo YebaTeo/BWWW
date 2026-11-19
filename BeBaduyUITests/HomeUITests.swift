@@ -32,6 +32,53 @@ import XCTest
         add(menu)
     }
 
+    func testMenuScrollsBackToTopBeforeReturningToLanding() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--reset-progress", "--show-home-landing"]
+        app.launch()
+
+        app.buttons["home.landing.continue"].tap()
+        let firstStage = app.buttons["phase_ngahuru"]
+        XCTAssertTrue(firstStage.waitForExistence(timeout: 15))
+
+        app.swipeUp()
+        app.swipeDown()
+        XCTAssertTrue(firstStage.isHittable)
+        XCTAssertFalse(app.buttons["home.landing.continue"].exists)
+
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.24))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.76))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(app.buttons["home.landing.continue"].waitForExistence(timeout: 10))
+    }
+
+    func testCollectionCardAutomaticallyFlipsToDetails() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngaseuk"]
+        app.launch()
+
+        app.buttons["Koleksi"].tap()
+        XCTAssertTrue(app.staticTexts["Koleksi Kartu"].waitForExistence(timeout: 10))
+        let preview = app.buttons["collection.card.Journey-ngahuru"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        let grid = XCTAttachment(screenshot: app.screenshot())
+        grid.name = "Collection image and title previews"
+        grid.lifetime = .keepAlways
+        add(grid)
+
+        preview.tap()
+        XCTAssertTrue(app.buttons["collection.card.close"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["collection.card.explanation"].waitForExistence(timeout: 5))
+        let detail = XCTAttachment(screenshot: app.screenshot())
+        detail.name = "Automatically flipped collection card"
+        detail.lifetime = .keepAlways
+        add(detail)
+
+        app.buttons["collection.card.close"].tap()
+        XCTAssertFalse(app.buttons["collection.card.close"].exists)
+        XCTAssertTrue(preview.exists)
+    }
+
     func testMenuNgaseukOpensStageBeforeActivity() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress", "--uitest-ngored"]
