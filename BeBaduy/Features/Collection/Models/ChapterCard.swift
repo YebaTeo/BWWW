@@ -28,9 +28,10 @@ enum ChapterCard: Hashable, Identifiable {
     static let all = PhaseID.allCases.map(Self.chapter) + [.epic]
 
     func isEarned(in progress: JourneyProgress) -> Bool {
+        if progress.earnedCardIDs.contains(imageName) { return true }
         switch self {
-        case .chapter(let phase): progress.record(for: phase).explanationAvailable
-        case .epic: progress.allComplete
+        case .chapter(let phase): return progress.record(for: phase).explanationAvailable
+        case .epic: return progress.allComplete
         }
     }
 }

@@ -55,8 +55,10 @@ struct NgaleuitkeunPareView: View {
                 // The epic card is laid out while the summary is visible. The
                 // same SceneKit renderer continues under every finale state.
                 if finaleStep != .result {
-                    ChapterRewardCard(card: .epic, isPresented: finaleStep == .card) {
-                        journey.finishJourney()
+                    ChapterRewardCard(card: .epic,
+                                      alreadyOwned: !journey.newlyEarnedCards.contains(.epic),
+                                      isPresented: finaleStep == .card) {
+                        journey.completeCycleAndReturnToMenu()
                         advance()
                     }
                     .opacity(finaleStep == .card ? 1 : 0)

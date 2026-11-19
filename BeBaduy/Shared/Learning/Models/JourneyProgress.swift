@@ -12,6 +12,24 @@ struct JourneyProgress: Codable, Equatable {
     var currentPhase: PhaseID = .narawas
     var phases: [String: PhaseProgress] = [:]
     var journeyCompleted = false
+    var earnedCardIDs: Set<String> = []
+
+    private enum CodingKeys: String, CodingKey {
+        case version, introductionSeen, currentPhase, phases, journeyCompleted, earnedCardIDs
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        introductionSeen = try container.decode(Bool.self, forKey: .introductionSeen)
+        currentPhase = try container.decode(PhaseID.self, forKey: .currentPhase)
+        phases = try container.decode([String: PhaseProgress].self, forKey: .phases)
+        journeyCompleted = try container.decode(Bool.self, forKey: .journeyCompleted)
+        earnedCardIDs = try container.decodeIfPresent(Set<String>.self, forKey: .earnedCardIDs) ?? []
+    }
+
     func record(for phase: PhaseID) -> PhaseProgress { phases[phase.rawValue] ?? PhaseProgress() }
     func isUnlocked(_ phase: PhaseID) -> Bool {
         phase.index == 0 || PhaseID.allCases.prefix(phase.index).allSatisfy { record(for: $0).explanationAvailable }
@@ -21,6 +39,10 @@ struct JourneyProgress: Codable, Equatable {
         var entry = record(for: phase)
         if outcome == .performed { entry.performed = true } else { entry.observed = true }
         entry.explanationAvailable = true; phases[phase.rawValue] = entry
+        earnedCardIDs.insert(ChapterCard.chapter(phase).imageName)
+        if allComplete {
+            earnedCardIDs.insert(ChapterCard.epic.imageName)
+        }
     }
     var allComplete: Bool { PhaseID.allCases.allSatisfy { record(for: $0).explanationAvailable } }
     var isValid: Bool {

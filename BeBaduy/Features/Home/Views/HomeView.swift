@@ -73,6 +73,7 @@ struct HomeView: View {
                         MenuView(
                             journey: journey,
                             showsBackground: selectedTab == .menu && model.path.isEmpty,
+                            isActive: selectedTab == .menu && model.path.isEmpty,
                             landscapeViewportHeight: landscapeViewportHeight,
                             onPullToLanding: {
                                 guard model.path.isEmpty, collectionPath.isEmpty else { return }

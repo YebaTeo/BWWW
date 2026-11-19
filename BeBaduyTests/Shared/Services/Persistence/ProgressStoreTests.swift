@@ -89,4 +89,12 @@ final class ProgressStoreTests: XCTestCase {
         progress = JourneyProgress(); progress.journeyCompleted = true
         XCTAssertFalse(progress.isValid)
     }
+
+    @MainActor func testDecodesProgressWithoutEarnedCardIDsField() throws {
+        let legacyV3 = Data(#"{"version":3,"introductionSeen":true,"currentPhase":"ngaseuk","phases":{"ngahuru":{"observed":false,"performed":true,"explanationAvailable":true}},"journeyCompleted":false}"#.utf8)
+        let decoded = try JSONDecoder().decode(JourneyProgress.self, from: legacyV3)
+        XCTAssertTrue(decoded.isValid)
+        XCTAssertTrue(decoded.earnedCardIDs.isEmpty)
+        XCTAssertTrue(ChapterCard.chapter(.narawas).isEarned(in: decoded))
+    }
 }

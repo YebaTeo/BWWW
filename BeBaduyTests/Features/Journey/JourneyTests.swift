@@ -155,4 +155,47 @@ final class JourneyTests: XCTestCase {
         relaunched.record(.narawas, outcome: .observed)
         XCTAssertTrue(relaunched.hasPendingCollectionArrangement)
     }
+
+    @MainActor func testCycleCompletionResetsMenuToStageOneWhilePreservingEarnedCards() {
+        let store = MemoryStore()
+        let journey = JourneyViewModel(store: store)
+        journey.finishIntroduction()
+
+        for phase in PhaseID.allCases {
+            journey.record(phase, outcome: .performed)
+        }
+        XCTAssertTrue(journey.progress.allComplete)
+
+        journey.completeCycleAndReturnToMenu()
+
+        // Menu progress resets so only stage 1 (narawas) is unlocked and active.
+        XCTAssertTrue(journey.progress.isValid)
+        XCTAssertTrue(journey.progress.introductionSeen)
+        XCTAssertFalse(journey.progress.journeyCompleted)
+        XCTAssertEqual(journey.progress.currentPhase, .narawas)
+        XCTAssertEqual(journey.completedCount, 0)
+        XCTAssertTrue(journey.progress.isUnlocked(.narawas))
+        for phase in PhaseID.allCases.dropFirst() {
+            XCTAssertFalse(journey.progress.isUnlocked(phase))
+        }
+
+        // Explosion flag is armed once for MenuView.
+        XCTAssertTrue(journey.pendingMenuCycleReset)
+        XCTAssertTrue(journey.consumePendingMenuCycleReset())
+        XCTAssertFalse(journey.consumePendingMenuCycleReset())
+
+        // All earned cards (including epic) remain in collection across relaunch and cycle 2 replay.
+        for card in ChapterCard.all {
+            XCTAssertTrue(card.isEarned(in: journey.progress))
+        }
+        let relaunched = JourneyViewModel(store: store)
+        for card in ChapterCard.all {
+            XCTAssertTrue(card.isEarned(in: relaunched.progress))
+        }
+        XCTAssertFalse(relaunched.progress.isUnlocked(.ngaseuk))
+
+        relaunched.record(.narawas, outcome: .observed)
+        XCTAssertTrue(relaunched.newlyEarnedCards.isEmpty)
+        XCTAssertTrue(relaunched.progress.isUnlocked(.ngaseuk))
+    }
 }

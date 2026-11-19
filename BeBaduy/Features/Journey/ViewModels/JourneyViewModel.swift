@@ -19,6 +19,7 @@ import Observation
         progress.currentPhase = phase; persist()
     }
     private(set) var newlyEarnedCards: [ChapterCard] = []
+    private(set) var pendingMenuCycleReset = false
 
     var pendingCollectionCards: [ChapterCard] {
         ChapterCard.all.filter { $0.isEarned(in: progress) && !arrangedCollectionCardIDs.contains($0.imageName) }
@@ -50,9 +51,26 @@ import Observation
         guard progress.allComplete else { return }
         progress.journeyCompleted = true; persist()
     }
+    func completeCycleAndReturnToMenu() {
+        guard progress.allComplete else { return }
+        for card in ChapterCard.all where card.isEarned(in: progress) {
+            progress.earnedCardIDs.insert(card.imageName)
+        }
+        progress.phases = [:]
+        progress.currentPhase = .narawas
+        progress.journeyCompleted = false
+        pendingMenuCycleReset = true
+        persist()
+    }
+    func consumePendingMenuCycleReset() -> Bool {
+        guard pendingMenuCycleReset else { return false }
+        pendingMenuCycleReset = false
+        return true
+    }
     func finishIntroduction() { progress.introductionSeen = true; persist() }
     func restart() {
         newlyEarnedCards = []
+        pendingMenuCycleReset = false
         arrangedCollectionCardIDs = []
         store.saveArrangedCollectionCards([])
         progress = JourneyProgress()
