@@ -204,7 +204,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         .onChange(of: session.event) { _, _ in
             if let outcome = session.outcome {
                 journey.record(content.id, outcome: outcome)
-                advance()
+                if content.id != .ngaleuitkeunPare { advance() }
             }
         }
         .onChange(of: flow.screen) { _, value in
@@ -257,7 +257,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 }
             }.padding(.horizontal, 16)
             if session.outcome != nil {
-                completionCard
+                if content.id != .ngaleuitkeunPare { completionCard }
             } else if card.mode != .hidden || showsActiveControls {
                 ActivityCardLayout(placement: .middle) {
                     activity()

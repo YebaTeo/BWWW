@@ -75,6 +75,15 @@ struct NgaleuitkeunPareActivitySurface: View {
                     model.setEnteringProgress(1)
                 }
                 try await Task.sleep(for: .milliseconds(350))
+                if !reduceMotion {
+                    for frame in 0...18 {
+                        let t = Float(frame) / 18
+                        model.setDoorOpening(1 - t * t * (3 - 2 * t))
+                        try await Task.sleep(for: .milliseconds(16))
+                    }
+                } else {
+                    model.setDoorOpening(0)
+                }
                 guard !Task.isCancelled else { return }
                 model.finish()
             } catch { return }

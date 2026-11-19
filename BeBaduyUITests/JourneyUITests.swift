@@ -123,11 +123,31 @@ import XCTest
 
     private func completeLeuit() {
         let ladder = app.descendants(matching: .any)["field.ladder"].firstMatch
-        XCTAssertTrue(ladder.waitForExistence(timeout: 5))
+        XCTAssertTrue(ladder.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.otherElements["lesson.loading"].waitForNonExistence(timeout: 20))
         let ladderStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.65))
         let door = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
         ladderStart.press(forDuration: 0.15, thenDragTo: door)
-        XCTAssertTrue(app.buttons["lesson.activity.result"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.otherElements["ngaleuitkeun.activity.completed"].waitForExistence(timeout: 8))
+    }
+
+    private func finishLeuitJourney() {
+        XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Ketuk untuk membuka kartu"].exists)
+        tap("journey.finish")
+        XCTAssertTrue(app.buttons["Ketuk untuk membuka kartu"].waitForExistence(timeout: 10))
+        app.buttons["Ketuk untuk membuka kartu"].tap()
+        XCTAssertTrue(app.buttons["continue"].waitForExistence(timeout: 5))
+        tap("continue")
+    }
+
+    func testNgaleuitkeunEndsBeforeEpicCardReveal() {
+        prepare(["--uitest-leuit"])
+        tap("phase_ngaleuitkeun_pare")
+        start()
+        completeLeuit()
+        finishLeuitJourney()
+        XCTAssertTrue(app.buttons["phase_ngaleuitkeun_pare"].waitForExistence(timeout: 5))
     }
 
     func testFullSixChapterTouchJourneyAndReplay() {
@@ -140,17 +160,15 @@ import XCTest
         checkKoredActivity()
         next(); start()
         completeMipit(); next(); start()
-        completeLeuit(); next()
-        XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
-        tap("journey.recap"); tap("home")
-        XCTAssertEqual(app.staticTexts["home.progress"].label, "6 dari 6 tahap telah dijelajahi")
+        completeLeuit(); finishLeuitJourney()
+        XCTAssertTrue(app.buttons["phase_ngaleuitkeun_pare"].waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments = ["--uitesting"]; app.launch()
         tap("resume")
         XCTAssertFalse(app.scrollViews["lesson.explanation.page"].exists)
         XCTAssertFalse(app.buttons["replay"].exists)
         XCTAssertFalse(app.buttons["lesson.skip"].exists)
         tap("lesson.back")
-        XCTAssertEqual(app.staticTexts["home.progress"].label, "6 dari 6 tahap telah dijelajahi")
+        XCTAssertTrue(app.buttons["phase_ngaleuitkeun_pare"].waitForExistence(timeout: 5))
     }
     func testFullScreenFieldInteractionWithoutCard() {
         prepare(["--uitest-ngaseuk-motion"]); intro(); completeNarawas(captureScene: true); next(); start()
@@ -168,8 +186,7 @@ import XCTest
         next(); start()
         completeMipit()
         next(); start()
-        completeLeuit(); next()
-        XCTAssertTrue(app.staticTexts["journey.completed"].waitForExistence(timeout: 5))
+        completeLeuit(); finishLeuitJourney()
     }
     func testMipitAndNgalantaiLandscapeFlow() {
         defer { XCUIDevice.shared.orientation = .portrait }

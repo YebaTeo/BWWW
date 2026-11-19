@@ -96,10 +96,6 @@ struct HomeView: View {
                                         model.path = [.stage(next)]
                                         return
                                     }
-                                    if phase == .ngaleuitkeunPare, journey.progress.allComplete {
-                                        journey.finishJourney()
-                                        model.showsCompletion = true
-                                    }
                                     model.path = []
                                 }
                                 .toolbar(.hidden, for: .navigationBar)
@@ -108,7 +104,11 @@ struct HomeView: View {
                                 PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
                                     guard model.path.last == .activity(phase) else { return }
                                     loadingDestination = nil
-                                    model.path = [.transition(phase)]
+                                    if phase == .ngaleuitkeunPare {
+                                        model.path = []
+                                    } else {
+                                        model.path = [.transition(phase)]
+                                    }
                                 }
                                 .id(phase)
                                 .environment(\.navigationSceneReady, {
@@ -171,9 +171,6 @@ struct HomeView: View {
                     model.open(phase, journey: journey)
                     do { try await Task.sleep(for: .seconds(12)) } catch { return }
                     if loadingDestination == .activity(phase) { loadingDestination = nil }
-                }
-                .fullScreenCover(isPresented: $model.showsCompletion) {
-                    CompletionView(journey: journey) { model.showsCompletion = false }
                 }
             }
         }
@@ -547,9 +544,10 @@ private struct ChapterTransitionView: View {
     }
 }
 
-private struct ChapterRewardCard: View {
+struct ChapterRewardCard: View {
     let card: ChapterCard
     var alreadyOwned = false
+    var isPresented = true
     let continueJourney: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var glow = 0.0
@@ -575,7 +573,7 @@ private struct ChapterRewardCard: View {
                     }
                 }
                 .rotation3DEffect(.degrees(reduceMotion ? 0 : angle), axis: (0, 1, 0))
-                .scaleEffect(reduceMotion || emerging ? 1 : 1.45)
+                .scaleEffect(reduceMotion || emerging ? 1 : card == .epic ? 0.22 : 1.45)
                 .opacity(reduceMotion || emerging ? 1 : 0)
                 .background {
                     RadialGradient(colors: [.white, .yellow.opacity(0.9), .orange.opacity(0.4), .clear],
@@ -586,13 +584,14 @@ private struct ChapterRewardCard: View {
                         .accessibilityHidden(true)
                 }
                 .overlay {
-                    if !tapped {
+                    if isPresented && !tapped {
                         Button { tapped = true } label: { Color.clear.contentShape(Rectangle()) }
                             .accessibilityLabel("Ketuk untuk membuka kartu")
                     }
                 }
                 Spacer(minLength: 0)
-                LessonButton(title: "Ayo lanjut!", identifier: "continue", action: continueJourney)
+                LessonButton(title: card == .epic ? "Kembali ke menu" : "Ayo lanjut!",
+                             identifier: "continue", action: continueJourney)
                     .opacity(readable ? 1 : 0).disabled(!readable).accessibilityHidden(!readable)
                     .padding(.horizontal, 24)
             }
@@ -601,8 +600,13 @@ private struct ChapterRewardCard: View {
         }
         .foregroundStyle(.white)
         .background(.black.opacity(reduceMotion || emerging ? 0.52 : 0))
+        .task(id: isPresented) {
+            guard isPresented else { return }
+            if reduceMotion { emerging = true; return }
+            try? await Task.sleep(for: .milliseconds(50))
+            withAnimation(.spring(duration: 0.7, bounce: 0.08)) { emerging = true }
+        }
         .task(id: tapped) {
-            emerging = true
             guard tapped else { return }
             if reduceMotion { emerging = true; glow = 0; angle = 0; turned = true; readable = true; return }
             guard !readable else { return }
