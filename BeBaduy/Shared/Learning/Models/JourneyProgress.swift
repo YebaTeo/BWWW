@@ -7,6 +7,7 @@ struct PhaseProgress: Codable, Equatable {
     var outcome: ActivityOutcome? { performed ? .performed : observed ? .observed : nil }
 }
 struct JourneyProgress: Codable, Equatable {
+    var secondCycle = false
     var version = 3
     var introductionSeen = false
     var currentPhase: PhaseID = .narawas
@@ -15,7 +16,7 @@ struct JourneyProgress: Codable, Equatable {
     var earnedCardIDs: Set<String> = []
 
     private enum CodingKeys: String, CodingKey {
-        case version, introductionSeen, currentPhase, phases, journeyCompleted, earnedCardIDs
+        case secondCycle, version, introductionSeen, currentPhase, phases, journeyCompleted, earnedCardIDs
     }
 
     init() {}
@@ -28,6 +29,9 @@ struct JourneyProgress: Codable, Equatable {
         phases = try container.decode([String: PhaseProgress].self, forKey: .phases)
         journeyCompleted = try container.decode(Bool.self, forKey: .journeyCompleted)
         earnedCardIDs = try container.decodeIfPresent(Set<String>.self, forKey: .earnedCardIDs) ?? []
+        secondCycle = try container.decodeIfPresent(Bool.self, forKey: .secondCycle)
+            ?? (earnedCardIDs.contains(ChapterCard.epic.imageName) && !allComplete)
+
     }
 
     func record(for phase: PhaseID) -> PhaseProgress { phases[phase.rawValue] ?? PhaseProgress() }
@@ -39,10 +43,7 @@ struct JourneyProgress: Codable, Equatable {
         var entry = record(for: phase)
         if outcome == .performed { entry.performed = true } else { entry.observed = true }
         entry.explanationAvailable = true; phases[phase.rawValue] = entry
-        earnedCardIDs.insert(ChapterCard.chapter(phase).imageName)
-        if allComplete {
-            earnedCardIDs.insert(ChapterCard.epic.imageName)
-        }
+        earnedCardIDs.insert(ChapterCard.chapter(phase, secondCycle: secondCycle).imageName)
     }
     var allComplete: Bool { PhaseID.allCases.allSatisfy { record(for: $0).explanationAvailable } }
     var isValid: Bool {

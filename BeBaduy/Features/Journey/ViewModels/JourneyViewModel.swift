@@ -56,6 +56,7 @@ import Observation
         for card in ChapterCard.all where card.isEarned(in: progress) {
             progress.earnedCardIDs.insert(card.imageName)
         }
+        progress.secondCycle = true
         progress.phases = [:]
         progress.currentPhase = .narawas
         progress.journeyCompleted = false

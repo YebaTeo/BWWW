@@ -128,13 +128,13 @@ struct CardCollectionView: View {
         GeometryReader { geometry in
             let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
             VStack(alignment: .leading, spacing: 0) {
-                Image(card.imageName)
+                Image(card.artwork)
                     .resizable()
-                    .scaledToFill()
-                    .frame(width: geometry.size.width - 12, height: geometry.size.height * 0.63)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: geometry.size.width)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(height: geometry.size.width * 0.80, alignment: .top)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .padding(6)
                     .accessibilityHidden(true)
                 Text(card.title)
                     .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 16 : 14,
@@ -150,14 +150,14 @@ struct CardCollectionView: View {
             .background(CollectionCardPalette.paper, in: shape)
             .overlay(alignment: .bottomTrailing) {
                 UnevenRoundedRectangle(topLeadingRadius: 15, bottomTrailingRadius: 10)
-                    .fill(AppTheme.orange)
+                    .fill(card.isEpic ? Color.indigo : AppTheme.orange)
                     .frame(width: 39, height: 16)
                     .allowsHitTesting(false)
             }
             .clipShape(shape)
             .overlay {
                 shape.strokeBorder(
-                    isHighlighted ? Color(red: 1, green: 0.86, blue: 0.45) : AppTheme.orange,
+                    isHighlighted ? Color(red: 1, green: 0.86, blue: 0.45) : (card.isEpic ? .indigo : AppTheme.orange),
                     lineWidth: isHighlighted ? 2.5 : 1.5
                 )
             }
@@ -267,90 +267,34 @@ private struct CollectionCardDetails: View {
     let size: CGSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(card.imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: size.width - 18, height: size.height * 0.53)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding(9)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text(card.title)
-                    .font(.system(size: 23, weight: .bold, design: .rounded))
-                    .foregroundStyle(CollectionCardPalette.ink)
-                    .accessibilityAddTraits(.isHeader)
-                ViewThatFits(in: .vertical) {
-                    explanationText
-                        .fixedSize(horizontal: false, vertical: true)
-                    ScrollView {
-                        explanationText
-                    }
-                    .scrollIndicators(.hidden)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 18)
-        }
-        .frame(width: size.width, height: size.height)
-        .background(CollectionCardPalette.paper)
-        .overlay(alignment: .bottomTrailing) {
-            UnevenRoundedRectangle(topLeadingRadius: 24, bottomTrailingRadius: 18)
-                .fill(AppTheme.orange)
-                .frame(width: 74, height: 27)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-
-    private var explanationText: some View {
-        Text(card.explanation)
-            .font(.system(size: 15))
-            .foregroundStyle(Color(red: 0.25, green: 0.17, blue: 0.11))
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Image(card.artwork)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size.width, height: size.height)
+            .accessibilityLabel(card.title)
+            .accessibilityValue(card.explanation)
             .accessibilityIdentifier("collection.card.explanation")
     }
 }
 
 struct ChapterCardFace: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let card: ChapterCard
     let width: CGFloat
     var front = true
-    var compact = false
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 22)
-                .fill(.linearGradient(colors: card == .epic ? [.indigo, .black, .purple] : [.brown, .black], startPoint: .topLeading, endPoint: .bottomTrailing))
+        Group {
             if front {
-                VStack(spacing: 8) {
-                    Image(card.imageName)
-                        .resizable().scaledToFill()
-                        .frame(width: width - 24, height: width * (compact ? 0.65 : 0.32)).clipped()
-                        .accessibilityHidden(true)
-                    Text(card.title)
-                        .font(compact ? .headline : .title2.bold()).accessibilityAddTraits(.isHeader)
-                    if !compact {
-                        ScrollView {
-                            Text(card.explanation)
-                                .multilineTextAlignment(.center).padding(.horizontal)
-                        }
-                        .accessibilityIdentifier("lesson.explanation.page")
-                    }
-                }
-                .padding(.vertical)
+                CollectionCardDetails(card: card, size: CGSize(width: width, height: width * 4 / 3))
             } else {
-                Image(systemName: "leaf.fill").font(.largeTitle).foregroundStyle(.yellow)
+                Image("ToolRevealWeave")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: width, height: width * 4 / 3)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .accessibilityHidden(true)
             }
         }
-        .frame(width: width, height: width / (compact && dynamicTypeSize.isAccessibilitySize ? 0.58 : 0.7))
-        .overlay { RoundedRectangle(cornerRadius: 22).strokeBorder(
-            .linearGradient(colors: card == .epic ? [.cyan, .white, .purple, .yellow] : [.yellow, .white, .orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 3) }
         .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
-        .foregroundStyle(.white)
     }
 }

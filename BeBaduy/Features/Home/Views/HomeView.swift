@@ -528,7 +528,7 @@ private struct ChapterTransitionView: View {
                     }
                     .id(card.id)
                 } else {
-                    ChapterRewardCard(card: .chapter(phase), alreadyOwned: true) { showsInformation = false }
+                    ChapterRewardCard(card: .chapter(phase, secondCycle: journey.progress.secondCycle), alreadyOwned: true) { showsInformation = false }
                 }
             } else if !ready {
                 ReusableLoadingView(
@@ -601,7 +601,7 @@ struct ChapterRewardCard: View {
                     }
                 }
                 .rotation3DEffect(.degrees(reduceMotion ? 0 : angle), axis: (0, 1, 0))
-                .scaleEffect(reduceMotion || emerging ? 1 : card == .epic ? 0.22 : 1.45)
+                .scaleEffect(reduceMotion || emerging ? 1 : card.isEpic ? 0.22 : 1.45)
                 .opacity(reduceMotion || emerging ? 1 : 0)
                 .background {
                     RadialGradient(colors: [.white, .yellow.opacity(0.9), .orange.opacity(0.4), .clear],
@@ -618,7 +618,7 @@ struct ChapterRewardCard: View {
                     }
                 }
                 Spacer(minLength: 0)
-                LessonButton(title: card == .epic ? "Kembali ke menu" : "Ayo lanjut!",
+                LessonButton(title: card.isEpic ? "Kembali ke menu" : "Ayo lanjut!",
                              identifier: "continue", action: continueJourney)
                     .opacity(readable ? 1 : 0).disabled(!readable).accessibilityHidden(!readable)
                     .padding(.horizontal, 24)

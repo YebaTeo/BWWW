@@ -55,8 +55,9 @@ struct NgaleuitkeunPareView: View {
                 // The epic card is laid out while the summary is visible. The
                 // same SceneKit renderer continues under every finale state.
                 if finaleStep != .result {
-                    ChapterRewardCard(card: .epic,
-                                      alreadyOwned: !journey.newlyEarnedCards.contains(.epic),
+                    let reward = ChapterCard.chapter(.ngaleuitkeunPare, secondCycle: journey.progress.secondCycle)
+                    ChapterRewardCard(card: reward,
+                                      alreadyOwned: !journey.newlyEarnedCards.contains(reward),
                                       isPresented: finaleStep == .card) {
                         journey.completeCycleAndReturnToMenu()
                         advance()

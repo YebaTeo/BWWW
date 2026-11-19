@@ -17,7 +17,7 @@ final class JourneyTests: XCTestCase {
         let journey = JourneyViewModel(store: store)
         for phase in PhaseID.allCases {
             journey.record(phase, outcome: .observed)
-            XCTAssertEqual(journey.newlyEarnedCards, phase.next == nil ? [.chapter(phase), .epic] : [.chapter(phase)])
+            XCTAssertEqual(journey.newlyEarnedCards, phase.next == nil ? [.epic] : [.chapter(phase)])
             journey.record(phase, outcome: .performed)
             XCTAssertTrue(journey.newlyEarnedCards.isEmpty)
         }
@@ -184,18 +184,15 @@ final class JourneyTests: XCTestCase {
         XCTAssertTrue(journey.consumePendingMenuCycleReset())
         XCTAssertFalse(journey.consumePendingMenuCycleReset())
 
-        // All earned cards (including epic) remain in collection across relaunch and cycle 2 replay.
-        for card in ChapterCard.all {
-            XCTAssertTrue(card.isEarned(in: journey.progress))
-        }
         let relaunched = JourneyViewModel(store: store)
-        for card in ChapterCard.all {
-            XCTAssertTrue(card.isEarned(in: relaunched.progress))
+        let secondSet: [ChapterCard] = [.sengon, .pungpuhunan, .kolecer, .gaharu, .lantaian, .kematian]
+        XCTAssertEqual(ChapterCard.all.filter { $0.isEarned(in: relaunched.progress) }, PhaseID.allCases.map { .chapter($0) })
+        for (phase, reward) in zip(PhaseID.allCases, secondSet) {
+            relaunched.record(phase, outcome: .observed)
+            XCTAssertEqual(relaunched.newlyEarnedCards, [reward])
+            relaunched.record(phase, outcome: .performed)
+            XCTAssertTrue(relaunched.newlyEarnedCards.isEmpty)
         }
-        XCTAssertFalse(relaunched.progress.isUnlocked(.ngaseuk))
-
-        relaunched.record(.narawas, outcome: .observed)
-        XCTAssertTrue(relaunched.newlyEarnedCards.isEmpty)
-        XCTAssertTrue(relaunched.progress.isUnlocked(.ngaseuk))
+        XCTAssertTrue(ChapterCard.all.allSatisfy { $0.isEarned(in: relaunched.progress) })
     }
 }
