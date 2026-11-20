@@ -126,41 +126,12 @@ struct CardCollectionView: View {
 
     private func collectionTile(for card: ChapterCard, isHighlighted: Bool) -> some View {
         GeometryReader { geometry in
-            let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-            VStack(alignment: .leading, spacing: 0) {
-                Image(card.artwork)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: geometry.size.width)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(height: geometry.size.width * 0.80, alignment: .top)
-                    .clipped()
-                    .accessibilityHidden(true)
-                Text(card.title)
-                    .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 16 : 14,
-                                  weight: .bold, design: .rounded))
-                    .foregroundStyle(CollectionCardPalette.ink)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.75)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 6)
-                Spacer(minLength: 0)
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .background(CollectionCardPalette.paper, in: shape)
-            .overlay(alignment: .bottomTrailing) {
-                UnevenRoundedRectangle(topLeadingRadius: 15, bottomTrailingRadius: 10)
-                    .fill(card.isEpic ? Color.indigo : AppTheme.orange)
-                    .frame(width: 39, height: 16)
-                    .allowsHitTesting(false)
-            }
-            .clipShape(shape)
-            .overlay {
-                shape.strokeBorder(
-                    isHighlighted ? Color(red: 1, green: 0.86, blue: 0.45) : (card.isEpic ? .indigo : AppTheme.orange),
-                    lineWidth: isHighlighted ? 2.5 : 1.5
-                )
-            }
+            CollectionCardDetails(card: card, size: geometry.size, preview: true)
+                .overlay {
+                    if isHighlighted {
+                        RoundedRectangle(cornerRadius: 10).strokeBorder(.yellow, lineWidth: 2)
+                    }
+                }
             .shadow(color: isHighlighted ? AppTheme.orange.opacity(0.65) : .clear, radius: isHighlighted ? 12 : 0)
         }
         .aspectRatio(0.75, contentMode: .fit)
@@ -180,11 +151,6 @@ struct CardCollectionView: View {
             }
             .aspectRatio(0.75, contentMode: .fit)
     }
-}
-
-private enum CollectionCardPalette {
-    static let paper = Color(red: 1, green: 0.95, blue: 0.87)
-    static let ink = Color(red: 0.26, green: 0.14, blue: 0.08)
 }
 
 private struct CollectionSoilBackground: View {
@@ -266,14 +232,87 @@ private struct CollectionCardDetails: View {
     let card: ChapterCard
     let size: CGSize
 
+    var preview = false
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
-        Image(card.artwork)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size.width, height: size.height)
-            .accessibilityLabel(card.title)
-            .accessibilityValue(card.explanation)
-            .accessibilityIdentifier("collection.card.explanation")
+        let scale = size.width / 336
+        ZStack(alignment: .topLeading) {
+            Image(card.level == .epic ? "CardBaseEpic" : "CardBaseNormal")
+                .resizable()
+                .accessibilityHidden(true)
+            artwork
+                .frame(width: size.width, height: size.height, alignment: .top)
+                .mask(CardIllustrationWindow())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6 * scale) {
+                if preview {
+                    title
+                } else {
+                    ViewThatFits(in: .vertical) {
+                        detailText.fixedSize(horizontal: false, vertical: true)
+                        ScrollView { detailText }
+                            .scrollEdgeEffectHidden()
+                    }
+                }
+            }
+            .foregroundStyle(.black)
+            .padding(.horizontal, 18 * scale)
+            .padding(.top, size.height * 0.645)
+            .padding(.bottom, 12 * scale)
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    private var detailText: some View {
+        VStack(alignment: .leading, spacing: 6 * size.width / 336) {
+            title
+            Text(card.description)
+                .font(typeSize.isAccessibilitySize ? .body : .system(size: 16 * size.width / 336))
+                .accessibilityIdentifier("collection.card.explanation")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var title: some View {
+        Text(card.title)
+            .font(typeSize.isAccessibilitySize ? .headline : .system(size: max(13, size.width * 0.074), weight: .bold))
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder private var artwork: some View {
+        switch card {
+        case .lebu, .ngubaran, .pungpuhunan, .gaharu:
+            Image(card.artwork).resizable().scaledToFit()
+                .frame(width: size.width * (card == .lebu ? 0.87 : 0.67), height: size.height * 0.46)
+                .padding(.top, size.height * 0.10)
+        default:
+            Image(card.artwork).resizable().scaledToFill()
+                .frame(width: size.width, height: size.height * 0.61, alignment: .top)
+                .clipped()
+        }
+    }
+}
+
+// The window follows the two wavy edges of the supplied 336 × 447 base.
+private struct CardIllustrationWindow: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 1, y: 108))
+        func curve(_ x: CGFloat, _ y: CGFloat, _ a: CGPoint, _ b: CGPoint) {
+            path.addCurve(to: CGPoint(x: x, y: y), control1: a, control2: b)
+        }
+        curve(77, 47, .init(x: 24,y: 117), .init(x: 29,y: 48))
+        curve(148, 17, .init(x: 117,y: 47), .init(x: 132,y: 34))
+        curve(241, 36, .init(x: 178,y: 34), .init(x: 204,y: 48))
+        curve(335, 58, .init(x: 292,y: 22), .init(x: 308,y: 29))
+        path.addLine(to: CGPoint(x: 335,y: 212))
+        curve(245, 249, .init(x: 307,y: 217), .init(x: 295,y: 255))
+        curve(146, 268, .init(x: 204,y: 245), .init(x: 184,y: 269))
+        curve(54, 243, .init(x: 112,y: 267), .init(x: 79,y: 245))
+        curve(1, 257, .init(x: 34,y: 240), .init(x: 10,y: 245))
+        path.closeSubpath()
+        return path.applying(CGAffineTransform(scaleX: rect.width / 336, y: rect.height / 447))
     }
 }
 

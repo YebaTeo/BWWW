@@ -3,10 +3,19 @@ enum ChapterCard: String, CaseIterable, Hashable, Identifiable {
 
     case sengon, pungpuhunan, kolecer, gaharu, lantaian, kematian
 
-    var isEpic: Bool { phase == .ngaleuitkeunPare }
+    enum Level { case normal, epic }
+
+    var level: Level {
+        switch self {
+        case .epic, .kematian: .epic
+        default: .normal
+        }
+    }
+
+    var isEpic: Bool { level == .epic }
     var id: Self { self }
     static let all = allCases
-    var artwork: String { "Card-\(rawValue)" }
+    var artwork: String { self == .epic ? "Card-pernikahan" : "Card-\(rawValue)" }
 
     var title: String {
         switch self {
@@ -25,7 +34,7 @@ enum ChapterCard: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
-    var explanation: String {
+    var description: String {
         switch self {
         case .lebu: "Dipercaya sebagai pupuk alami yang dapat digunakan untuk menyuburkan tanah dan sesuai dengan penelitian modern."
         case .angklung: "Dimainkan saat perayaan tanam sebagai simbol pernikahan benih pare dan bumi, membawa kegembiraan bagi alam dan seluruh warga."
