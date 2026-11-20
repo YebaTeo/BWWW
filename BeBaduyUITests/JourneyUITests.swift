@@ -313,8 +313,8 @@ import XCTest
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
 
-    func testKoredSwipesAndThreeStrokes() {
-        prepare(["--uitest-ngored"]); tap("resume")
+    func testOneKoredSwipeUprootsWeed() {
+        prepare(["--uitest-ngored"]); tap("phase_ngored"); tap("resume")
         start()
         assertInformationCard(cue: "ngored.growth.begin")
         capture("Ngored-middle-instructions")
@@ -322,7 +322,7 @@ import XCTest
         XCTAssertFalse(app.buttons["ngored.growth.begin"].exists)
         XCTAssertFalse(app.buttons["lesson.activity.result"].exists)
         if app.buttons["ngored.field.begin"].exists { tap("ngored.field.begin") }
-        XCTAssertTrue(app.staticTexts["Usap gulma untuk menyapukan kored"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Usap sekali untuk mencabut gulma"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["weed_0"].exists)
         capture("Ngored-bottom-weeding")
         let visibleWeeds = (0..<4).filter {
@@ -373,16 +373,11 @@ import XCTest
     private func swipeWeed(_ index: Int) {
         let weed = app.descendants(matching: .any)["field.weed.\(index)"].firstMatch
         XCTAssertTrue(weed.waitForExistence(timeout: 30))
-        for stroke in 1...3 {
-            let frame = weed.frame
-            let origin = app.coordinate(withNormalizedOffset: .zero)
-            let start = origin.withOffset(CGVector(dx: frame.midX - 28, dy: frame.midY))
-            let end = origin.withOffset(CGVector(dx: frame.midX + 28, dy: frame.midY))
-            start.press(forDuration: 0.05, thenDragTo: end)
-            if stroke < 3 {
-                XCTAssertEqual(weed.value as? String, "\(stroke) dari 3 sapuan")
-            }
-        }
+        let frame = weed.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let start = origin.withOffset(CGVector(dx: frame.midX - 28, dy: frame.midY))
+        let end = origin.withOffset(CGVector(dx: frame.midX + 28, dy: frame.midY))
+        start.press(forDuration: 0.05, thenDragTo: end)
         XCTAssertTrue(weed.waitForNonExistence(timeout: 5))
     }
 

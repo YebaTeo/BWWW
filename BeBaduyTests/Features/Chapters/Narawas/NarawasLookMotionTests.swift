@@ -81,24 +81,38 @@ final class NarawasLookMotionTests: XCTestCase {
         model.setVisible(true)
         defer { model.setVisible(false) }
 
+        let referenceMotion = FakeMotion()
+        let narawas = NarawasViewModel(motion: referenceMotion)
+        narawas.start()
+        narawas.configureLookMotion(reduceMotion: false)
+        narawas.setVisible(true)
+        defer { narawas.setVisible(false) }
+        func feedBoth(_ sample: MotionSample) {
+            motion.handler?(sample)
+            referenceMotion.handler?(sample)
+        }
+
         let initial = model.scene.motionOrientation
         let pose = simd_quatd(angle: 1.2, axis: [1, 0, 0])
         let up = SIMD3<Double>(0, 0, 1)
         let gravity = pose.inverse.act(-up)
-        motion.handler?(.init(time: 0, verticalAcceleration: 0, gravity: gravity, attitude: pose.vector))
+        feedBoth(.init(time: 0, verticalAcceleration: 0, gravity: gravity, attitude: pose.vector))
         let pitch = simd_quatd(angle: 0.3, axis: [1, 0, 0]) * pose
-        motion.handler?(.init(time: 0.1, verticalAcceleration: 0, gravity: pitch.inverse.act(-up), attitude: pitch.vector))
+        feedBoth(.init(time: 0.1, verticalAcceleration: 0, gravity: pitch.inverse.act(-up), attitude: pitch.vector))
         XCTAssertEqual(abs(simd_dot(initial.vector, model.scene.motionOrientation.vector)), 1, accuracy: 0.001)
 
+        // Reconfiguring an active surface must preserve its calibrated pose.
+        model.configureLookMotion(reduceMotion: false)
         let turned = simd_quatd(angle: 0.2, axis: up) * pose
-        motion.handler?(.init(time: 0.2, verticalAcceleration: 0, gravity: gravity, attitude: turned.vector))
+        feedBoth(.init(time: 0.2, verticalAcceleration: 0, gravity: gravity, attitude: turned.vector))
         let change = initial.inverse * model.scene.motionOrientation
-        XCTAssertEqual(change.angle, 0.196, accuracy: 0.005)
+        XCTAssertGreaterThan(change.angle, 0.1)
+        XCTAssertEqual(change.angle, narawas.scene.motionOrientation.angle, accuracy: 0.001)
         XCTAssertEqual(change.imag.x, 0, accuracy: 0.001)
         XCTAssertEqual(change.imag.z, 0, accuracy: 0.001)
     }
 
-    @MainActor func testNgoredRecalibratesWhenSecondWeedingStarts() async throws {
+    @MainActor func testNgoredTracksMotionThroughBothCycles() async throws {
         let motion = FakeMotion()
         let model = NgoredViewModel(motion: motion)
         model.start()
@@ -111,31 +125,31 @@ final class NarawasLookMotionTests: XCTestCase {
         }
         XCTAssertEqual(model.step, .weeding)
         guard model.step == .weeding else { return }
-        motion.handler?(sample(0, simd_quatd(angle: 0, axis: [0, 1, 0])))
-        motion.handler?(sample(0.1, simd_quatd(angle: 0.3, axis: [0, 1, 0])))
-        let beforeCycle = model.scene.motionOrientation
-        let staleCallback = motion.handler
-
-        for weed in 0..<4 {
-            for _ in 0..<3 { model.remove(weed) }
+        func turn(_ time: Double, to angle: Double) {
+            motion.handler?(sample(time, simd_quatd(angle: angle, axis: [0, 1, 0])))
         }
-        model.observeRain()
-        model.finishRain()
-        XCTAssertEqual(model.step, .cycles)
+        turn(0, to: 0)
+        for targets in [0..<4, 4..<7] {
+            for weed in targets {
+                model.remove(weed)
+            }
+            let isFinal = targets.lowerBound == 4
+            let before = model.scene.motionOrientation
+            model.observeRain()
+            model.finishRain()
+            XCTAssertEqual(model.step, isFinal ? .finalCycles : .cycles)
+            model.scene.advanceNgoredDayNight(by: 6)
+            turn(isFinal ? 18 : 6, to: isFinal ? 0.6 : 0.2)
+            let during = model.scene.motionOrientation
+            XCTAssertGreaterThan((before.inverse * during).angle, 0.1)
+            model.scene.advanceNgoredDayNight(by: 6)
+            XCTAssertEqual(model.step, isFinal ? .complete : .secondWeeding)
+            if !isFinal {
+                turn(12, to: 0.4)
+                XCTAssertGreaterThan((during.inverse * model.scene.motionOrientation).angle, 0.1)
+            }
+        }
         XCTAssertNil(motion.handler)
-        staleCallback?(sample(0.2, simd_quatd(angle: 1, axis: [0, 1, 0])))
-        model.setVisible(false)
-        model.setVisible(true)
-        XCTAssertNil(motion.handler)
-        model.scene.advanceNgoredDayNight(by: 12)
-        XCTAssertEqual(model.step, .secondWeeding)
-        XCTAssertNotNil(motion.handler)
-
-        // The phone has moved during the animation. That pose is the new baseline.
-        motion.handler?(sample(12.2, simd_quatd(angle: 1.2, axis: [0, 1, 0])))
-        XCTAssertEqual(abs(simd_dot(beforeCycle.vector, model.scene.motionOrientation.vector)), 1, accuracy: 0.0001)
-        motion.handler?(sample(12.3, simd_quatd(angle: 1.4, axis: [0, 1, 0])))
-        XCTAssertEqual((beforeCycle.inverse * model.scene.motionOrientation).angle, 0.196, accuracy: 0.005)
     }
 
     @MainActor func testMissingSensorAndInterruptionKeepTouchAvailable() {

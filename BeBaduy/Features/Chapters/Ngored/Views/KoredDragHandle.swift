@@ -3,7 +3,7 @@ import UIKit
 
 /// Captures a field swipe in the same coordinate space as the projected weeds.
 struct KoredDragHandle: UIViewRepresentable {
-    let onSwipe: (CGPoint, CGPoint) -> Void
+    let onSwipe: (CGPoint, CGPoint) -> Bool
 
     func makeCoordinator() -> Coordinator { Coordinator(onSwipe: onSwipe) }
 
@@ -20,18 +20,25 @@ struct KoredDragHandle: UIViewRepresentable {
     }
 
     @MainActor final class Coordinator: NSObject {
-        var onSwipe: (CGPoint, CGPoint) -> Void
+        private var stroke = KoredStrokeTracker()
+        var onSwipe: (CGPoint, CGPoint) -> Bool
 
-        init(onSwipe: @escaping (CGPoint, CGPoint) -> Void) {
+        init(onSwipe: @escaping (CGPoint, CGPoint) -> Bool) {
             self.onSwipe = onSwipe
         }
 
         @objc func pan(_ gesture: UIPanGestureRecognizer) {
-            guard gesture.state == .ended else { return }
-            let end = gesture.location(in: gesture.view)
-            let delta = gesture.translation(in: gesture.view)
-            guard hypot(delta.x, delta.y) >= 18 else { return }
-            onSwipe(CGPoint(x: end.x - delta.x, y: end.y - delta.y), end)
+            let point = gesture.location(in: gesture.view)
+            switch gesture.state {
+            case .began:
+                let delta = gesture.translation(in: gesture.view)
+                stroke.begin(at: CGPoint(x: point.x - delta.x, y: point.y - delta.y))
+                fallthrough
+            case .changed, .ended:
+                stroke.move(to: point, hitTest: onSwipe)
+            default:
+                break
+            }
         }
     }
 }

@@ -39,7 +39,7 @@ struct NgoredActivityView: View {
             Text("Padi dan gulma mulai tumbuh di bawah hujan.")
         case .weeding:
             ActivityCardHeading("Pare mulai tumbuh!")
-            Text("Binih yang kamu tanam mulai tumbuh menjadi tanaman padi. Namun, rumput liar juga ikut tumbuh di sekitarnya.\n\nMari kita mulai bersihkan!\n\nUsap setiap gulma tiga kali untuk menyapukan kored.")
+            Text("Binih yang kamu tanam mulai tumbuh menjadi tanaman padi. Namun, rumput liar juga ikut tumbuh di sekitarnya.\n\nMari kita mulai bersihkan!\n\nUsap setiap gulma sekali untuk mencabutnya.")
         case .cleared:
             ActivityCardHeading("Hebat!")
             Text("Berkat bantuanmu membersihkan gulma, pare kini bisa tumbuh lebih baik. Sekarang, kita menunggu hujan datang!")

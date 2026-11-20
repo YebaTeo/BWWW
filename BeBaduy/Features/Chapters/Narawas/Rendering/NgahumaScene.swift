@@ -43,6 +43,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private let cameraNode = SCNNode()
 
     private let sunKeyLight = SCNLight()
+    private let sunLightNode = SCNNode()
     private let sunCoronaLight = SCNLight()
     private let skyAmbientLight = SCNLight()
     private let warmFillLight = SCNLight()
@@ -90,7 +91,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var treeEntries: [TreeEntry] = []
     private var ngoredWeedRoots: [SCNNode] = []
     private var ngoredWeedRestPositions: [SCNVector3] = []
-    private var ngoredWeedFragments: [Int: [SCNNode]] = [:]
     private var uprootedNgoredWeeds = Set<Int>()
     private var ngoredRiceRoots: [SCNNode] = []
     private var ngoredRainNodes: [SCNNode] = []
@@ -139,7 +139,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     private let soilY: Float = 0.038
     private static let arHalfTurn: Float = .pi / 2
-    private static let ngoredWeedAngles: [Float] = [1.20, 0.40, -0.40, -1.20, 0.95, 0, -0.95]
+    private static let ngoredWeedAngles: [Float] = [1.20, 0.40, -0.40, -1.20]
     private static let ngoredRiceAngles: [Float] = [0.80, 0, -0.80]
     private static let windActionKey = "vegetation.breeze"
 
@@ -396,7 +396,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunKeyLight.color = UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1)
         sunKeyLight.intensity = 155
         sunKeyLight.castsShadow = false
-        let sunLightNode = SCNNode()
         sunLightNode.light = sunKeyLight
         sunLightNode.position = .init(0, 0, 0)
         sunLightNode.look(at: SCNVector3(-sunPosition.x, soilY - sunPosition.y, -sunPosition.z))
@@ -883,12 +882,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func buildNgoredWeeds(using materials: NgahumaMaterials) {
-        ngoredWeedFragments.removeAll()
         ngoredWeedRoots.removeAll()
         ngoredWeedRestPositions.removeAll()
-        for (index, angle) in Self.ngoredWeedAngles.enumerated() {
-            let distance: Float = index < 4 ? 1.12 : 0.85
-            let center = SCNVector3(sin(angle) * distance, soilY, -cos(angle) * distance)
+        let firstRound = Self.ngoredWeedAngles.map { angle in
+            SCNVector3(sin(angle) * 1.12, soilY, -cos(angle) * 1.12)
+        }
+        let regrowth = [firstRound[0], firstRound[1], firstRound[3]]
+        for (index, center) in (firstRound + regrowth).enumerated() {
             let clump = SCNNode()
             clump.name = "ngoredWeed_\(index)"
             clump.isHidden = true
@@ -901,7 +901,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 addBlade(to: clump, base: base, height: 0.20 + Float(bladeIndex % 3) * 0.035,
                          width: 0.035, yaw: bladeAngle, mass: 0.18, response: 0.9,
                          tint: UIColor(red: 0.34, green: 0.50, blue: 0.17, alpha: 1),
-                         phase: Float(index * 7 + bladeIndex) * 0.31, materials: materials)
+                         phase: Float(index * 7 + bladeIndex) * 0.31, materials: materials, castsShadow: true)
             }
             ngoredWeedRoots.append(clump)
             ngoredWeedRestPositions.append(center)
@@ -966,7 +966,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         ngoredCycleFrame = nil
         ngoredCycleCompletion = nil
         guard cycles > 0, duration > 0 else { completion(); return }
-        sunSystemRoot.removeAction(forKey: "ngoredDayHold")
         ngoredMoonRoot?.removeAction(forKey: "ngoredMoonSet")
         ngoredCycleElapsed = 0
         ngoredCycleDuration = duration
@@ -980,16 +979,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let cycle = min(cycles - 1, Int(elapsed / cycleDuration))
             let localProgress = Float(min(1, (elapsed - Double(cycle) * cycleDuration) / cycleDuration))
             let isDay = localProgress < 0.5
+            if self.sunKeyLight.castsShadow != isDay { self.sunKeyLight.castsShadow = isDay }
             let objectProgress = isDay ? localProgress * 2 : (localProgress - 0.5) * 2
-            let arcX = -3.5 + objectProgress * 7
-            // Keep the bodies above the panoramic mountain cylinder while
-            // preserving the distant, behind-the-landscape placement.
-            let arcY = self.soilY + 7.0 + sin(objectProgress * .pi) * 2.8
-            // Place bodies beyond the mountain cylinder so the ridge can
-            // occlude them as in Home's layered sky.
-            let arcZ: Float = -15.5
-            self.sunSystemRoot.position = SCNVector3(arcX, arcY, arcZ)
-            self.sunSystemRoot.look(at: SCNVector3(0, self.soilY, 0))
+            let position = self.positionNgoredSun(at: objectProgress)
             let daylight = isDay ? 1 - abs(objectProgress - 0.5) * 0.32 : 0
             let nightfall = isDay ? 0 : 1 - abs(objectProgress - 0.5) * 0.32
             self.sunKeyLight.intensity = CGFloat(4 + 145 * daylight)
@@ -998,7 +990,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 UIColor(red: 1.0, green: 0.91, blue: 0.72, alpha: 1),
                 daylight
             )
-            moon?.position = SCNVector3(arcX, arcY, -15.2)
+            moon?.position = position
             moon?.look(at: SCNVector3(0, self.soilY, 0))
             moon?.opacity = CGFloat(isDay ? 0 : 1)
             self.skyAmbientLight.intensity = CGFloat(8 + 57 * daylight + 5 * nightfall)
@@ -1007,8 +999,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1),
                 daylight
             )
-            self.sunDiskMaterial?.transparency = CGFloat(0.12 + daylight * 0.88)
-            self.sunHaloMaterial?.transparency = CGFloat(0.06 + daylight * 0.94)
+            self.sunDiskMaterial?.transparency = CGFloat(daylight)
+            self.sunHaloMaterial?.transparency = CGFloat(daylight)
             let daySky = SIMD3<Float>(0.84, 0.88, 0.92)
             let nightSky = SIMD3<Float>(0.10, 0.13, 0.24)
             let skyColor = simd_mix(nightSky, daySky, SIMD3<Float>(repeating: daylight))
@@ -1046,17 +1038,27 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
+    // A world-space arc above the first rice clump, within the fixed camera pitch.
+    @discardableResult
+    private func positionNgoredSun(at progress: Float) -> SCNVector3 {
+        let heading = Self.ngoredRiceAngles[0] + (progress - 0.5) * 0.24
+        let distance: Float = 15.5
+        let position = SCNVector3(sin(heading) * distance,
+                                  soilY + 3.25 + sin(progress * .pi) * 0.65,
+                                  -cos(heading) * distance)
+        sunSystemRoot.position = position
+        sunSystemRoot.look(at: SCNVector3(0, soilY, 0))
+        return position
+    }
+
     func presentNgoredDaytime() {
         ngoredCycleFrame = nil
         ngoredCycleCompletion = nil
-        let overhead = SCNVector3(0, soilY + 8.0, -15.5)
-        let settle = SCNAction.move(to: overhead, duration: reduceMotion ? 0.05 : 1.4)
-        settle.timingMode = .easeInEaseOut
-        sunSystemRoot.runAction(settle, forKey: "ngoredDayHold")
+        positionNgoredSun(at: 0)
         ngoredMoonRoot?.runAction(.fadeOut(duration: reduceMotion ? 0.05 : 0.8), forKey: "ngoredMoonSet")
         sunDiskMaterial?.transparency = 1
         sunHaloMaterial?.transparency = 1
-        sunSystemRoot.look(at: SCNVector3(0, soilY, 0))
+        sunKeyLight.castsShadow = true
         sunKeyLight.intensity = 149
         skyAmbientLight.intensity = 65
         groundMaterial?.multiply.contents = UIColor.white
@@ -1109,6 +1111,30 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let entry = treeEntries[index]
         let localCut = SCNVector3(entry.worldBasePosition.x, soilY + entry.pivotOrigin.y + 0.08, entry.worldBasePosition.z)
         let world = worldRoot.convertPosition(localCut, to: nil)
+        return projectVisiblePoint(world, in: view, bounds: view.bounds)
+    }
+
+    func projectedNgoredWeedPoint(at index: Int) -> CGPoint? {
+        guard let view, ngoredWeedRoots.indices.contains(index) else { return nil }
+        let world = ngoredWeedRoots[index].convertPosition(SCNVector3(0, 0.08, 0), to: nil)
+        let bounds = view.bounds.inset(by: UIEdgeInsets(top: 75, left: 24, bottom: 45, right: 24))
+        return projectVisiblePoint(world, in: view, bounds: bounds)
+    }
+
+    /// Cover the visible blades from soil to tip, with room for a fingertip.
+    func ngoredWeedHitArea(at index: Int) -> CGRect? {
+        guard let view, ngoredWeedRoots.indices.contains(index) else { return nil }
+        let weed = ngoredWeedRoots[index].presentation
+        let base = view.projectPoint(weed.worldPosition)
+        let tip = view.projectPoint(weed.convertPosition(SCNVector3(0, 0.27, 0), to: nil))
+        guard base.z > 0, base.z < 1, tip.z > 0, tip.z < 1 else { return nil }
+        let area = CGRect(x: CGFloat(min(tip.x, base.x)), y: CGFloat(min(tip.y, base.y)),
+                          width: CGFloat(abs(tip.x - base.x)), height: CGFloat(abs(tip.y - base.y)))
+            .insetBy(dx: -42, dy: -20)
+        return view.bounds.intersects(area) ? area : nil
+    }
+
+    private func projectVisiblePoint(_ world: SCNVector3, in view: SCNView, bounds: CGRect) -> CGPoint? {
         let camPos = simd_make_float3(cameraNode.simdWorldTransform.columns.3)
         let camForward = -simd_make_float3(cameraNode.simdWorldTransform.columns.2)
         let worldPos = simd_make_float3(Float(world.x), Float(world.y), Float(world.z))
@@ -1117,48 +1143,21 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         guard simd_dot(simd_normalize(camForward), simd_normalize(toNode)) > 0.25 else { return nil }
         let projected = view.projectPoint(world)
         guard projected.z > 0.0 && projected.z < 1.0 else { return nil }
-        let x = CGFloat(projected.x)
-        let y = CGFloat(projected.y)
-        guard x >= 0, x <= view.bounds.width, y >= 0, y <= view.bounds.height else { return nil }
-        return CGPoint(x: x, y: y)
-    }
-
-    func projectedNgoredWeedPoints(height: Float = 0.08) -> [CGPoint] {
-        guard let view else { return [] }
-        let camPos = simd_make_float3(cameraNode.simdWorldTransform.columns.3)
-        let camForward = -simd_make_float3(cameraNode.simdWorldTransform.columns.2)
-        let viewW = Float(view.bounds.width)
-        let viewH = Float(view.bounds.height)
-
-        return ngoredWeedRoots.map { node in
-            let world = node.convertPosition(SCNVector3(0, height, 0), to: nil)
-            let worldPos = simd_make_float3(Float(world.x), Float(world.y), Float(world.z))
-            let toNode = worldPos - camPos
-            let forwardDot = simd_dot(simd_normalize(camForward), simd_normalize(toNode))
-
-            // Only weeds clearly in front of the camera (never behind or at inverted angles)
-            guard forwardDot > 0.25 else {
-                return CGPoint(x: -9999, y: -9999)
-            }
-
-            let projected = view.projectPoint(world)
-            // Normalized depth must lie between near and far clipping planes
-            guard projected.z > 0.0 && projected.z < 1.0 else {
-                return CGPoint(x: -9999, y: -9999)
-            }
-
-            // Must be within visible screen bounds on the ground
-            guard projected.x >= 24 && projected.x <= viewW - 24 &&
-                  projected.y >= 75 && projected.y <= viewH - 45 else {
-                return CGPoint(x: -9999, y: -9999)
-            }
-
-            return CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
-        }
+        let point = CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
+        return bounds.contains(point) ? point : nil
     }
 
     private func buildNgoredRice(using materials: NgahumaMaterials) {
         ngoredRiceRoots.removeAll()
+        let glowMaterial = SCNMaterial()
+        glowMaterial.lightingModel = .constant
+        glowMaterial.diffuse.contents = materials.sunSkyGlowSprite
+        glowMaterial.multiply.contents = UIColor(red: 1, green: 0.84, blue: 0.42, alpha: 1)
+        glowMaterial.blendMode = .add
+        glowMaterial.writesToDepthBuffer = false
+        let glowPlane = SCNPlane(width: 0.30, height: 0.24)
+        glowPlane.materials = [glowMaterial]
+
         for (index, angle) in Self.ngoredRiceAngles.enumerated() {
             // Place each padi plant between adjacent cuttable weeds.
             // Keep rice between the first four weeds in the forward half of the field.
@@ -1167,6 +1166,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let plant = HomeSceneRenderer.makeNgoredTransitionRicePlant()
             plant.name = "ngoredRice_\(index)"
             plant.position = base
+            let glow = SCNNode(geometry: glowPlane)
+            glow.name = "ngoredRiceGlow"
+            glow.position.y = 0.10
+            glow.castsShadow = false
+            glow.constraints = [SCNBillboardConstraint()]
+            // Inherit the leaves' fade as the rice emerges.
+            plant.childNode(withName: "homeRiceLeaves", recursively: false)?.addChildNode(glow)
             let plantingPoint = SCNNode()
             plantingPoint.name = "ngoredPlantingPoint"
             plantingPoint.addChildNode(HomeSceneRenderer.makePlantingHoleNode(homePreview: true))
@@ -1311,100 +1317,33 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    func animateNgoredWeedStrike(_ index: Int, stroke: Int, uprooted: Bool) {
+    func uprootNgoredWeed(_ index: Int) {
         guard ngoredWeedRoots.indices.contains(index) else { return }
         let clump = ngoredWeedRoots[index]
-        let position = clump.presentation.position
-        let rotation = clump.presentation.eulerAngles
-        clump.removeAction(forKey: "ngoredStrike")
-        clump.position = position
-        clump.eulerAngles = rotation
+        uprootedNgoredWeeds.insert(index)
         let rest = ngoredWeedRestPositions[index]
         let right = cameraNode.simdWorldTransform.columns.0
         let pushed = SCNVector3(rest.x + right.x * 0.07, rest.y + 0.012, rest.z + right.z * 0.07)
 
-        // The first two sweeps pull individual blades from this exact clump.
-        // The remaining rooted blades leave together on the third sweep.
-        if stroke == 1 || stroke == 2 {
-            let firstBlade = (stroke - 1) * 2
-            for bladeIndex in firstBlade..<min(firstBlade + 2, clump.childNodes.count) {
-                let blade = clump.childNodes[bladeIndex]
-                let worldTransform = blade.presentation.simdWorldTransform
-                let fragment = blade.clone()
-                fragment.removeAllActions()
-                fragment.name = "ngoredWeedFragment_\(index)_\(stroke)_\(bladeIndex)"
-                worldRoot.addChildNode(fragment)
-                fragment.simdWorldTransform = worldTransform
-                blade.isHidden = true
-                ngoredWeedFragments[index, default: []].append(fragment)
-
-                let spread = Float(bladeIndex % 2 == 0 ? 1 : -1) * 0.045
-                let landed = SCNVector3(
-                    rest.x + right.x * (0.14 + spread),
-                    rest.y + 0.012,
-                    rest.z + right.z * (0.14 + spread)
-                )
-                if reduceMotion {
-                    fragment.position = landed
-                    fragment.eulerAngles.z += 0.8
-                } else {
-                    let lift = SCNAction.move(to: SCNVector3(fragment.position.x,
-                                                              fragment.position.y + 0.12,
-                                                              fragment.position.z), duration: 0.16)
-                    lift.timingMode = .easeOut
-                    let fall = SCNAction.group([
-                        .move(to: landed, duration: 0.30),
-                        .rotateBy(x: 0.55, y: 0.12, z: 0.85, duration: 0.30)
-                    ])
-                    fall.timingMode = .easeIn
-                    fragment.runAction(.sequence([lift, fall]), forKey: "weedFragmentFall")
-                }
-            }
-        }
-
         if reduceMotion {
-            if uprooted {
-                uprootedNgoredWeeds.insert(index)
-                clump.position = pushed
-                clump.eulerAngles = SCNVector3(0.8, 0.3, index.isMultiple(of: 2) ? 1.1 : -1.1)
-            } else {
-                clump.position = rest
-                clump.eulerAngles = SCNVector3Zero
-            }
+            clump.position = pushed
+            clump.eulerAngles = SCNVector3(0.8, 0.3, index.isMultiple(of: 2) ? 1.1 : -1.1)
             return
         }
 
-        if uprooted {
-            // Keep the uprooted clump visible on the soil until the rain arrives.
-            uprootedNgoredWeeds.insert(index)
-            let lift = SCNAction.move(to: SCNVector3(pushed.x, rest.y + 0.18, pushed.z), duration: 0.22)
-            lift.timingMode = .easeOut
-            let tip = SCNAction.rotateTo(x: 0.35, y: 0.12, z: 0.5, duration: 0.22)
-            let land = SCNAction.move(to: SCNVector3(rest.x + right.x * 0.19, rest.y + 0.02, rest.z + right.z * 0.19), duration: 0.28)
-            land.timingMode = .easeIn
-            let topple = SCNAction.rotateTo(x: 0.8, y: 0.3, z: 1.1, duration: 0.28)
-            clump.runAction(.sequence([
-                .group([lift, tip]), .group([land, topple]),
-            ]), forKey: "ngoredStrike")
-        } else {
-            let push = SCNAction.move(to: pushed, duration: 0.10)
-            let bend = SCNAction.rotateTo(x: 0.28, y: 0, z: 0.38, duration: 0.10)
-            let recover = SCNAction.group([
-                .move(to: rest, duration: 0.26),
-                .rotateTo(x: 0, y: 0, z: 0, duration: 0.26)
-            ])
-            recover.timingMode = .easeOut
-            clump.runAction(.sequence([.group([push, bend]), recover]), forKey: "ngoredStrike")
-        }
+        let lift = SCNAction.move(to: SCNVector3(pushed.x, rest.y + 0.18, pushed.z), duration: 0.22)
+        lift.timingMode = .easeOut
+        let tip = SCNAction.rotateTo(x: 0.35, y: 0.12, z: 0.5, duration: 0.22)
+        let land = SCNAction.move(to: SCNVector3(rest.x + right.x * 0.19, rest.y + 0.02, rest.z + right.z * 0.19), duration: 0.28)
+        land.timingMode = .easeIn
+        let topple = SCNAction.rotateTo(x: 0.8, y: 0.3, z: 1.1, duration: 0.28)
+        clump.runAction(.sequence([
+            .group([lift, tip]), .group([land, topple]),
+        ]), forKey: "ngoredStrike")
     }
 
     func restoreNgoredWeeds() {
         uprootedNgoredWeeds.removeAll()
-        for fragment in ngoredWeedFragments.values.flatMap({ $0 }) {
-            fragment.removeAllActions()
-            fragment.removeFromParentNode()
-        }
-        ngoredWeedFragments.removeAll()
         for (index, clump) in ngoredWeedRoots.enumerated() {
             clump.removeAction(forKey: "ngoredStrike")
             clump.removeAction(forKey: "rainDissolve")
@@ -1425,15 +1364,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let fade = SCNAction.fadeOut(duration: reduceMotion ? 0.08 : 1.4)
             let hide = SCNAction.run { node in node.isHidden = true }
             clump.runAction(.sequence([.wait(duration: Double(index) * 0.28), fade, hide]), forKey: "rainDissolve")
-        }
-        for (index, fragments) in ngoredWeedFragments {
-            for fragment in fragments {
-                fragment.removeAction(forKey: "weedFragmentFall")
-                let fade = SCNAction.fadeOut(duration: reduceMotion ? 0.08 : 1.4)
-                fragment.runAction(.sequence([
-                    .wait(duration: Double(index % 4) * 0.2), fade, .removeFromParentNode()
-                ]), forKey: "rainDissolve")
-            }
         }
         uprootedNgoredWeeds.removeAll()
     }
@@ -1474,7 +1404,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         response: Float,
         tint: UIColor,
         phase: Float,
-        materials: NgahumaMaterials
+        materials: NgahumaMaterials,
+        castsShadow: Bool = false
     ) -> SCNMaterial {
         let material = bladeMaterial(using: materials)
         let arch = height * (0.20 + response * 0.05)
@@ -1490,7 +1421,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         pivot.name = "blade"
         pivot.position = base
         pivot.eulerAngles.y = yaw
-        pivot.castsShadow = false
+        pivot.castsShadow = castsShadow
         root.addChildNode(pivot)
 
         let blade = Blade(
@@ -2016,7 +1947,16 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func focusNgoredRice() {
         // The first rice clump is on the right side of the forward field.
-        motionOrientation = simd_quatf(angle: -Self.ngoredRiceAngles[0], axis: [0, 1, 0])
+        focusNgored(at: Self.ngoredRiceAngles[0])
+    }
+
+    func frameNgoredWeedingWithoutMotion() {
+        // Show both the rice and its neighboring weed on a stationary phone.
+        focusNgored(at: (Self.ngoredRiceAngles[0] + Self.ngoredWeedAngles[1]) / 2)
+    }
+
+    private func focusNgored(at angle: Float) {
+        motionOrientation = simd_quatf(angle: -angle, axis: [0, 1, 0])
         resetHeading()
         updatePreviewCamera(fixedPosition: true)
         updateVisibleTargetFeedback()
@@ -2085,7 +2025,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func updatePreviewCamera(fixedPosition: Bool = false) {
-        let downwardPitch: Float = ngoredFieldPresented ? -0.25 : -0.14
+        let downwardPitch: Float = ngoredFieldPresented ? -0.18 : -0.14
         cameraNode.simdOrientation = motionOrientation * simd_quatf(angle: downwardPitch, axis: [1, 0, 0])
 
         let forward = motionOrientation.act(SIMD3<Float>(0, 0, -1))
@@ -2519,8 +2459,19 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         groundMaterial?.multiply.contents = UIColor.white
         // Begin in daylight with the sun already visible at the start of its
         // left-to-right overhead path, instead of rising from behind the ridge.
-        sunSystemRoot.position = SCNVector3(-3.5, soilY + 7.0, -15.5)
-        sunSystemRoot.look(at: SCNVector3(0, soilY, 0))
+        cameraNode.camera?.projectionDirection = .vertical
+        cameraNode.camera?.fieldOfView = 60
+        mountainLayerRoot.scale.y = 0.56
+        sunLightNode.simdOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
+        sunKeyLight.castsShadow = true
+        sunKeyLight.shadowMode = .deferred
+        sunKeyLight.shadowColor = UIColor(white: 0.05, alpha: 0.48)
+        sunKeyLight.automaticallyAdjustsShadowProjection = false
+        sunKeyLight.orthographicScale = 3
+        sunKeyLight.zNear = 10
+        sunKeyLight.zFar = 22
+        sunKeyLight.shadowMapSize = CGSize(width: 1024, height: 1024)
+        positionNgoredSun(at: 0)
         sunDiskMaterial?.transparency = 1
         sunHaloMaterial?.transparency = 1
         ngoredMoonRoot?.opacity = 0

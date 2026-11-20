@@ -6,18 +6,16 @@ import Foundation
         case secondWeeding, secondCleared, finalRain, finalCycles, complete
     }
     let scene = NgahumaScene()
-    private let motion: (any MotionProviding)?
-    @ObservationIgnored private var lookMotion = NarawasLookMotion()
+    private let lookSession: FieldLookSession
     private var visible = false
     private var initialRainStartedAt = Date()
     private var initialRainPending = false
     private var initialRainRunning = false
     private var motionAllowed = true
-    var needsTouchTargets: Bool { !motionAllowed || motion?.available != true }
-    private var motionGeneration = 0
+    var needsTouchTargets: Bool { !motionAllowed || !lookSession.isAvailable }
 
     init(motion: (any MotionProviding)? = nil) {
-        self.motion = motion
+        lookSession = FieldLookSession(motion: motion, scene: scene)
         scene.activeWeedTargets = { [weak self] in
             guard let self, self.session.isActive, !self.isDemonstrating else { return 0..<0 }
             switch self.step {
@@ -42,28 +40,18 @@ import Foundation
     }
 
     private func updateLookMotion() {
-        stopLookMotion()
-        guard visible, motionAllowed, session.isActive,
-              let motion, motion.available else { return }
-        lookMotion.reset()
-        scene.beginMotionLook()
-        let generation = motionGeneration
-        motion.start { [weak self] sample in
-            guard let self, self.motionGeneration == generation, let sample else { return }
-            if let rotation = self.lookMotion.consume(sample) { self.scene.applyMotionLook(rotation, fixedPosition: true) }
+        guard visible, motionAllowed, session.isActive else {
+            lookSession.stop()
+            return
         }
-    }
-
-    private func stopLookMotion() {
-        scene.clearLookEdge()
-        motionGeneration += 1
-        motion?.stop()
+        lookSession.start { [weak self] in
+            self?.motionAllowed = false
+        }
     }
 
     var session = PhaseSessionState()
     private(set) var removed: Set<Int> = []
     private(set) var lastRemoved: Int?
-    private(set) var strokes: [Int: Int] = [:]
     private(set) var step: Step = .initialRain
     private(set) var isDemonstrating = false
     private var usedDemo = false
@@ -72,7 +60,6 @@ import Foundation
     func start() {
         suspend()
         removed = []
-        strokes = [:]
         lastRemoved = nil
         usedDemo = false
         step = .initialRain
@@ -116,6 +103,7 @@ import Foundation
             guard let self, !Task.isCancelled, self.session.isActive else { return }
             self.scene.setNgoredRain(false)
             ActivityAudio.shared.stop()
+            if self.needsTouchTargets { self.scene.frameNgoredWeedingWithoutMotion() }
             self.step = .weeding
             self.task = nil
         }
@@ -153,14 +141,9 @@ import Foundation
         let secondRound = step == .secondWeeding
         let targets = secondRound ? 4..<7 : 0..<4
         guard targets.contains(target) else { session.feedback = "Ini padi. Bersihkan gulma di sekitarnya."; return }
-        guard !removed.contains(target) else { return }
-        strokes[target, default: 0] += 1
-        let uprooted = strokes[target] == 3
-        scene.animateNgoredWeedStrike(target, stroke: strokes[target] ?? 0, uprooted: uprooted)
+        guard removed.insert(target).inserted else { return }
+        scene.uprootNgoredWeed(target)
         ActivityAudio.shared.play(.weed)
-        session.feedback = "Gulma \(target + 1): \(strokes[target] ?? 0)/3 sapuan."
-        guard strokes[target] == 3 else { return }
-        removed.insert(target)
         lastRemoved = target
         let removedThisRound = targets.filter { removed.contains($0) }.count
         session.feedback = "\(removedThisRound) dari \(targets.count) gulma disingkirkan."
@@ -209,7 +192,6 @@ import Foundation
             self.scene.presentNgoredDaytime()
             self.removed.formUnion(0..<4)
             self.step = .secondWeeding
-            self.updateLookMotion()
         }
     }
 
@@ -218,6 +200,7 @@ import Foundation
         scene.animateNgoredDayNight(cycles: 3, duration: 12, growthFrom: 0.5, growthTo: 1) { [weak self] in
             guard let self, self.session.isActive else { return }
             self.step = .complete
+            self.lookSession.stop()
             self.session.finish(self.usedDemo ? .observed : .performed)
         }
     }
@@ -242,7 +225,7 @@ import Foundation
     }
 
     func suspend() {
-        stopLookMotion()
+        lookSession.stop()
         scene.setSuspended(true)
         ActivityAudio.shared.stop()
         task?.cancel()
@@ -261,21 +244,15 @@ import Foundation
             guard let self else { return }
             guard await self.waitFor(.weeding) else { return }
             for index in 0..<4 {
-                for _ in 0..<3 {
-                    do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-                    guard !Task.isCancelled else { return }
-                    self.remove(index)
-                }
+                do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+                self.remove(index)
             }
             guard await self.waitFor(.cleared) else { return }
             self.observeRain()
             guard await self.waitFor(.secondWeeding) else { return }
             for index in 4..<7 {
-                for _ in 0..<3 {
-                    do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-                    guard !Task.isCancelled else { return }
-                    self.remove(index)
-                }
+                do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+                self.remove(index)
             }
             guard await self.waitFor(.secondCleared) else { return }
             self.observeRain()

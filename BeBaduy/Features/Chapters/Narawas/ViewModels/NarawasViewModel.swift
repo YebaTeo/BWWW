@@ -19,18 +19,16 @@ import Foundation
 
     func setHelpVisible(_ value: Bool) {
         helpVisible = value
-        if value { stopLookMotion() } else { startLookMotion() }
+        if value { lookSession.stop() } else { startLookMotion() }
     }
     private var usedDemo = false
-    private let motion: (any MotionProviding)?
-    private var lookMotion = NarawasLookMotion()
-    private var motionGeneration = 0
+    private let lookSession: FieldLookSession
     private var motionConfigured = false
     private(set) var motionEnabled = true
-    private(set) var motionActive = false
+    var motionActive: Bool { lookSession.isActive }
     private(set) var motionMessage = ""
     init(motion: (any MotionProviding)? = nil) {
-        self.motion = motion
+        lookSession = FieldLookSession(motion: motion, scene: scene)
         scene.activityStage = { [weak self] in self?.stage ?? .entering }
         scene.onReady = { [weak self] in
             guard let self, self.stage == .entering else { return }
@@ -107,45 +105,31 @@ import Foundation
 
     func restore(_ outcome: ActivityOutcome?) { session.restore(outcome) }
     func setVisible(_ value: Bool) { visible = value; if !value { suspend() } else { scene.setSuspended(false); startLookMotion() } }
-    func suspend() { stopLookMotion(); demoTask?.cancel(); demoTask = nil; isDemonstrating = false; scene.setSuspended(true) }
+    func suspend() { lookSession.stop(); demoTask?.cancel(); demoTask = nil; isDemonstrating = false; scene.setSuspended(true) }
     func configureLookMotion(reduceMotion: Bool) {
         scene.reduceMotion = reduceMotion
         if !motionConfigured { motionEnabled = !reduceMotion; motionConfigured = true }
-        if reduceMotion { motionEnabled = false; stopLookMotion() }
+        if reduceMotion { motionEnabled = false; lookSession.stop() }
         else { startLookMotion() }
     }
     func toggleLookMotion() {
         motionEnabled.toggle()
-        if motionEnabled { startLookMotion() } else { stopLookMotion() }
+        if motionEnabled { startLookMotion() } else { lookSession.stop() }
     }
     func recenterLook() {
-        stopLookMotion(); scene.recenterLook(); startLookMotion()
+        lookSession.stop(); scene.recenterLook(); startLookMotion()
     }
     private func startLookMotion() {
         guard motionConfigured, motionEnabled, visible, !helpVisible, session.isActive, !motionActive else { return }
-        guard let motion, motion.available else {
+        guard lookSession.isAvailable else {
             motionMessage = "Arahkan ponsel ke kiri dan kanan untuk melihat sekeliling."
             return
         }
-        lookMotion.reset(); scene.beginMotionLook(); motionMessage = ""; motionActive = true
-        motionGeneration += 1
-        let generation = motionGeneration
-        motion.start { [weak self] sample in
-            guard let self, self.motionActive, self.motionGeneration == generation else { return }
-            guard let sample, sample.attitude != nil else {
-                self.stopLookMotion()
-                self.motionMessage = "Gerakan dijeda. Aktifkan gerakan lagi untuk melihat sekeliling."
-                self.motionEnabled = false
-                return
-            }
-            if let rotation = self.lookMotion.consume(sample) { self.scene.applyMotionLook(rotation, fixedPosition: true) }
+        motionMessage = ""
+        lookSession.start { [weak self] in
+            self?.motionMessage = "Gerakan dijeda. Aktifkan gerakan lagi untuk melihat sekeliling."
+            self?.motionEnabled = false
         }
-    }
-    private func stopLookMotion() {
-        scene.clearLookEdge()
-        motionGeneration += 1
-        if motionActive { motion?.stop() }
-        motionActive = false; lookMotion.reset()
     }
     func demonstrate() {
         guard session.isActive, visible, stage != .entering, stage != .complete else { return }

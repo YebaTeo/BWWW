@@ -33,42 +33,55 @@ import XCTest
         XCTAssertEqual(completions, 0)
     }
 
-    func testWeedingFinishesAfterFourWeedsAndRain() {
-        let vm = NgoredViewModel(); vm.start()
-        vm.remove(8); vm.remove(-1); XCTAssertTrue(vm.removed.isEmpty)
-        for i in 0..<4 {
-            vm.remove(i); vm.remove(i)
-            XCTAssertFalse(vm.removed.contains(i))
-            vm.remove(i); vm.remove(i)
-            XCTAssertEqual(vm.strokes[i], 3)
+    func testOneSwipeUprootsEachWeedInBothRounds() async throws {
+        let vm = NgoredViewModel()
+        vm.start()
+        vm.setVisible(true)
+        defer { vm.setVisible(false) }
+        vm.beginInitialRainAfterCard()
+        let deadline = ContinuousClock.now + .seconds(8)
+        while vm.step == .initialRain, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
         }
-        XCTAssertEqual(vm.removed.count, 4)
-        XCTAssertEqual(vm.step, .cleared)
-        vm.finishRain()
-        XCTAssertEqual(vm.step, .cleared)
-        XCTAssertNil(vm.session.outcome)
-        vm.observeRain()
-        XCTAssertEqual(vm.step, .rain)
-        vm.finishRain()
-        XCTAssertEqual(vm.step, .complete)
+        for round in [0..<4, 4..<7] {
+            vm.remove(round.upperBound)
+            XCTAssertFalse(vm.removed.contains(round.upperBound))
+            for index in round {
+                vm.remove(index)
+                XCTAssertTrue(vm.removed.contains(index))
+                let count = vm.removed.count
+                vm.remove(index)
+                XCTAssertEqual(vm.removed.count, count)
+            }
+            XCTAssertEqual(vm.step, round.lowerBound == 0 ? .cleared : .secondCleared)
+            vm.observeRain()
+            vm.finishRain()
+            vm.scene.advanceNgoredDayNight(by: 12)
+        }
         XCTAssertEqual(vm.session.outcome, .performed)
     }
-    func testKoredRequiresNewDownstrokeAndContact() {
-        var tracker = KoredStrokeTracker()
-        let targets = [CGPoint(x: 100, y: 150)]
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 110), targets: targets, removed: []))
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 120), targets: targets, removed: []))
-        XCTAssertEqual(tracker.move(blade: CGPoint(x: 100, y: 140), targets: targets, removed: []), 0)
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 165), targets: targets, removed: []))
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 130), targets: targets, removed: []))
-        XCTAssertEqual(tracker.move(blade: CGPoint(x: 100, y: 155), targets: targets, removed: []), 0)
-        tracker.reset()
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 200, y: 100), targets: targets, removed: []))
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 200, y: 150), targets: targets, removed: []))
-        tracker.reset()
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 110), targets: targets, removed: [0]))
-        XCTAssertNil(tracker.move(blade: CGPoint(x: 100, y: 150), targets: targets, removed: [0]))
+
+    func testCurvedSwipeHitsBeforeLiftAndCanOnlyUprootOneWeed() {
+        var stroke = KoredStrokeTracker()
+        let weed = CGRect(x: 80, y: 80, width: 40, height: 80)
+        var hits = 0
+        func hit(_ start: CGPoint, _ end: CGPoint) -> Bool {
+            guard KoredStrokeTracker.hitDistance(from: start, to: end, in: weed) != nil else { return false }
+            hits += 1
+            return true
+        }
+        stroke.begin(at: CGPoint(x: 30, y: 20))
+        stroke.move(to: CGPoint(x: 30, y: 120), hitTest: hit)
+        XCTAssertEqual(hits, 0)
+        stroke.move(to: CGPoint(x: 170, y: 120), hitTest: hit)
+        XCTAssertEqual(hits, 1)
+        stroke.move(to: CGPoint(x: 30, y: 120), hitTest: hit)
+        XCTAssertEqual(hits, 1)
+        stroke.begin(at: CGPoint(x: 170, y: 120))
+        stroke.move(to: CGPoint(x: 30, y: 120), hitTest: hit)
+        XCTAssertEqual(hits, 2)
     }
+
     func testHarvestBalanceAndDryingCannotBeSkipped() {
         let harvest = MipitViewModel(motion: FakeMotion())
         harvest.start()
