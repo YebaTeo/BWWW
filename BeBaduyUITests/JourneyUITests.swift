@@ -232,6 +232,15 @@ import XCTest
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
     }
 
+    func testMipitEquipmentCardBeforeHarvest() {
+        prepare(["--uitest-mipit"])
+        for _ in 0..<3 where !app.buttons["phase_dibuat"].isHittable { app.swipeUp() }
+        tap("phase_dibuat")
+        tap("resume")
+        XCTAssertTrue(app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 10))
+        capture("Mipit-equipment-before-harvest")
+    }
+
     func completeMipit() {
         defer { XCUIDevice.shared.orientation = .portrait }
         for index in 0..<3 {

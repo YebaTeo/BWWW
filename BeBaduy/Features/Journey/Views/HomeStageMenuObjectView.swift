@@ -122,11 +122,15 @@ private enum HomeStageMenuScenes {
                 )
             }
         }
+        if phase == .ngored {
+            // Match the resting angle of the kored used in the Ngored activity.
+            holder.eulerAngles = SCNVector3(0.24, -0.32, -0.42)
+        }
 
         let camera = SCNCamera()
         camera.usesOrthographicProjection = true
         camera.orthographicScale = switch phase {
-        case .ngored, .mipit: 0.32
+        case .ngored, .mipit: 0.54
         case .ngalantai: 0.48
         case .ngaleuitkeunPare: 0.40
         default: 0.65
@@ -159,26 +163,22 @@ private enum HomeStageMenuScenes {
 
     private static func makeObject(for phase: PhaseID) -> SCNNode {
         switch phase {
-        case .ngored, .mipit:
-            let plant = HomeSceneRenderer.makeNgoredTransitionRicePlant()
-            plant.scale = SCNVector3(3.0, 1, 3.0)
-            plant.enumerateChildNodes { node, _ in
-                if let morpher = node.morpher, !morpher.targets.isEmpty {
-                    node.geometry = morpher.targets[0]
-                    node.morpher = nil
+        case .ngored:
+            let modelURL = Bundle.main.url(forResource: "kored2", withExtension: "usdz")
+                ?? Bundle.main.url(forResource: "kored2", withExtension: "usdz", subdirectory: "Features/Chapters/Ngored/Resources")
+            guard let modelURL, let source = try? SCNScene(url: modelURL, options: nil) else {
+                assertionFailure("Could not load the Ngored kored model")
+                return SCNNode()
+            }
+            let kored = source.rootNode.clone()
+            kored.enumerateChildNodes { node, _ in
+                if node.camera != nil || node.light != nil {
+                    node.removeFromParentNode()
                 }
             }
-            if phase == .ngored {
-                plant.childNode(withName: "homeRicePanicles", recursively: false)?.removeFromParentNode()
-            }
-            let cluster = SCNNode()
-            for offset: Float in [-0.11, 0, 0.11] {
-                let stem = plant.clone()
-                stem.position.x = offset
-                stem.eulerAngles.y = offset * 2
-                cluster.addChildNode(stem)
-            }
-            return cluster
+            return kored
+        case .mipit:
+            return HomeSceneRenderer.makeHomeRipeRicePlant()
         case .ngalantai:
             let sheaf = HomeSceneRenderer.makeNgalantaiHarvestedSheaf()
             sheaf.eulerAngles.z = -.pi / 7

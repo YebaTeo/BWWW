@@ -27,6 +27,7 @@ struct SceneKitCropView: UIViewRepresentable {
     let progress: CGFloat
     let isActive: Bool
     var showsRice = true
+    var showsMipitHarvestTargets = true
     var showsTreeFallEffects = true
     var mipitHarvested: Set<Int> = []
     var showsRackPosts = true
@@ -52,6 +53,7 @@ struct SceneKitCropView: UIViewRepresentable {
         context.coordinator.install(in: view)
         if let onFirstFrame { context.coordinator.notifyAfterFirstFrame(in: view, action: onFirstFrame) }
         context.coordinator.showsRice = showsRice
+        context.coordinator.showsMipitHarvestTargets = showsMipitHarvestTargets
         context.coordinator.showsTreeFallEffects = showsTreeFallEffects
         context.coordinator.mipitHarvested = mipitHarvested
         context.coordinator.showsRackPosts = showsRackPosts
@@ -70,6 +72,9 @@ struct SceneKitCropView: UIViewRepresentable {
             renderer.showsTreeFallEffects = showsTreeFallEffects
         }
         if renderer.showsRice != showsRice { renderer.showsRice = showsRice }
+        if renderer.showsMipitHarvestTargets != showsMipitHarvestTargets {
+            renderer.showsMipitHarvestTargets = showsMipitHarvestTargets
+        }
         if renderer.mipitHarvested != mipitHarvested { renderer.mipitHarvested = mipitHarvested }
         if renderer.showsRackPosts != showsRackPosts { renderer.showsRackPosts = showsRackPosts }
         if renderer.rackBalance != rackBalance { renderer.rackBalance = rackBalance }

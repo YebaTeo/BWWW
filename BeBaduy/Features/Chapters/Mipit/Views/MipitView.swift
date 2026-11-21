@@ -14,6 +14,7 @@ struct MipitView: View {
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend,
             usesContextCards: false,
             mipitHarvested: model.harvested,
+            showsMipitHarvestTargets: !showsHelp,
             surface: { MipitActivitySurface(model: model)
                 .disabled(showsHelp).allowsHitTesting(!showsHelp).accessibilityHidden(showsHelp) }, activity: { MipitActivityView(model: model, showsHelp: $showsHelp) },
             description: { MipitDescriptionView() })

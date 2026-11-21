@@ -15,6 +15,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     var usesContextCards = true
     var showsInitialActivityCard = true
     var mipitHarvested: Set<Int> = []
+    var showsMipitHarvestTargets = true
     var activityProgress: CGFloat? = nil
     var showsRackPosts = true
     var rackBalance = 0.0
@@ -63,7 +64,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 CinematicAtmosphereView(progress: targetProgress, isActive: scenePhase == .active)
                     .accessibilityHidden(true)
                 SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active,
-                                 showsRice: content.id != .mipit || flow.screen != .activity,
+                                 showsRice: content.id != .mipit || (!isPresentingEquipment && flow.screen != .activity),
+                                 showsMipitHarvestTargets: showsMipitHarvestTargets && !isPresentingEquipment,
                                  showsTreeFallEffects: !isPresentingEquipment,
                                  mipitHarvested: mipitHarvested,
                                  showsRackPosts: showsRackPosts || flow.screen != .activity,

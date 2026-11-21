@@ -9,6 +9,7 @@ final class HomeSceneRenderer: NSObject {
 
     var showsTreeFallEffects = true
     var showsRice = true { didSet { if oldValue != showsRice { needsApply = true } } }
+    var showsMipitHarvestTargets = true { didSet { if oldValue != showsMipitHarvestTargets { needsApply = true } } }
     var showsRackPosts = true { didSet { if oldValue != showsRackPosts { needsApply = true } } }
     var rackBalance = 0.0 { didSet { if oldValue != rackBalance { needsApply = true } } }
     var rackTransitionTimeConstant = 0.16
@@ -3575,8 +3576,8 @@ final class HomeSceneRenderer: NSObject {
         setVisibility(riceSoilRoot, opacity: showsRice ? smoothstep(0.42, 0.52, p) * (1 - harvestCut) : 0)
         for index in mipitStandingNodes.indices {
             let harvested = mipitHarvested.contains(index)
-            mipitStandingNodes[index].isHidden = showsRice || harvested
-            mipitSheafNodes[index].isHidden = showsRice || !harvested
+            mipitStandingNodes[index].isHidden = showsRice || !showsMipitHarvestTargets || harvested
+            mipitSheafNodes[index].isHidden = showsRice || !showsMipitHarvestTargets || !harvested
         }
 
         // Kamera: Mengikuti padi naik dari lantai ke rak jemuran bambu, lalu PAN GESER CEPAT KE SAMPING ke lumbung
