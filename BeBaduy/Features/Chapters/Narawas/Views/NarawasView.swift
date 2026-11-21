@@ -188,18 +188,18 @@ struct NarawasView: View {
         } else {
             let allLit = model.ignited.count >= NarawasViewModel.treeCount
             ActivityCardLayout(placement: .bottom) {
+                if model.stage == .clearing {
+                    Text("Berhasil ditebang: \(model.collected.count)/\(NarawasViewModel.treeCount)")
+                        .activityCounterStyle()
+                        .accessibilityIdentifier("narawas.progress")
+                } else {
+                    Text("Titik api dinyalakan: \(model.ignited.count)/\(NarawasViewModel.treeCount)")
+                        .activityCounterStyle()
+                        .accessibilityIdentifier("narawas.fire.progress")
+                }
                 ActivityCardPanel(passesTouchesThrough: true) {
                     Text(fieldInstruction(allLit: allLit))
                         .accessibilityIdentifier("narawas.sceneReady")
-                    if model.stage == .clearing {
-                        Text("Berhasil ditebang: \(model.collected.count)/\(NarawasViewModel.treeCount)")
-                            .font(.subheadline.monospacedDigit())
-                            .accessibilityIdentifier("narawas.progress")
-                    } else {
-                        Text("Titik api dinyalakan: \(model.ignited.count)/\(NarawasViewModel.treeCount)")
-                            .font(.subheadline.monospacedDigit())
-                            .accessibilityIdentifier("narawas.fire.progress")
-                    }
                     if model.stage == .burning {
                         ProgressView(value: model.scene.progress)
                             .tint(orange)

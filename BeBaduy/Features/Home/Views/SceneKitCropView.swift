@@ -26,6 +26,7 @@ struct LeuitActivitySceneState: Equatable {
 struct SceneKitCropView: UIViewRepresentable {
     let progress: CGFloat
     let isActive: Bool
+    var dryingStageOnly = false
     var showsRice = true
     var showsMipitHarvestTargets = true
     var showsTreeFallEffects = true
@@ -50,7 +51,7 @@ struct SceneKitCropView: UIViewRepresentable {
         #if DEBUG
         print("SceneKitCropView uses Metal: \(view.renderingAPI == .metal)")
         #endif
-        context.coordinator.install(in: view)
+        context.coordinator.install(in: view, dryingStageOnly: dryingStageOnly)
         if let onFirstFrame { context.coordinator.notifyAfterFirstFrame(in: view, action: onFirstFrame) }
         context.coordinator.showsRice = showsRice
         context.coordinator.showsMipitHarvestTargets = showsMipitHarvestTargets

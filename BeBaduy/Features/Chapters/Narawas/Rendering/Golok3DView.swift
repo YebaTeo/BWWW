@@ -29,7 +29,7 @@ private struct GolokSceneView: UIViewRepresentable {
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
         view.isPlaying = isVisible
-        view.rendersContinuously = isVisible
+        view.rendersContinuously = false
 
         context.coordinator.setupScene(in: view)
         context.coordinator.update(swingCount: swingCount)
@@ -38,7 +38,7 @@ private struct GolokSceneView: UIViewRepresentable {
 
     func updateUIView(_ view: SCNView, context: Context) {
         view.isPlaying = isVisible
-        view.rendersContinuously = isVisible
+        view.rendersContinuously = false
         context.coordinator.update(swingCount: swingCount)
     }
 

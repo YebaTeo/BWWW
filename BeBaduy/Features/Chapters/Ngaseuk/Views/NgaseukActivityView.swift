@@ -6,6 +6,9 @@ struct NgaseukActivityView: View {
 
     var body: some View {
         Group {
+            if model.step == .seeding {
+                Text("\(model.seeds.count) / 3 lubang berisi benih").activityCounterStyle()
+            }
             ActivityCardPanel {
                 switch model.step {
                 case .instructions, .digging:
@@ -15,7 +18,6 @@ struct NgaseukActivityView: View {
                     Text("Nah, sekarang waktunya menabur binih ke setiap lubang agar pare huma bisa mulai tumbuh\n\nSeret benih ke lubang, lalu lepaskan di pusat lubang untuk menanam.")
                 case .seeding:
                     Text("Seret benih dari wadah ke lubang, lalu arahkan ke pusat lubang di tampilan dekat dan lepaskan untuk menanam 4 benih sekaligus.")
-                    Text("\(model.seeds.count) / 3 lubang berisi benih").font(.subheadline.monospacedDigit())
                 }
             }
             if model.step == .holesReady && card.mode == .instruction {

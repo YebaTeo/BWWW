@@ -39,17 +39,18 @@ struct MipitActivityView: View {
                     }
                 } else {
                     ActivityCardLayout(placement: .bottom) {
+                        ViewThatFits(in: .horizontal) {
+                            HStack {
+                                ForEach(0..<model.harvested.count, id: \.self) { _ in
+                                    MipitRiceBundle().frame(width: 23, height: 34).accessibilityHidden(true)
+                                }
+                                harvestCount.fixedSize()
+                            }
+                            harvestCount
+                        }
+                        .activityCounterStyle()
                         ActivityCardPanel(passesTouchesThrough: true) {
                             Text(instruction)
-                            ViewThatFits(in: .horizontal) {
-                                HStack {
-                                    ForEach(0..<model.harvested.count, id: \.self) { _ in
-                                        MipitRiceBundle().frame(width: 23, height: 34).accessibilityHidden(true)
-                                    }
-                                    harvestCount.fixedSize()
-                                }
-                                harvestCount
-                            }
                         }
                     }
                 }

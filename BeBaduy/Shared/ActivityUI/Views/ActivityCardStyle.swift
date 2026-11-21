@@ -92,6 +92,19 @@ struct ActivityCardPanel<Content: View>: View {
     }
 }
 
+extension View {
+    func activityCounterStyle() -> some View {
+        self
+            .font(.subheadline.monospacedDigit())
+            .multilineTextAlignment(.center)
+            .foregroundStyle(Color(red: 0.28, green: 0.20, blue: 0.14))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(red: 0.98, green: 0.79, blue: 0.56), in: Capsule())
+            .allowsHitTesting(false)
+    }
+}
+
 struct ActivityCardHeading: View {
     let title: String
 

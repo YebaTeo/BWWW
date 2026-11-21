@@ -62,7 +62,7 @@ private struct KoredSceneView: UIViewRepresentable {
         view.isOpaque = false
         view.autoenablesDefaultLighting = false
         view.isPlaying = isVisible
-        view.rendersContinuously = isVisible
+        view.rendersContinuously = false
 
         context.coordinator.setupScene(in: view, onFirstFrame: onFirstFrame)
         context.coordinator.update(isDragging: isDragging, swingCount: swingCount)
@@ -71,7 +71,7 @@ private struct KoredSceneView: UIViewRepresentable {
 
     func updateUIView(_ view: SCNView, context: Context) {
         view.isPlaying = isVisible
-        view.rendersContinuously = isVisible
+        view.rendersContinuously = false
         context.coordinator.update(isDragging: isDragging, swingCount: swingCount)
     }
 

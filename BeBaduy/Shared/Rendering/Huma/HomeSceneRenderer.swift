@@ -128,7 +128,7 @@ final class HomeSceneRenderer: NSObject {
 
     // ── Per-tree state ───────────────────────────────────────────────────
     /// (trunk node, canopy node, directional shadow, natural fall-start offset in [0,1])
-    private var treeNodes: [(trunk: SCNNode, canopy: SCNNode, shadow: SCNNode, fallAngle: Float, origin: SCNVector3)] = []
+    private var treeNodes: [(trunk: SCNNode, canopy: SCNNode, windMaterials: [SCNMaterial], shadow: SCNNode, fallAngle: Float, origin: SCNVector3)] = []
     private var impactedTrees = Set<Int>()
     private var crackedTrees = Set<Int>()
     private var fracturePairs: [(base: SCNNode, falling: SCNNode)] = []
@@ -162,6 +162,7 @@ final class HomeSceneRenderer: NSObject {
     private var targetProgress: CGFloat = 0
     private var displayedProgress: CGFloat = 0
     private var lastFrameTime: CFTimeInterval = 0
+    private var frameBudget: SceneFrameBudget?
     private var displayLink: CADisplayLink?
 
     // CADisplayLink retains its target. A weak proxy lets SwiftUI release
@@ -249,7 +250,13 @@ final class HomeSceneRenderer: NSObject {
         }
         SCNTransaction.begin()
         SCNTransaction.disableActions = true
-        applyProgress(displayedProgress)
+        if isSettling || needsApply {
+            applyProgress(displayedProgress)
+        } else {
+            let p = Float(displayedProgress) / 0.75
+            let fireT = smoothstep(0.27, 0.31, p) * (1 - smoothstep(0.38, 0.44, p))
+            updateTimedEffects(fireT: fireT, refreshFire: false)
+        }
         SCNTransaction.commit()
     }
 
@@ -258,6 +265,7 @@ final class HomeSceneRenderer: NSObject {
     var isWindEnabled = true {
         didSet {
             guard oldValue != isWindEnabled else { return }
+            needsApply = true
             for blade in blades {
                 if isWindEnabled {
                     startBreeze(on: blade)
@@ -273,18 +281,18 @@ final class HomeSceneRenderer: NSObject {
     // MARK: install(in:)
     // ════════════════════════════════════════════════════════════════════
 
-    func install(in view: SCNView) {
+    func install(in view: SCNView, dryingStageOnly: Bool = false) {
         configureRenderer(view)
-        buildScene()
+        buildScene(dryingStageOnly: dryingStageOnly)
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
         // Match the scene cadence; avoid extra CPU updates on ProMotion displays.
-        link.preferredFramesPerSecond = 60
+        frameBudget = SceneFrameBudget(view: view, link: link, normalFPS: 60)
         link.add(to: .main, forMode: .common)
         displayLink = link
     }
 
-    private func buildScene() {
+    private func buildScene(dryingStageOnly: Bool) {
         scene.background.contents = UIColor.clear
         scene.physicsWorld.gravity = SCNVector3Zero
         scene.physicsWorld.timeStep = 1.0 / 60.0
@@ -293,19 +301,21 @@ final class HomeSceneRenderer: NSObject {
         configureCamera()
         configureLighting()
         buildGround()
-        buildForest()        // Stage 1
-        rootFlareRoot.name = "rootFlares"
-        scene.rootNode.addChildNode(rootFlareRoot)
-        buildWildGrass()     // Stage 1 undergrowth
-        buildFire()          // Transition 1→2
-        buildAsh()           // Post-burn clods
-        buildPlantingStage() // Stage 2
+        if !dryingStageOnly {
+            buildForest()        // Stage 1
+            rootFlareRoot.name = "rootFlares"
+            scene.rootNode.addChildNode(rootFlareRoot)
+            buildWildGrass()     // Stage 1 undergrowth
+            buildFire()          // Transition 1→2
+            buildAsh()           // Post-burn clods
+            buildPlantingStage() // Stage 2
+        }
         buildRicePlant()     // Stage 3 + 4
-        buildMipitHarvestTargets()
+        if !dryingStageOnly { buildMipitHarvestTargets() }
         buildLeuitRack()
         storageBuildLeuitRack()
         buildGranaryPreview()
-        buildLeuitActivityProps()
+        if !dryingStageOnly { buildLeuitActivityProps() }
         configureObjectShadows()
     }
 
@@ -367,9 +377,9 @@ final class HomeSceneRenderer: NSObject {
         moonLight.intensity = 0
         moonLight.castsShadow = true
         moonLight.shadowMode = .forward
-        moonLight.shadowMapSize = CGSize(width: 2048, height: 2048)
+        moonLight.shadowMapSize = CGSize(width: 1024, height: 1024)
         moonLight.orthographicScale = 4.0
-        moonLight.shadowSampleCount = 16
+        moonLight.shadowSampleCount = 8
         moonLight.shadowRadius = 3.5
         moonLight.shadowBias = 0.0035
         moonLight.shadowColor = UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 0.48)
@@ -388,9 +398,9 @@ final class HomeSceneRenderer: NSObject {
         sun.shadowMode    = .forward
         sun.shadowRadius  = 4.0
         sun.orthographicScale = 4.0
-        sun.shadowSampleCount = 16
+        sun.shadowSampleCount = 8
         sun.shadowBias = 0.0035
-        sun.shadowMapSize = CGSize(width: 2048, height: 2048)
+        sun.shadowMapSize = CGSize(width: 1024, height: 1024)
         sun.shadowColor   = UIColor(red: 0.08, green: 0.05, blue: 0.03, alpha: 0.68)
         let sunNode       = sunOrbitNode
         sunNode.light     = sun
@@ -702,6 +712,7 @@ final class HomeSceneRenderer: NSObject {
         treeNodes.append((
             trunk: pivot,
             canopy: canopy,
+            windMaterials: plane.materials,
             shadow: dirShadowRoot,
             fallAngle: Float(index) / 4,
             origin: pivot.position
@@ -3197,6 +3208,40 @@ final class HomeSceneRenderer: NSObject {
         leuitDoorGuide.opacity = CGFloat(0.55 + 0.22 * sin(time * 3.2))
     }
 
+    private func updateTimedEffects(fireT: Float, refreshFire: Bool = true) {
+        let time = Float(CACurrentMediaTime() - animationEpoch)
+        for (index, tree) in treeNodes.enumerated() where !tree.trunk.isHidden {
+            for material in tree.windMaterials {
+                material.setValue(time + Float(index) * 1.37, forKey: "treeWindTime")
+            }
+        }
+        guard refreshFire || fireT > 0 else { return }
+        let flicker = 0.90 + 0.06 * sin(time * 4.1) + 0.04 * sin(time * 7.3)
+        fireLight.intensity = CGFloat(fireT * flicker * 42)
+        // Soft glowing ground ember disks beneath the burning trees
+        for glowNode in groundGlowNodes {
+            glowNode.opacity = CGFloat(fireT * flicker * 0.95)
+            glowNode.isHidden = fireT < 0.005
+        }
+
+        // Incandescent heat glow on the wood surface where fire touches it:
+        let heatIntensity = CGFloat(fireT * flicker)
+        let heatEmission = UIColor(
+            red: heatIntensity * 0.95,
+            green: heatIntensity * 0.42,
+            blue: heatIntensity * 0.06,
+            alpha: 1.0
+        )
+        rootFlareRoot.enumerateChildNodes { node, _ in
+            node.geometry?.materials.forEach { mat in
+                mat.emission.contents = heatEmission
+            }
+        }
+        for pair in fracturePairs {
+            pair.base.geometry?.materials.forEach { $0.emission.contents = heatEmission }
+        }
+    }
+
     private func applyProgress(_ progress: CGFloat) {
         needsApply = false
         let fullP = Float(min(1, max(0, progress)))
@@ -3205,7 +3250,6 @@ final class HomeSceneRenderer: NSObject {
         // at 75% of the timeline. The final quarter forms the drying rack
         // and transfers the harvested rice into hanging bundles.
         let p = min(1, fullP / 0.75)
-        let time = Float(CACurrentMediaTime() - animationEpoch)
 
         // ── 1. Forest visibility & tree falling (p 0.00 → 0.33) ─────────
         // Keep the original tree cards readable while the fall begins,
@@ -3271,7 +3315,6 @@ final class HomeSceneRenderer: NSObject {
             entry.canopy.eulerAngles = SCNVector3Zero
             if let materials = entry.canopy.childNode(withName: "treeSilhouette", recursively: false)?.geometry?.materials {
                 for material in materials {
-                    material.setValue(time + Float(index) * 1.37, forKey: "treeWindTime")
                     material.setValue(isWindEnabled ? Float(0.0035) * (1 - descent) : 0,
                                       forKey: "treeWindAmplitude")
                     material.setValue(Float(0),
@@ -3284,7 +3327,6 @@ final class HomeSceneRenderer: NSObject {
             if let radial = entry.canopy.childNode(withName: "radialFoliage", recursively: false),
                let material = radial.geometry?.firstMaterial {
                 radial.opacity = CGFloat(crownReveal)
-                material.setValue(time + Float(index) * 1.37, forKey: "treeWindTime")
                 material.setValue(isWindEnabled ? Float(0.0035) * (1-descent) : 0,
                                   forKey: "treeWindAmplitude")
             }
@@ -3312,36 +3354,12 @@ final class HomeSceneRenderer: NSObject {
 
         // ── 2. Fire / burning (ends before NGASEUK at timeline p ≈ 0.44) ─
         let fireT = smoothstep(0.27, 0.31, p) * (1 - smoothstep(0.38, 0.44, p))
+        updateTimedEffects(fireT: fireT)
         fireRoot.opacity = CGFloat(fireT)
-        let flicker = 0.90 + 0.06 * sin(time * 4.1) + 0.04 * sin(time * 7.3)
-        fireLight.intensity = CGFloat(fireT * flicker * 42)
         for sparks in sparkSystems { sparks.birthRate = isWindEnabled ? CGFloat(fireT * 14) : 0 }
         for smoke in smokeSystems { smoke.birthRate = isWindEnabled ? CGFloat(fireT * 7) : 0 }
         for system in flameSystems {
             system.birthRate = isWindEnabled ? CGFloat(fireT * 40) : 0
-        }
-
-        // Soft glowing ground ember disks beneath the burning trees
-        for glowNode in groundGlowNodes {
-            glowNode.opacity = CGFloat(fireT * flicker * 0.95)
-            glowNode.isHidden = fireT < 0.005
-        }
-
-        // Incandescent heat glow on the wood surface where fire touches it:
-        let heatIntensity = CGFloat(fireT * flicker)
-        let heatEmission = UIColor(
-            red: heatIntensity * 0.95,
-            green: heatIntensity * 0.42,
-            blue: heatIntensity * 0.06,
-            alpha: 1.0
-        )
-        rootFlareRoot.enumerateChildNodes { node, _ in
-            node.geometry?.materials.forEach { mat in
-                mat.emission.contents = heatEmission
-            }
-        }
-        for pair in fracturePairs {
-            pair.base.geometry?.materials.forEach { $0.emission.contents = heatEmission }
         }
 
         // ── 3. Ash clods (p 0.30 → 0.50) ───────────────────────────────

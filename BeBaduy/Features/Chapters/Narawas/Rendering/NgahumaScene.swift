@@ -151,6 +151,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
     private let frameTarget = FrameTarget()
+    private var frameBudget: SceneFrameBudget?
     private var displayLink: CADisplayLink?
     private var lastFrameTimestamp: CFTimeInterval = 0
     private var ngoredCycleElapsed: TimeInterval = 0
@@ -221,11 +222,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func startDisplayLink() {
-        guard displayLink == nil else { return }
+        guard displayLink == nil, let view else { return }
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
         // Match the scene cadence; avoid extra CPU updates on ProMotion displays.
-        link.preferredFramesPerSecond = 60
+        frameBudget = SceneFrameBudget(view: view, link: link, normalFPS: 60)
         link.add(to: .main, forMode: .common)
         link.isPaused = suspended
         displayLink = link
@@ -400,7 +401,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunKeyLight.type = .directional
         sunKeyLight.color = UIColor(red: 1.0, green: 0.88, blue: 0.70, alpha: 1)
         sunKeyLight.intensity = 155
-        sunKeyLight.castsShadow = false
+        sunKeyLight.castsShadow = true
+        sunKeyLight.shadowMode = .deferred
+        sunKeyLight.shadowColor = UIColor(white: 0.06, alpha: 0.40)
+        sunKeyLight.automaticallyAdjustsShadowProjection = false
+        sunKeyLight.orthographicScale = 5
+        sunKeyLight.zNear = 8
+        sunKeyLight.zFar = 26
+        sunKeyLight.shadowMapSize = CGSize(width: 1024, height: 1024)
         sunLightNode.light = sunKeyLight
         sunLightNode.position = .init(0, 0, 0)
         sunLightNode.look(at: SCNVector3(-sunPosition.x, soilY - sunPosition.y, -sunPosition.z))
@@ -585,7 +593,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         rootMeshCopy.materials = rootBaseGeometry.materials.map { $0.copy() as! SCNMaterial }
         let rootMeshNode = SCNNode(geometry: rootMeshCopy)
         rootMeshNode.name = "patch-\(index)"
-        rootMeshNode.castsShadow = false
+        rootMeshNode.castsShadow = true
         rootAnchor.addChildNode(rootMeshNode)
 
         // Jagged wood fracture surface on top of the rooted stump (revealed when tree splits)
@@ -615,7 +623,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let front = SCNNode(geometry: upperMeshCopy)
         front.name = "treeSilhouette"
         front.position.z = 0
-        front.castsShadow = false
+        front.castsShadow = true
         canopy.addChildNode(front)
 
         let radial = SCNNode(geometry: radialCrownGeometry.copy() as? SCNGeometry)
@@ -1895,6 +1903,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     @ObservationIgnored private var nextEdgeImpactTime: CFTimeInterval = 0
     private enum AimTarget: Hashable { case tree(Int), soil(Int), weed(Int) }
     @ObservationIgnored private var visibleInteractionTargets = Set<AimTarget>()
+    @ObservationIgnored private var nextTargetFeedbackCheck: CFTimeInterval = 0
     private let visibleTargetFeedback = UINotificationFeedbackGenerator()
     var activeWeedTargets: (() -> Range<Int>)?
 
@@ -1930,7 +1939,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let x = side == .left ? view.bounds.minX : view.bounds.maxX - 1
         edgeImpact.impactOccurred(intensity: 1, at: CGPoint(x: x, y: view.bounds.midY))
         edgeImpact.prepare()
-        nextEdgeImpactTime = time + 0.00075
+        nextEdgeImpactTime = time + 0.35
     }
 
     @ObservationIgnored private var previousHeading: Float = 0
@@ -1985,7 +1994,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let limitedYaw = max(-Self.arHalfTurn, min(Self.arHalfTurn, heading))
         motionOrientation = simd_quatf(angle: limitedYaw, axis: [0, 1, 0])
         updatePreviewCamera(fixedPosition: fixedPosition)
-        updateVisibleTargetFeedback()
+        // Target projection only drives haptics; camera motion follows every sample.
+        let now = CACurrentMediaTime()
+        if now >= nextTargetFeedbackCheck {
+            nextTargetFeedbackCheck = now + 1.0 / 20
+            updateVisibleTargetFeedback()
+        }
     }
 
     private func updateVisibleTargetFeedback() {
@@ -2376,10 +2390,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             materials.last?.transparency = 0
         }
 
-        let reachX = abs(sin(trunk.eulerAngles.z)) * 0.32 * trunk.scale.y
-        let reachZ = abs(sin(trunk.eulerAngles.x)) * 0.32 * trunk.scale.y
-        let signX: Float = trunk.eulerAngles.z >= 0 ? 1 : -1
-        let signZ: Float = trunk.eulerAngles.x >= 0 ? 1 : -1
         entry.shadow.opacity = 0
         entry.directionalShadow.opacity = 0
         entry.directionalShadow.isHidden = true
@@ -2388,6 +2398,10 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             impactedTrees.insert(index)
             feedback.impactOccurred(intensity: 0.55)
             if !reduceMotion {
+                let reachX = abs(sin(trunk.eulerAngles.z)) * 0.32 * trunk.scale.y
+                let reachZ = abs(sin(trunk.eulerAngles.x)) * 0.32 * trunk.scale.y
+                let signX: Float = trunk.eulerAngles.z >= 0 ? 1 : -1
+                let signZ: Float = trunk.eulerAngles.x >= 0 ? 1 : -1
                 let impactWorld = entry.holder.convertPosition(
                     SCNVector3(reachX * signX, 0.002, reachZ * signZ),
                     to: worldRoot

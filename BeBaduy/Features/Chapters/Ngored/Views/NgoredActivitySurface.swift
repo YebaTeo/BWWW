@@ -73,10 +73,10 @@ struct NgoredActivitySurface: View {
                 }
                 if isWeeding && card.mode == .hidden {
                     ActivityCardLayout(placement: .bottom, sceneInsets: sceneInsets) {
+                        let removedCount = currentWeedTargets.filter { model.removed.contains($0) }.count
+                        Text("Rumput dicabut: \(removedCount)/\(currentWeedTargets.count)").activityCounterStyle()
                         ActivityCardPanel(passesTouchesThrough: true) {
                             Text("Usap sekali untuk mencabut gulma")
-                            let removedCount = currentWeedTargets.filter { model.removed.contains($0) }.count
-                            Text("Rumput dicabut: \(removedCount)/\(currentWeedTargets.count)").font(.subheadline)
                             if model.session.feedback.hasPrefix("Ini padi") {
                                 Text(model.session.feedback).font(.subheadline.bold())
                                     .accessibilityIdentifier("ngored.rice.feedback")

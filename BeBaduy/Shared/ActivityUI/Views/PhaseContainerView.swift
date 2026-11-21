@@ -63,7 +63,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             ZStack {
                 CinematicAtmosphereView(progress: targetProgress, isActive: scenePhase == .active)
                     .accessibilityHidden(true)
-                SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active,
+                SceneKitCropView(progress: targetProgress, isActive: sceneIsVisible && scenePhase == .active,
+                                 dryingStageOnly: content.id == .ngalantai,
                                  showsRice: content.id != .mipit || (!isPresentingEquipment && flow.screen != .activity),
                                  showsMipitHarvestTargets: showsMipitHarvestTargets && !isPresentingEquipment,
                                  showsTreeFallEffects: content.id == .narawas && !isPresentingEquipment,

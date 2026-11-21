@@ -10,7 +10,6 @@ struct HomeView: View {
     @State private var loadingDestination: HomeRoute?
     @State private var loadingPreview: UIImage?
     @State private var showsHomeLanding = true
-    @State private var showsSplash = true
     @State private var landscapeViewportHeight: CGFloat?
     @State private var collectionPath = NavigationPath()
     @State private var selectedCollectionCard: ChapterCard?
@@ -26,13 +25,7 @@ struct HomeView: View {
 
     var body: some View {
         Group {
-            if !skipsLaunchPresentationForTests && showsSplash {
-                LaunchSplashView()
-                    .task {
-                        try? await Task.sleep(for: .milliseconds(650))
-                        showsSplash = false
-                    }
-            } else if !skipsLaunchPresentationForTests && showsHomeLanding {
+            if !skipsLaunchPresentationForTests && showsHomeLanding {
                 LandingToMenuTransition(journey: journey) { height in
                     landscapeViewportHeight = height
                     showsHomeLanding = false
@@ -382,7 +375,6 @@ private struct LandingIntroText: View {
     let topSafeAreaInset: CGFloat
     @ScaledMetric(relativeTo: .title) private var landingTitleSize: CGFloat = 25
     @ScaledMetric(relativeTo: .title) private var menuTitleSize: CGFloat = 29
-    @ScaledMetric(relativeTo: .body) private var landingBodySize: CGFloat = 18
     @ScaledMetric(relativeTo: .body) private var menuBodySize: CGFloat = 17
     @State private var copyHeight: CGFloat = 170
 
@@ -393,13 +385,14 @@ private struct LandingIntroText: View {
             let landingBottom = geometry.size.height - max(geometry.safeAreaInsets.bottom, 20) - 75
             let menuTop = topSafeAreaInset + 26
             let top = (landingBottom - copyHeight) * (1 - progress) + menuTop * progress
-            VStack(alignment: .leading, spacing: 20 - 6 * progress) {
+            VStack(alignment: .leading, spacing: 14) {
                 Text(JourneyIntroCopy.title)
-                    .font(.system(size: landingTitleSize + (menuTitleSize - landingTitleSize) * progress,
+                    .font(.system(size: menuTitleSize,
                                   weight: .bold, design: .rounded))
+                    .scaleEffect(1 + (landingTitleSize / menuTitleSize - 1) * (1 - progress), anchor: .leading)
                     .accessibilityAddTraits(.isHeader)
                 Text(JourneyIntroCopy.description)
-                    .font(.system(size: landingBodySize + (menuBodySize - landingBodySize) * progress,
+                    .font(.system(size: menuBodySize,
                                   weight: .medium))
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -420,16 +413,18 @@ private struct StagePreviewScreen: View {
     let stage: GrowthStage
     let openSelectedChapter: () -> Void
     @State private var sceneReady = false
+    @State private var isVisible = false
     private let ivory = Color(red: 0.99, green: 0.97, blue: 0.92)
     private let gold = Color(red: 1, green: 0.62, blue: 0.14)
 
     var body: some View {
         GeometryReader { viewport in
             ZStack(alignment: .bottom) {
-                CinematicAtmosphereView(progress: stage.targetProgress, isActive: true)
+                CinematicAtmosphereView(progress: stage.targetProgress, isActive: isVisible)
                 SceneKitCropView(
                     progress: stage.targetProgress,
-                    isActive: true,
+                    isActive: isVisible,
+                    dryingStageOnly: stage.phase == .ngalantai,
                     showsTreeFallEffects: false,
                     onFirstFrame: { sceneReady = true }
                 )
@@ -453,6 +448,8 @@ private struct StagePreviewScreen: View {
                 }
             }
         }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
         .foregroundStyle(ivory)
         .task {
             try? await Task.sleep(for: .seconds(8))
