@@ -66,12 +66,12 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 SceneKitCropView(progress: targetProgress, isActive: scenePhase == .active,
                                  showsRice: content.id != .mipit || (!isPresentingEquipment && flow.screen != .activity),
                                  showsMipitHarvestTargets: showsMipitHarvestTargets && !isPresentingEquipment,
-                                 showsTreeFallEffects: !isPresentingEquipment,
+                                 showsTreeFallEffects: content.id == .narawas && !isPresentingEquipment,
                                  mipitHarvested: mipitHarvested,
                                  showsRackPosts: showsRackPosts || flow.screen != .activity,
                                  rackBalance: rackBalance,
                                  animateWhileInactive: content.id == .ngalantai && flow.screen == .activity,
-                                 rackTransitionTimeConstant: content.id == .ngalantai && flow.screen == .activity ? 0.18 : 0.16,
+                                 rackTransitionTimeConstant: content.id == .ngalantai && flow.screen == .activity ? 0.07 : 0.16,
                                  rackScale: rackScale,
                                  leuitActivity: flow.screen == .activity ? leuitActivity : nil,
                                  onFirstFrame: {
@@ -233,14 +233,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
             }
         }
         .onDisappear { activityVisibility(false); suspend(); ActivityAudio.shared.stop() }
-        .task(id: sceneIsVisible && !sceneReady) {
-            guard sceneIsVisible, !sceneReady else { return }
-            try? await Task.sleep(for: .seconds(10))
-            if !sceneReady {
-                sceneReady = true
-                navigationSceneReady?()
-            }
-        }
+
     }
 
     private func setHelpVisible(_ visible: Bool) {

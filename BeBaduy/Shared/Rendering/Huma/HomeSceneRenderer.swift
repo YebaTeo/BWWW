@@ -3398,7 +3398,8 @@ final class HomeSceneRenderer: NSObject {
             shadow.position.z = showsRackPosts ? 0.32 : 0.16
             shadow.scale.y = showsRackPosts ? 1 : 0.50
         }
-        storageRackTopRoot.eulerAngles.z = Float(rackBalance) * 0.12
+        // Positive balance lowers the right end, matching the on-screen direction cue.
+        storageRackTopRoot.eulerAngles.z = -Float(rackBalance) * 0.32
         granaryRoot.position = SCNVector3(HomeConclusionPan.distance, soilY, 0.02)
         let leuitScene = leuitActivity
         let leuitPullback = leuitScene.map { min(1, max(0, $0.enteringProgress)) } ?? 0

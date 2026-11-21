@@ -29,7 +29,7 @@ struct NgalantaiActivityView: View {
                 ActivityCardLayout(placement: .middle) {
                     ActivityCardPanel {
                         ActivityCardHeading("Jaga keseimbangan Lantaian bambu!")
-                        Text("Miringkan ponselmu ke kiri dan kanan agar pocong tidak terjatuh. Tahan bambu tetap rata selama tiga detik.")
+                        Text("Miringkan ponselmu untuk mengimbangi pergeseran beban padi. Jaga bambu tetap rata hingga bar penuh. Saat bambu miring, bar berkurang perlahan.")
                     }
                     ActivityAcknowledgement(title: "Mulai menjaga keseimbangan", identifier: "ngalantai.balance.continue",
                                             action: model.beginBalance)
@@ -37,10 +37,10 @@ struct NgalantaiActivityView: View {
             case .balancing:
                 ActivityCardLayout(placement: .bottom) {
                     ActivityCardPanel {
-                        ProgressView(value: model.steadyTime, total: 3)
+                        ProgressView(value: model.steadyTime, total: NgalantaiViewModel.requiredSteadyTime)
                             .tint(AppTheme.orange)
                             .accessibilityLabel("Waktu seimbang")
-                        Text(abs(model.balance) < 0.18 ? "Seimbang · tahan sebentar" : "Arahkan bambu ke tengah")
+                        Text(abs(model.balance) < NgalantaiViewModel.balanceTolerance ? "Seimbang · tahan sebentar" : "Arahkan bambu ke tengah")
                     }
                     if model.usesTouch {
                         ViewThatFits(in: .horizontal) {
@@ -63,7 +63,7 @@ struct NgalantaiActivityView: View {
                 ActivityCardLayout(placement: .bottom) {
                     ActivityCardPanel {
                         Text("Demonstrasi keseimbangan")
-                        ProgressView(value: model.steadyTime, total: 3).tint(AppTheme.orange)
+                        ProgressView(value: model.steadyTime, total: NgalantaiViewModel.requiredSteadyTime).tint(AppTheme.orange)
                     }
                 }
             case .awaitingPortrait:
@@ -85,16 +85,19 @@ struct NgalantaiActivityView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .disabled(model.isDemonstrating)
+        .sensoryFeedback(.success, trigger: model.step) { previous, current in
+            previous == .balancing && current == .awaitingPortrait
+        }
     }
 
     private var balanceSlider: some View {
-        Slider(value: Binding(get: { model.balance }, set: { model.setBalance($0) }), in: -1...1)
+        Slider(value: Binding(get: { model.controlBalance }, set: { model.setBalance($0) }), in: -1...1)
             .accessibilityLabel("Keseimbangan bambu")
             .accessibilityIdentifier("ngalantai.balance.slider")
     }
 
     private var centerButton: some View {
-        Button("Ratakkan bambu") { model.setBalance(0) }
+        Button("Ratakkan bambu", action: model.centerBalance)
             .frame(minHeight: 44)
             .accessibilityIdentifier("ngalantai.balance.center")
     }

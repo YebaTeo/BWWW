@@ -6,6 +6,7 @@ import Foundation
     var session = PhaseSessionState()
     private(set) var step: Step = .awaitingLandscape
     private(set) var balance = 0.65
+    private(set) var controlBalance = 0.65
     private(set) var steadyTime = 0.0
     private(set) var motionActive = false
     private(set) var isDemonstrating = false
@@ -16,6 +17,10 @@ import Foundation
     private var usedDemo = false
     private let motion: any MotionProviding
     private var baseline: Double?
+    private var loadShift = 0.0
+    private var balanceElapsed = 0.0
+    static let balanceTolerance = 0.10
+    static let requiredSteadyTime = 7.0
     @ObservationIgnored private var timer: Task<Void, Never>?
     @ObservationIgnored private var demoTask: Task<Void, Never>?
 
@@ -29,7 +34,8 @@ import Foundation
         suspend()
         rackAnimationReady = false
         step = .awaitingLandscape
-        balance = 0.65; steadyTime = 0; usedDemo = false; usesTouch = false
+        balance = 0.65; controlBalance = 0.65; steadyTime = 0
+        loadShift = 0; balanceElapsed = 0; usedDemo = false; usesTouch = false
         landscapeDirection = 0
         session.start()
     }
@@ -41,9 +47,13 @@ import Foundation
         if step == .balanceDemo { return }
         if direction == 0 {
             if step == .awaitingPortrait { step = .drying }
-            else if allowsLandscape { step = .awaitingLandscape }
+            else if allowsLandscape {
+                step = .awaitingLandscape
+                rackAnimationReady = false
+            }
         } else if allowsLandscape && step != .balanceDemo {
             step = .balanceInstructions
+            rackAnimationReady = true
         }
     }
 
@@ -51,6 +61,10 @@ import Foundation
         guard session.isActive, step == .balanceInstructions, landscapeDirection != 0 else { return }
         step = .balancing
         rackAnimationReady = true
+        balanceElapsed = 0
+        loadShift = 0
+        controlBalance = 0.65
+        balance = controlBalance
         ActivityAudio.shared.play(.bamboo)
         resume()
     }
@@ -63,15 +77,27 @@ import Foundation
 
     func setBalance(_ value: Double) {
         guard step == .balancing, value.isFinite else { return }
-        balance = min(1, max(-1, value))
-        if abs(balance) >= 0.18 { steadyTime = 0 }
+        controlBalance = min(1, max(-1, value))
+        balance = min(1, max(-1, controlBalance + loadShift))
+    }
+
+    func centerBalance() {
+        setBalance(-loadShift)
     }
 
     func tick(_ seconds: Double) {
         guard visible, session.isActive, step == .balancing, landscapeDirection != 0,
-              seconds.isFinite, seconds > 0, abs(balance) < 0.18 else { return }
-        steadyTime = min(3, steadyTime + min(seconds, 0.1))
-        if steadyTime >= 3 - 1e-9 { finishBalance() }
+              seconds.isFinite, seconds > 0 else { return }
+        let interval = min(seconds, 0.1)
+        balanceElapsed += interval
+        loadShift = 0.15 * sin(balanceElapsed * 2.2)
+        balance = min(1, max(-1, controlBalance + loadShift))
+        guard abs(balance) < Self.balanceTolerance else {
+            steadyTime = max(0, steadyTime - interval * 0.5)
+            return
+        }
+        steadyTime = min(Self.requiredSteadyTime, steadyTime + interval)
+        if steadyTime >= Self.requiredSteadyTime - 1e-9 { finishBalance() }
     }
 
     private func finishBalance() {
@@ -101,6 +127,7 @@ import Foundation
         guard visible, session.isActive, step == .balancing, landscapeDirection != 0 else { return }
         guard motion.available else { useTouch(); return }
         usesTouch = false; baseline = nil; steadyTime = 0; motionActive = true
+        balanceElapsed = 0; loadShift = 0
         let direction = Double(landscapeDirection)
         motion.start { [weak self] sample in
             guard let self, self.motionActive else { return }
@@ -112,8 +139,8 @@ import Foundation
                 self.setBalance(0)
                 return
             }
-            let target = (tilt - (self.baseline ?? tilt)) * 3
-            self.setBalance(self.balance + (target - self.balance) * 0.2)
+            let target = (tilt - (self.baseline ?? tilt)) * 4.5
+            self.setBalance(self.controlBalance + (target - self.controlBalance) * 0.4)
         }
     }
 
@@ -153,7 +180,8 @@ import Foundation
             guard let self else { return }
             defer { self.isDemonstrating = false }
             self.step = .balanceDemo
-            for frame in 0...37 {
+            let holdFrames = Int(Self.requiredSteadyTime * 10)
+            for frame in 0...(7 + holdFrames) {
                 self.balance = 0.45 * max(0, 1 - Double(frame) / 7)
                 self.steadyTime = Double(max(0, frame - 7)) / 10
                 do { try await Task.sleep(for: .milliseconds(100)) } catch { return }

@@ -101,9 +101,10 @@ import XCTest
         XCTAssertEqual(vm.step, .balanceInstructions)
         vm.beginBalance(); vm.tick(100); XCTAssertEqual(vm.steadyTime, 0)
         vm.setBalance(0)
-        for _ in 0..<20 { vm.tick(0.1) }
-        vm.setBalance(0.2)
-        XCTAssertEqual(vm.steadyTime, 0)
+        for _ in 0..<20 { vm.centerBalance(); vm.tick(0.1) }
+        vm.setBalance(0.8)
+        vm.tick(0.1)
+        XCTAssertEqual(vm.steadyTime, 1.95, accuracy: 0.001)
         vm.setBalance(0)
         vm.tick(0.1)
         vm.showHelp()
@@ -118,8 +119,9 @@ import XCTest
         vm.tick(0.1)
         XCTAssertEqual(vm.steadyTime, 0)
         vm.resume()
-        for _ in 0..<29 { vm.tick(0.1) }
+        for _ in 0..<69 { vm.centerBalance(); vm.tick(0.1) }
         XCTAssertEqual(vm.step, .balancing)
+        vm.centerBalance()
         vm.tick(0.1)
         XCTAssertEqual(vm.step, .awaitingPortrait)
         vm.finishDrying(); XCTAssertNil(vm.session.outcome)
@@ -141,11 +143,14 @@ import XCTest
             vm.beginBalance()
             motion.handler?(.init(time: 0, verticalAcceleration: 0, gravity: SIMD3(0, 0.3, -0.9)))
             XCTAssertEqual(vm.balance, 0, accuracy: 0.001)
-            for _ in 0..<10 { vm.tick(0.1) }
+            for _ in 0..<10 { vm.centerBalance(); vm.tick(0.1) }
             XCTAssertEqual(vm.steadyTime, 1, accuracy: 0.001)
             motion.handler?(.init(time: 1, verticalAcceleration: 0, gravity: SIMD3(0, 0.7, -0.7)))
             XCTAssertGreaterThan(vm.balance * Double(direction), 0.18)
-            XCTAssertEqual(vm.steadyTime, 0)
+            vm.tick(0.1)
+            XCTAssertEqual(vm.steadyTime, 0.95, accuracy: 0.001)
+            vm.centerBalance(); vm.tick(0.1)
+            XCTAssertEqual(vm.steadyTime, 1.05, accuracy: 0.001)
             vm.suspend()
             XCTAssertNil(motion.handler)
             vm.resume()
@@ -154,6 +159,17 @@ import XCTest
             XCTAssertEqual(vm.steadyTime, 0)
             vm.suspend()
         }
+    }
+
+    func testNgalantaiNeedsActiveCorrectionAsLoadShifts() {
+        let vm = NgalantaiViewModel(motion: FakeMotion())
+        vm.start()
+        vm.orientationChanged(1)
+        vm.beginBalance()
+        vm.setBalance(0)
+        for _ in 0..<50 { vm.tick(0.1) }
+        XCTAssertEqual(vm.step, .balancing)
+        XCTAssertLessThan(vm.steadyTime, NgalantaiViewModel.requiredSteadyTime)
     }
 
     func testLeuitCompletesOnlyAfterLadderPlacement() {

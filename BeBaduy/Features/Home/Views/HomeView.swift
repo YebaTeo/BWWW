@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var selectedTab: HomeTab = .menu
     @State private var isTabCollapsed = false
     @State private var loadingDestination: HomeRoute?
+    @State private var loadingPreview: UIImage?
     @State private var showsHomeLanding = true
     @State private var showsSplash = true
     @State private var landscapeViewportHeight: CGFloat?
@@ -99,7 +100,10 @@ struct HomeView: View {
                                 }
                                 .id(phase)
                                 .environment(\.navigationSceneReady, {
-                                    if loadingDestination == .activity(phase) { loadingDestination = nil }
+                                    if loadingDestination == .activity(phase) {
+                                        loadingDestination = nil
+                                        loadingPreview = nil
+                                    }
                                 })
                                 .toolbar(.hidden, for: .tabBar)
                             }
@@ -142,8 +146,14 @@ struct HomeView: View {
                         .id(card)
                     }
                 }
+                .accessibilityHidden(loadingDestination != nil)
+                .allowsHitTesting(loadingDestination == nil)
                 .overlay {
                     if loadingDestination != nil {
+                        Color.black.ignoresSafeArea()
+                        if let loadingPreview {
+                            Image(uiImage: loadingPreview).resizable().ignoresSafeArea().accessibilityHidden(true)
+                        }
                         ReusableLoadingView(
                             message: "Menyiapkan tahap…",
                             style: .fullscreen(),
@@ -155,9 +165,15 @@ struct HomeView: View {
                     guard case .activity(let phase) = loadingDestination else { return }
                     do { try await Task.sleep(for: .milliseconds(30)) } catch { return }
                     guard loadingDestination == .activity(phase) else { return }
-                    model.open(phase, journey: journey)
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { model.open(phase, journey: journey) }
                     do { try await Task.sleep(for: .seconds(12)) } catch { return }
-                    if loadingDestination == .activity(phase) { loadingDestination = nil }
+                    if loadingDestination == .activity(phase) {
+                        withTransaction(transaction) { model.path = [.stage(phase)] }
+                        loadingPreview = nil
+                        loadingDestination = nil
+                    }
                 }
             }
         }
@@ -166,6 +182,12 @@ struct HomeView: View {
 
     private func startActivity(_ phase: PhaseID) {
         guard journey.progress.isUnlocked(phase), loadingDestination == nil else { return }
+        if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })?.keyWindow {
+            loadingPreview = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
+            }
+        }
         loadingDestination = .activity(phase)
     }
 
