@@ -31,7 +31,7 @@ struct SceneKitCropView: UIViewRepresentable {
     var showsTreeFallEffects = true
     var mipitHarvested: Set<Int> = []
     var showsRackPosts = true
-    var rackBalance = 0.0
+    var rackBalance: () -> Double = { 0 }
     var animateWhileInactive = false
     var rackTransitionTimeConstant = 0.16
     var rackScale: Float = 0.92
@@ -57,7 +57,7 @@ struct SceneKitCropView: UIViewRepresentable {
         context.coordinator.showsTreeFallEffects = showsTreeFallEffects
         context.coordinator.mipitHarvested = mipitHarvested
         context.coordinator.showsRackPosts = showsRackPosts
-        context.coordinator.rackBalance = rackBalance
+        context.coordinator.rackBalance = rackBalance()
         context.coordinator.rackTransitionTimeConstant = rackTransitionTimeConstant
         context.coordinator.rackScale = rackScale
         context.coordinator.leuitActivity = leuitActivity
@@ -77,7 +77,8 @@ struct SceneKitCropView: UIViewRepresentable {
         }
         if renderer.mipitHarvested != mipitHarvested { renderer.mipitHarvested = mipitHarvested }
         if renderer.showsRackPosts != showsRackPosts { renderer.showsRackPosts = showsRackPosts }
-        if renderer.rackBalance != rackBalance { renderer.rackBalance = rackBalance }
+        let balance = rackBalance()
+        if renderer.rackBalance != balance { renderer.rackBalance = balance }
         if renderer.rackTransitionTimeConstant != rackTransitionTimeConstant {
             renderer.rackTransitionTimeConstant = rackTransitionTimeConstant
         }

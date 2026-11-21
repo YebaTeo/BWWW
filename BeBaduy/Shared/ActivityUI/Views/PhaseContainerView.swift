@@ -18,7 +18,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     var showsMipitHarvestTargets = true
     var activityProgress: CGFloat? = nil
     var showsRackPosts = true
-    var rackBalance = 0.0
+    var rackBalance: () -> Double = { 0 }
     var rackScale: Float = 0.92
     var leuitActivity: LeuitActivitySceneState? = nil
     @ViewBuilder let surface: () -> Surface

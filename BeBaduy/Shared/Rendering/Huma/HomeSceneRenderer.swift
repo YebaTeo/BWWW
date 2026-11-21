@@ -11,10 +11,28 @@ final class HomeSceneRenderer: NSObject {
     var showsRice = true { didSet { if oldValue != showsRice { needsApply = true } } }
     var showsMipitHarvestTargets = true { didSet { if oldValue != showsMipitHarvestTargets { needsApply = true } } }
     var showsRackPosts = true { didSet { if oldValue != showsRackPosts { needsApply = true } } }
-    var rackBalance = 0.0 { didSet { if oldValue != rackBalance { needsApply = true } } }
+    var rackBalance = 0.0 {
+        didSet {
+            guard oldValue != rackBalance else { return }
+            storageRackTopRoot.eulerAngles.z = -Float(rackBalance) * 0.32
+        }
+    }
     var rackTransitionTimeConstant = 0.16
     var rackScale: Float = 0.92 { didSet { if oldValue != rackScale { needsApply = true } } }
-    var leuitActivity: LeuitActivitySceneState? { didSet { if oldValue != leuitActivity { needsApply = true } } }
+    var leuitActivity: LeuitActivitySceneState? {
+        didSet {
+            guard oldValue != leuitActivity else { return }
+            if let previous = oldValue, let current = leuitActivity,
+               !previous.ladderPlaced, !current.ladderPlaced,
+               previous.climbProgress == current.climbProgress,
+               previous.doorOpening == current.doorOpening,
+               previous.enteringProgress == current.enteringProgress {
+                positionDraggedLadder(current)
+            } else {
+                needsApply = true
+            }
+        }
+    }
     var mipitHarvested: Set<Int> = [] { didSet { if oldValue != mipitHarvested { needsApply = true } } }
     private var needsApply = true {
         didSet {
@@ -218,7 +236,12 @@ final class HomeSceneRenderer: NSObject {
             afterSettling = nil
             action()
         }
-        let hasTimeAnimation = displayedProgress < 0.27 || leuitActivity != nil
+        let hasTimeAnimation = displayedProgress < 0.27
+        if !isSettling, !needsApply, !hasTimeAnimation, let activity = leuitActivity,
+           !activity.ladderPlaced {
+            updateDoorGuidePulse()
+            return
+        }
         guard isSettling || needsApply || hasTimeAnimation else {
             // SceneKit keeps rendering its actions and physics independently.
             link.isPaused = true
@@ -3159,6 +3182,21 @@ final class HomeSceneRenderer: NSObject {
         }
     }
 
+    private func positionDraggedLadder(_ activity: LeuitActivitySceneState) {
+        let h = granaryModelHeight
+        leuitLadderRoot.position = SCNVector3(
+            -h * 0.22 + activity.dragX * h,
+            -h * 0.12 - activity.dragY * h * 0.7,
+            h * 0.18
+        )
+        leuitLadderRoot.eulerAngles.z = -0.28
+    }
+
+    private func updateDoorGuidePulse() {
+        let time = CACurrentMediaTime() - animationEpoch
+        leuitDoorGuide.opacity = CGFloat(0.55 + 0.22 * sin(time * 3.2))
+    }
+
     private func applyProgress(_ progress: CGFloat) {
         needsApply = false
         let fullP = Float(min(1, max(0, progress)))
@@ -3398,8 +3436,6 @@ final class HomeSceneRenderer: NSObject {
             shadow.position.z = showsRackPosts ? 0.32 : 0.16
             shadow.scale.y = showsRackPosts ? 1 : 0.50
         }
-        // Positive balance lowers the right end, matching the on-screen direction cue.
-        storageRackTopRoot.eulerAngles.z = -Float(rackBalance) * 0.32
         granaryRoot.position = SCNVector3(HomeConclusionPan.distance, soilY, 0.02)
         let leuitScene = leuitActivity
         let leuitPullback = leuitScene.map { min(1, max(0, $0.enteringProgress)) } ?? 0
@@ -3416,20 +3452,14 @@ final class HomeSceneRenderer: NSObject {
         leuitDoorRightPivot.eulerAngles.y = 1.28 * doorOpening
         leuitLadderTarget.isHidden = leuitScene == nil || leuitScene?.ladderPlaced == true
         leuitDoorGuide.isHidden = leuitLadderTarget.isHidden
-        let guidePulse = CGFloat(0.55 + 0.22 * sin(time * 3.2))
-        leuitDoorGuide.opacity = guidePulse
+        updateDoorGuidePulse()
         if let leuitScene {
             let h = granaryModelHeight
             if leuitScene.ladderPlaced {
                 leuitLadderRoot.position = SCNVector3(0, 0, 0)
                 leuitLadderRoot.eulerAngles.z = 0
             } else {
-                leuitLadderRoot.position = SCNVector3(
-                    -h * 0.22 + leuitScene.dragX * h,
-                    -h * 0.12 - leuitScene.dragY * h * 0.7,
-                    h * 0.18
-                )
-                leuitLadderRoot.eulerAngles.z = -0.28
+                positionDraggedLadder(leuitScene)
             }
             let climb = min(1, max(0, leuitScene.climbProgress))
             let entering = min(1, max(0, leuitScene.enteringProgress))
