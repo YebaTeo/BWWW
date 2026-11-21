@@ -118,7 +118,7 @@ private struct GolokSceneView: UIViewRepresentable {
             let modelURL = Bundle.main.url(forResource: "GOLOK", withExtension: "usdz")
                 ?? Bundle.main.url(forResource: "GOLOK", withExtension: "usdz", subdirectory: "Features/Chapters/Narawas/Resources")
             guard let modelURL,
-                  let sourceScene = try? SCNScene(url: modelURL, options: nil) else {
+                  let sourceScene = ToolSceneSource.load(modelURL) else {
                 assertionFailure("Could not load Features/Chapters/Narawas/Resources/GOLOK.usdz")
                 return
             }

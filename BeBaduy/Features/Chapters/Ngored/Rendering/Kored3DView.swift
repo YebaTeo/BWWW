@@ -178,7 +178,7 @@ private struct KoredSceneView: UIViewRepresentable {
             let modelURL = Bundle.main.url(forResource: "kored2", withExtension: "usdz")
                 ?? Bundle.main.url(forResource: "kored2", withExtension: "usdz", subdirectory: "Features/Chapters/Ngored/Resources")
             guard let modelURL,
-                  let sourceScene = try? SCNScene(url: modelURL, options: nil) else {
+                  let sourceScene = ToolSceneSource.load(modelURL) else {
                 assertionFailure("Could not load Features/Chapters/Ngored/Resources/kored2.usdz")
                 return
             }

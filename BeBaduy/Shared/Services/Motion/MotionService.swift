@@ -26,7 +26,8 @@ import CoreMotion
                 return MotionSample(time: data.timestamp, verticalAcceleration: -downward, roll: data.attitude.roll, gravity: SIMD3(gravity.x, gravity.y, gravity.z), rotationRate: SIMD3(rate.x, rate.y, rate.z), attitude: SIMD4(q.x, q.y, q.z, q.w))
             }
             let failed = error != nil || sample == nil
-            Task { @MainActor [weak self] in
+            // Core Motion delivers this callback on OperationQueue.main.
+            MainActor.assumeIsolated {
                 guard let self, self.generation == token else { return }
                 if failed { self.stop(); handler(nil) } else { handler(sample) }
             }

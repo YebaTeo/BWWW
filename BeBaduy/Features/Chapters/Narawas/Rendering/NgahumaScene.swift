@@ -243,6 +243,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         defer { loadingAssets = false }
         do {
             let loaded = try await NgahumaMaterials.load()
+            if let url = Bundle.main.url(forResource: "GOLOK", withExtension: "usdz") {
+                await Task.detached(priority: .userInitiated) {
+                    _ = ToolSceneSource.load(url)
+                }.value
+            }
             try Task.checkCancellation()
             materials = loaded
             buildScene()
@@ -1694,7 +1699,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         } else {
             guard let url = Bundle.main.url(forResource: "GOLOK", withExtension: "usdz")
                 ?? Bundle.main.url(forResource: "GOLOK", withExtension: "usdz", subdirectory: "Features/Chapters/Narawas/Resources"),
-                  let source = try? SCNScene(url: url) else { return }
+                  let source = ToolSceneSource.load(url) else { return }
             let model = source.rootNode.clone()
             let golokLightingMask = 1 << 5
             model.enumerateChildNodes { node, _ in

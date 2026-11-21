@@ -166,7 +166,7 @@ private enum HomeStageMenuScenes {
         case .ngored:
             let modelURL = Bundle.main.url(forResource: "kored2", withExtension: "usdz")
                 ?? Bundle.main.url(forResource: "kored2", withExtension: "usdz", subdirectory: "Features/Chapters/Ngored/Resources")
-            guard let modelURL, let source = try? SCNScene(url: modelURL, options: nil) else {
+            guard let modelURL, let source = ToolSceneSource.load(modelURL) else {
                 assertionFailure("Could not load the Ngored kored model")
                 return SCNNode()
             }
