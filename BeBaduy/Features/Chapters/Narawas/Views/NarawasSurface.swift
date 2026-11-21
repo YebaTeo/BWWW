@@ -7,6 +7,12 @@ struct NarawasSurface: View {
     var body: some View {
         NarawasSceneView(scene: scene)
             .overlay {
+                Color(red: 0.87, green: 0.19, blue: 0.08)
+                    .opacity(Double(scene.emberTintLevel) * 0.006)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            .overlay {
                 if let edge = scene.lookEdge {
                     GeometryReader { bounds in
                         let left = edge == .left

@@ -22,6 +22,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var ignitionTimes: [Int: Double] = [:]
 
     private(set) var progress: Double = 0
+    private(set) var emberTintLevel = 0
     var muted = false {
         didSet {
             audioPlayer?.volume = muted ? 0 : 0.45
@@ -2160,6 +2161,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             let time = patchBurnTime(index)
             return Float(min(1.0, max(0.0, (time - 0.12) / 0.85)) * max(0.0, min(1.0, (7.5 - time) / 2.2)))
         }.max() ?? 0
+        let tintLevel = Int((fireEnvelope * 24).rounded())
+        if emberTintLevel != tintLevel { emberTintLevel = tintLevel }
         fireLight.intensity = CGFloat(fireEnvelope * flicker * 380)
         if fireEnvelope > 0 && !muted {
             audioPlayer?.volume = fireEnvelope * 0.48
@@ -2419,6 +2422,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func showBurnedField() {
+        emberTintLevel = 0
         fireLight.intensity = 0
         flameSystems.forEach { $0.birthRate = 0 }
         sparkSystems.forEach { $0.birthRate = 0 }
@@ -2451,6 +2455,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     /// Presents the pre-burn field as an open Ngored AR space.
     func showNgoredField() {
+        emberTintLevel = 0
         if !ngoredFieldPresented { focusNgoredRice() }
         ngoredFieldPresented = true
         updatePreviewCamera(fixedPosition: true)
@@ -2506,6 +2511,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func reset() {
+        emberTintLevel = 0
         audioPlayer?.stop()
         audioPlayer = nil
         progress = 0
