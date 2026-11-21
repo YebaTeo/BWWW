@@ -29,6 +29,7 @@ struct SceneKitCropView: UIViewRepresentable {
     var dryingStageOnly = false
     var showsRice = true
     var showsMipitHarvestTargets = true
+    var showsBurnTint = false
     var showsTreeFallEffects = true
     var mipitHarvested: Set<Int> = []
     var showsRackPosts = true
@@ -51,7 +52,7 @@ struct SceneKitCropView: UIViewRepresentable {
         #if DEBUG
         print("SceneKitCropView uses Metal: \(view.renderingAPI == .metal)")
         #endif
-        context.coordinator.install(in: view, dryingStageOnly: dryingStageOnly)
+        context.coordinator.install(in: view, dryingStageOnly: dryingStageOnly, showsBurnTint: showsBurnTint)
         if let onFirstFrame { context.coordinator.notifyAfterFirstFrame(in: view, action: onFirstFrame) }
         context.coordinator.showsRice = showsRice
         context.coordinator.showsMipitHarvestTargets = showsMipitHarvestTargets

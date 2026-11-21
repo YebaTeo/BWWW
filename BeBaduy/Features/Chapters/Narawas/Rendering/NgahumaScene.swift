@@ -106,6 +106,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var impactedTrees = Set<Int>()
     private var charredPatches = Set<Int>()
     private var blades: [Blade] = []
+    private var bladePatches: [Int?] = []
+    private var ashPatches: [Int?] = []
     private var patchPositions: [SCNVector3] = []
     private var flameSystems: [SCNParticleSystem] = []
     private var sparkSystems: [SCNParticleSystem] = []
@@ -330,6 +332,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         // 6. Fire, Embers & Ash Clods (for the burning phase)
         buildFireAndAsh(using: materials)
+        bladePatches = blades.map { nearestPatch(to: $0.pivot) }
+        ashPatches = ashNodes.map { nearestPatch(to: $0) }
 
         if ngoredRainRequested {
             setNgoredRain(true)
@@ -2078,7 +2082,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func nearestPatch(to node: SCNNode) -> Int? {
-        let position = node.presentation.worldPosition
+        let position = node.worldPosition
         return patchPositions.indices.min {
             hypot(position.x - patchPositions[$0].x, position.z - patchPositions[$0].z) < hypot(position.x - patchPositions[$1].x, position.z - patchPositions[$1].z)
         }
@@ -2255,7 +2259,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
         // Char, shrivel, and burn away the wild grass blades across the clearing (matching HomeView)
         for (bladeIdx, blade) in blades.enumerated() {
-            let localTime = nearestPatch(to: blade.pivot).map { patchBurnTime($0) } ?? -1
+            let localTime = bladePatches[bladeIdx].map { patchBurnTime($0) } ?? -1
+            blade.pivot.opacity = CGFloat(1 - smoothstep(0.35, 0.88, Float(max(0, localTime) / 6.5)))
             let stagger = Float(bladeIdx % 6) * 0.08
             let bladeBurnT = min(1.0, max(0.0, (Float(localTime / 6.5) - stagger) / max(0.1, 0.72 - stagger)))
             if bladeBurnT > 0.001 {
@@ -2300,18 +2305,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 alpha: 1
             )
         }
-        for clod in ashNodes {
-            let localTime = nearestPatch(to: clod).map { patchBurnTime($0) } ?? -1
+        for (index, clod) in ashNodes.enumerated() {
+            let localTime = ashPatches[index].map { patchBurnTime($0) } ?? -1
             let ashAlpha = CGFloat(min(1.0, max(0.0, (localTime - 1.5) / 3.0)))
             clod.opacity = ashAlpha
             clod.isHidden = ashAlpha < 0.01
-        }
-        // Match HomeView (SceneKitCropView line 1302): wild grass completely burns away into ash
-        // Fade only vegetation belonging to a patch the user actually lit.
-        for blade in blades {
-            let localTime = nearestPatch(to: blade.pivot).map { patchBurnTime($0) } ?? -1
-            let fade = max(0, 1 - smoothstep(0.35, 0.88, Float(max(0, localTime) / 6.5)))
-            blade.pivot.opacity = CGFloat(fade)
         }
         if ignited.count == patchPositions.count && ignited.allSatisfy({ patchBurnTime($0) >= Self.burnDuration }) {
             reportFireSettled()

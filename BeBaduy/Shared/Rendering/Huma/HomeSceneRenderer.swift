@@ -281,7 +281,18 @@ final class HomeSceneRenderer: NSObject {
     // MARK: install(in:)
     // ════════════════════════════════════════════════════════════════════
 
-    func install(in view: SCNView, dryingStageOnly: Bool = false) {
+    private weak var burnTintView: UIView?
+
+    func install(in view: SCNView, dryingStageOnly: Bool = false, showsBurnTint: Bool = false) {
+        if showsBurnTint {
+            let tint = UIView(frame: view.bounds)
+            tint.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            tint.isUserInteractionEnabled = false
+            tint.backgroundColor = UIColor(red: 0.87, green: 0.19, blue: 0.08, alpha: 1)
+            tint.alpha = 0
+            view.addSubview(tint)
+            burnTintView = tint
+        }
         configureRenderer(view)
         buildScene(dryingStageOnly: dryingStageOnly)
         frameTarget.owner = self
@@ -3355,6 +3366,7 @@ final class HomeSceneRenderer: NSObject {
         // ── 2. Fire / burning (ends before NGASEUK at timeline p ≈ 0.44) ─
         let fireT = smoothstep(0.27, 0.31, p) * (1 - smoothstep(0.38, 0.44, p))
         updateTimedEffects(fireT: fireT)
+        burnTintView?.alpha = CGFloat(fireT) * 0.144
         fireRoot.opacity = CGFloat(fireT)
         for sparks in sparkSystems { sparks.birthRate = isWindEnabled ? CGFloat(fireT * 14) : 0 }
         for smoke in smokeSystems { smoke.birthRate = isWindEnabled ? CGFloat(fireT * 7) : 0 }

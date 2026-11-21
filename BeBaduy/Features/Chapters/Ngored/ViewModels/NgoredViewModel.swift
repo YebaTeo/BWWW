@@ -39,6 +39,12 @@ import Foundation
         updateLookMotion()
     }
 
+    func recenterLook() {
+        lookSession.stop()
+        scene.recenterLook()
+        updateLookMotion()
+    }
+
     private func updateLookMotion() {
         guard visible, motionAllowed, session.isActive else {
             lookSession.stop()

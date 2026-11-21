@@ -112,6 +112,22 @@ struct NgoredActivitySurface: View {
                     }
                     .allowsHitTesting(false)
                 }
+                if card.mode == .hidden, model.session.isActive,
+                   !model.scene.loadingAssets, model.scene.assetError == nil {
+                    Button(action: model.recenterLook) {
+                        Label("Pusatkan", systemImage: "scope")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(Color.brown.opacity(0.85), in: Capsule())
+                    }
+                    .accessibilityLabel("Pusatkan pandangan")
+                    .accessibilityIdentifier("ngored.recenter")
+                    .padding(.top, sceneInsets.top)
+                    .padding(.trailing, sceneInsets.trailing + 68)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
                 if model.scene.loadingAssets {
                     ReusableLoadingView(
                         message: "Menyiapkan lahan…",

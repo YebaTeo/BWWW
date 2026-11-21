@@ -515,6 +515,7 @@ private struct ChapterTransitionView: View {
         ZStack {
             CinematicAtmosphereView(progress: progress, isActive: scenePhase == .active)
             SceneKitCropView(progress: progress, isActive: scenePhase == .active,
+                             showsBurnTint: phase == .narawas,
                              showsTreeFallEffects: started && !showsInformation,
                              onSettledFrame: started && !preview.isTransitioning && !showsInformation && scenePhase == .active ? {
                                  guard scenePhase == .active else { return }

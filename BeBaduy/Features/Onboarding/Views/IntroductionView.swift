@@ -69,7 +69,7 @@ struct IntroductionView: View {
                 .scrollIndicators(.hidden)
                 .accessibilityIdentifier("intro.story")
                 .gesture(storySwipe(height: geometry.size.height))
-                .allowsHitTesting(!isTransitioning)
+
             }
             .accessibilityAction(named: "Halaman berikutnya") {
                 changePage(by: 1, height: geometry.size.height)
@@ -136,9 +136,14 @@ struct IntroductionView: View {
             }
     }
 
+    @State private var pendingDirection: Int?
+
     private func changePage(by direction: Int, height: CGFloat) {
-        guard !isTransitioning,
-              let next = Story(rawValue: page.rawValue + direction) else { return }
+        if isTransitioning {
+            pendingDirection = direction
+            return
+        }
+        guard let next = Story(rawValue: page.rawValue + direction) else { return }
         if reduceMotion {
             page = next
             return
@@ -159,6 +164,10 @@ struct IntroductionView: View {
             outgoingOffset = 0
             isTransitioning = false
             transitionTask = nil
+            if let direction = pendingDirection {
+                pendingDirection = nil
+                changePage(by: direction, height: height)
+            }
         }
     }
 }

@@ -243,7 +243,10 @@ private struct CollectionCardDetails: View {
                 .accessibilityHidden(true)
             artwork
                 .frame(width: size.width, height: size.height, alignment: .top)
-                .mask(CardIllustrationWindow())
+                .mask {
+                    CardIllustrationWindow()
+                        .padding(.horizontal, 3 * scale)
+                }
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 6 * scale) {
                 if preview {
@@ -262,6 +265,10 @@ private struct CollectionCardDetails: View {
             .padding(.bottom, 12 * scale)
         }
         .frame(width: size.width, height: size.height)
+        .mask {
+            Image(card.level == .epic ? "CardBaseEpic" : "CardBaseNormal")
+                .resizable()
+        }
     }
 
     private var detailText: some View {
