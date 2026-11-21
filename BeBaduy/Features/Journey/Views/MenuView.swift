@@ -17,12 +17,9 @@ struct MenuView: View {
     var showsIntroText = true
     var transitionTopInset: CGFloat? = nil
     var landscapeViewportHeight: CGFloat? = nil
-    var onPullToLanding: (() -> Void)? = nil
     let open: (PhaseID) -> Void
     let onScroll: (CGFloat, CGFloat) -> Void
     @State private var isUserScrolling = false
-    @State private var pullStartedAtTop = false
-    @State private var isPullToLandingArmed = false
     @State private var visualOverrideUnlockedUpTo: Int? = nil
     @State private var recoilStageIndex: Int? = nil
     @State private var explosionStartDate: Date? = nil
@@ -72,6 +69,7 @@ struct MenuView: View {
 
                 stageMap
             }
+            .background { MenuScrollBoundary() }
             .frame(maxWidth: 540)
             .frame(maxWidth: .infinity)
             .background {
@@ -86,27 +84,8 @@ struct MenuView: View {
             guard isUserScrolling else { return }
             onScroll(CGFloat(oldOffset * 12), CGFloat(newOffset * 12))
         }
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top < -65
-        } action: { _, isBeyondThreshold in
-            guard isUserScrolling, pullStartedAtTop else { return }
-            isPullToLandingArmed = isBeyondThreshold
-        }
-        .onScrollPhaseChange { old, new, context in
-            let offset = context.geometry.contentOffset.y + context.geometry.contentInsets.top
-            if new == .interacting {
-                isUserScrolling = true
-                pullStartedAtTop = offset <= 12
-                isPullToLandingArmed = false
-            } else {
-                isUserScrolling = false
-                if old == .interacting {
-                    let shouldReturn = pullStartedAtTop && (isPullToLandingArmed || offset < -65)
-                    pullStartedAtTop = false
-                    isPullToLandingArmed = false
-                    if shouldReturn { onPullToLanding?() }
-                }
-            }
+        .onScrollPhaseChange { _, new, _ in
+            isUserScrolling = new == .interacting
         }
         .background {
             if showsBackground {
@@ -412,6 +391,25 @@ struct MenuView: View {
             .ignoresSafeArea()
         } else {
             Color(red: 0.25, green: 0.15, blue: 0.09)
+        }
+    }
+}
+
+private struct MenuScrollBoundary: UIViewRepresentable {
+    func makeUIView(context: Context) -> BoundaryView { BoundaryView() }
+    func updateUIView(_ view: BoundaryView, context: Context) {}
+
+    final class BoundaryView: UIView {
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            var ancestor = superview
+            while let view = ancestor {
+                if let scrollView = view as? UIScrollView {
+                    scrollView.bounces = false
+                    return
+                }
+                ancestor = view.superview
+            }
         }
     }
 }

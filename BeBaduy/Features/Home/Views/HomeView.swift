@@ -9,7 +9,6 @@ struct HomeView: View {
     @State private var isTabCollapsed = false
     @State private var loadingDestination: HomeRoute?
     @State private var showsHomeLanding = true
-    @State private var returnsToLanding = false
     @State private var showsSplash = true
     @State private var landscapeViewportHeight: CGFloat?
     @State private var collectionPath = NavigationPath()
@@ -32,12 +31,6 @@ struct HomeView: View {
                         try? await Task.sleep(for: .milliseconds(650))
                         showsSplash = false
                     }
-            } else if returnsToLanding {
-                LandingToMenuTransition(journey: journey, returning: true) { height in
-                    landscapeViewportHeight = height
-                    returnsToLanding = false
-                    showsHomeLanding = true
-                }
             } else if !skipsLaunchPresentationForTests && showsHomeLanding {
                 LandingToMenuTransition(journey: journey) { height in
                     landscapeViewportHeight = height
@@ -73,11 +66,6 @@ struct HomeView: View {
                             showsBackground: selectedTab == .menu && model.path.isEmpty,
                             isActive: selectedTab == .menu && model.path.isEmpty,
                             landscapeViewportHeight: landscapeViewportHeight,
-                            onPullToLanding: {
-                                guard model.path.isEmpty, collectionPath.isEmpty else { return }
-                                isTabCollapsed = false
-                                returnsToLanding = true
-                            },
                             open: { model.path = [.stage($0)] },
                             onScroll: { oldOffset, newOffset in
                                 updateTabBar(for: .menu, from: oldOffset, to: newOffset)

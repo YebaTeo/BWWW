@@ -32,7 +32,7 @@ import XCTest
         add(menu)
     }
 
-    func testMenuScrollsBackToTopBeforeReturningToLanding() {
+    func testMenuPullAtTopStaysOnMenu() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--reset-progress", "--show-home-landing"]
         app.launch()
@@ -49,7 +49,8 @@ import XCTest
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.24))
         let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.76))
         start.press(forDuration: 0.05, thenDragTo: end)
-        XCTAssertTrue(app.buttons["home.landing.continue"].waitForExistence(timeout: 10))
+        XCTAssertTrue(firstStage.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["home.landing.continue"].exists)
     }
 
     func testCollectionCardAutomaticallyFlipsToDetails() {
