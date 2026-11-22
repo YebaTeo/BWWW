@@ -5,6 +5,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     let content: PhaseContent
     let session: PhaseSessionState
     let journey: JourneyViewModel
+    var prepareActivity: (() async -> Bool)? = nil
     let start: () -> Void
     let restore: (ActivityOutcome?) -> Void
     let advance: () -> Void
@@ -25,6 +26,8 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     @ViewBuilder let activity: () -> Activity
     @ViewBuilder let description: () -> Description
     @State private var flow = LessonFlowViewModel()
+    @State private var preparingActivity = false
+    @State private var preparationFailed = false
     @State private var restored = false
     @State private var replayingCompletedStage = false
     @State private var isToolRevealed = false
@@ -172,6 +175,31 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 }
             }
         }
+        .disabled(preparingActivity)
+        .overlay {
+            if preparingActivity {
+                ZStack {
+                    Color.black.opacity(0.28).ignoresSafeArea()
+                    ReusableLoadingView(message: "Menyiapkan lahan…", style: .card,
+                                        identifier: "lesson.activity.preparing")
+                }
+            }
+        }
+        .task(id: preparingActivity) {
+            guard preparingActivity, let prepareActivity else { return }
+            let ready = await prepareActivity()
+            guard !Task.isCancelled else { return }
+            preparingActivity = false
+            if ready {
+                start()
+                flow.beginActivity()
+            } else {
+                preparationFailed = true
+            }
+        }
+        .alert("Lahan belum dapat dimuat. Ketuk Mulai aktivitas untuk mencoba lagi.", isPresented: $preparationFailed) {
+            Button("Tutup") {}
+        }
         .foregroundStyle(.white).tint(.white)
         .preferredColorScheme(.dark).environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
@@ -316,5 +344,12 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         flow.explore(hasEquipment: equipment != nil)
         if equipment == nil { start() }
     }
-    private func begin() { start(); flow.beginActivity() }
+    private func begin() {
+        if prepareActivity != nil {
+            preparingActivity = true
+        } else {
+            start()
+            flow.beginActivity()
+        }
+    }
 }

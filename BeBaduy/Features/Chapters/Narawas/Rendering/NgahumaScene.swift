@@ -162,10 +162,40 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     // MARK: - View Attachment & Lifecycle
 
-    func attach(_ view: SCNView) {
+    private var preparedFieldView: SCNView?
+
+    func prepareNgoredField() async -> Bool {
+        if preparedFieldView != nil { return true }
+        let field = SCNView(frame: .zero, options: [
+            SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
+        ])
+        configureRenderer(field)
+        if cameraNode.camera == nil { configureCamera() }
+        await prepareAssets()
+        guard !Task.isCancelled, materials != nil, assetError == nil else { return false }
+        field.pointOfView = cameraNode
+        field.isPlaying = false
+        field.rendersContinuously = false
+        let ready = await field.prepare([scnScene])
+        guard ready, !Task.isCancelled else { return false }
+        preparedFieldView = field
+        return true
+    }
+
+    func takePreparedFieldView() -> SCNView? {
+        defer { preparedFieldView = nil }
+        return preparedFieldView
+    }
+
+    func attach(_ view: SCNView, prepared: Bool = false) {
         self.view = view
-        configureRenderer(view)
-        configureCamera()
+        if !prepared {
+            configureRenderer(view)
+            configureCamera()
+        } else {
+            view.isPlaying = !suspended
+            view.rendersContinuously = !suspended
+        }
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
         view.addGestureRecognizer(tap)
@@ -176,7 +206,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         view.addGestureRecognizer(pan)
         self.pan = pan
         startDisplayLink()
-        if materials != nil {
+        if materials != nil && !prepared {
             reset()
         }
     }

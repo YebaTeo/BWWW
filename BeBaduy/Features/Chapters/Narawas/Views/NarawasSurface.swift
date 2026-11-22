@@ -46,6 +46,10 @@ private struct NarawasSceneView: UIViewRepresentable {
     let scene: NgahumaScene
 
     func makeUIView(context: Context) -> SCNView {
+        if let view = scene.takePreparedFieldView() {
+            scene.attach(view, prepared: true)
+            return view
+        }
         let view = SCNView(frame: .zero, options: [
             SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
         ])

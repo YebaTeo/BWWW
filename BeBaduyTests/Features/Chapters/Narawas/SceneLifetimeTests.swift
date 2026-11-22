@@ -3,6 +3,19 @@ import SceneKit
 @testable import BeBaduy
 
 final class SceneLifetimeTests: XCTestCase {
+    @MainActor func testNgoredPreparesFieldBeforeActivityAndReusesRiceNodes() async throws {
+        let model = NgoredViewModel()
+        let ready = await model.scene.prepareNgoredField()
+        XCTAssertTrue(ready)
+        XCTAssertFalse(model.session.isActive)
+        let field = try XCTUnwrap(model.scene.takePreparedFieldView())
+        let rice = try XCTUnwrap(field.scene?.rootNode.childNode(withName: "ngoredRice_0", recursively: true))
+        model.start()
+        model.scene.attach(field, prepared: true)
+        defer { model.scene.stop() }
+        XCTAssertTrue(field.scene?.rootNode.childNode(withName: "ngoredRice_0", recursively: true) === rice)
+    }
+
     @MainActor func testNgoredRegrowthUsesOriginalPlotsAndOnlyRiceGlows() async throws {
         let renderer = NgahumaScene()
         let view = SCNView()
