@@ -66,12 +66,13 @@ final class SceneLifetimeTests: XCTestCase {
         add(field)
 
         renderer.animateNgoredDayNight(cycles: 1, duration: 4, growthFrom: 0, growthTo: 1) {}
-        for delta in [0.0, 1.0, 0.99] {
+        for (delta, expectedX) in [(0.0, 0.02), (1.0, 0.5), (0.99, 0.98)] {
             renderer.advanceNgoredDayNight(by: delta)
             let point = view.projectPoint(sun.worldPosition)
             XCTAssertGreaterThan(point.z, 0)
             XCTAssertLessThan(point.z, 1)
-            XCTAssertTrue(view.bounds.insetBy(dx: 20, dy: 50).contains(CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))))
+            XCTAssertEqual(Double(point.x) / Double(view.bounds.width), expectedX, accuracy: 0.01)
+            XCTAssertTrue((0...Float(view.bounds.height)).contains(point.y))
             let towardField = simd_normalize(SIMD3<Float>(0, 0.038, 0) - sun.simdWorldPosition)
             XCTAssertGreaterThan(simd_dot(light.simdWorldFront, towardField), 0.999)
         }

@@ -155,6 +155,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var frameBudget: SceneFrameBudget?
     private var displayLink: CADisplayLink?
     private var lastFrameTimestamp: CFTimeInterval = 0
+    private var ngoredSkyCamera = matrix_identity_float4x4
     private var ngoredCycleElapsed: TimeInterval = 0
     private var ngoredCycleDuration: TimeInterval = 0
     private var ngoredCycleFrame: ((TimeInterval) -> Void)?
@@ -1015,6 +1016,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         ngoredCycleCompletion = nil
         guard cycles > 0, duration > 0 else { completion(); return }
         ngoredMoonRoot?.removeAction(forKey: "ngoredMoonSet")
+        ngoredSkyCamera = cameraNode.simdWorldTransform
         ngoredCycleElapsed = 0
         ngoredCycleDuration = duration
         ngoredCycleCompletion = completion
@@ -1086,14 +1088,21 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    // A world-space arc above the first rice clump, within the fixed camera pitch.
+    // Anchor the arc to the starting view so the gyro can still look around it.
     @discardableResult
     private func positionNgoredSun(at progress: Float) -> SCNVector3 {
-        let heading = Self.ngoredRiceAngles[0] + (progress - 0.5) * 0.24
-        let distance: Float = 15.5
-        let position = SCNVector3(sin(heading) * distance,
-                                  soilY + 3.25 + sin(progress * .pi) * 0.65,
-                                  -cos(heading) * distance)
+        let angle = min(1, max(0, progress)) * Float.pi
+        let depth: Float = 15.5
+        let size = view?.bounds.size ?? UIScreen.main.bounds.size
+        let aspect = Float(size.width / max(1, size.height))
+        let verticalFOV = Float(cameraNode.camera?.fieldOfView ?? 60) * .pi / 180
+        let halfHeight = depth * tan(verticalFOV / 2)
+        let halfWidth = halfHeight * aspect
+        // Disk centers travel from 2% to 98% of the viewport width.
+        let local = SIMD4<Float>(-cos(angle) * halfWidth * 0.96,
+                                 halfHeight * (0.64 + 0.14 * sin(angle)), -depth, 1)
+        let world = ngoredSkyCamera * local
+        let position = SCNVector3(world.x, world.y, world.z)
         sunSystemRoot.position = position
         sunSystemRoot.look(at: SCNVector3(0, soilY, 0))
         return position
@@ -2499,6 +2508,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         // left-to-right overhead path, instead of rising from behind the ridge.
         cameraNode.camera?.projectionDirection = .vertical
         cameraNode.camera?.fieldOfView = 60
+        ngoredSkyCamera = cameraNode.simdWorldTransform
         mountainLayerRoot.scale.y = 0.56
         sunLightNode.simdOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
         sunKeyLight.castsShadow = true
