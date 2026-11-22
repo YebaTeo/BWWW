@@ -23,10 +23,26 @@ import Observation
         }
     }
 
-    @ObservationIgnored private var activePlayers: [AVAudioPlayer] = []
-    @ObservationIgnored private var loopPlayer: AVAudioPlayer?
+    private let playback = ActivityPlayback()
 
     private init() {}
+
+    func stop() {
+        playback.queue.async { [playback] in playback.stop() }
+    }
+
+    func play(_ cue: Cue) {
+        guard enabled else { return }
+        playback.queue.async { [playback] in playback.play(cue) }
+    }
+}
+
+// Player creation, session configuration and playback share one FIFO queue.
+// A stop enqueued after a tap also stops audio that was still opening on disk.
+private final class ActivityPlayback: @unchecked Sendable {
+    let queue = DispatchQueue(label: "org.bebaduy.activity-audio", qos: .userInitiated)
+    private var activePlayers: [AVAudioPlayer] = []
+    private var loopPlayer: AVAudioPlayer?
 
     func stop() {
         loopPlayer?.stop()
@@ -35,8 +51,7 @@ import Observation
         activePlayers.removeAll()
     }
 
-    func play(_ cue: Cue) {
-        guard enabled else { return }
+    func play(_ cue: ActivityAudio.Cue) {
         if cue == .rain {
             loopPlayer?.stop()
             loopPlayer = nil

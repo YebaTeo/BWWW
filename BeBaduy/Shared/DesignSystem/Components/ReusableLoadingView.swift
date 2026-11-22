@@ -7,8 +7,8 @@ struct ReusableLoadingView: View {
         case compact
         /// Floating warm pill with status message over an active canvas.
         case card
-        /// Fullscreen overlay with optional asset backdrop and warm scrim.
-        case fullscreen(backdrop: String? = nil)
+        /// Fullscreen overlay with a neutral background.
+        case fullscreen
     }
 
     var message: LocalizedStringKey = "Memuat…"
@@ -27,15 +27,9 @@ struct ReusableLoadingView: View {
         case .card:
             cardView
                 .modifier(OptionalAccessibilityIdentifier(identifier: identifier))
-        case .fullscreen(let backdrop):
+        case .fullscreen:
             ZStack {
-                if let backdrop {
-                    LessonBackdrop(asset: backdrop)
-                } else {
-                    Color(red: 0.14, green: 0.09, blue: 0.06)
-                        .opacity(reduceTransparency ? 1.0 : 0.80)
-                        .ignoresSafeArea()
-                }
+                Color(red: 0.14, green: 0.09, blue: 0.06).ignoresSafeArea()
                 cardView
                     .modifier(OptionalAccessibilityIdentifier(identifier: identifier))
             }
@@ -85,7 +79,7 @@ private struct OptionalAccessibilityIdentifier: ViewModifier {
 }
 
 #Preview("Fullscreen") {
-    ReusableLoadingView(message: "Menyiapkan lahan…", style: .fullscreen(backdrop: "HumaSunsetValley"))
+    ReusableLoadingView(message: "Menyiapkan lahan…", style: .fullscreen)
 }
 
 #Preview("Compact") {

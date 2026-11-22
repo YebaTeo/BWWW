@@ -8,7 +8,6 @@ struct NgaseukSeedPeekView: View {
     @Environment(\.scenePhase) private var scenePhase
     var dragActive = false
     var canPlant = false
-    @State private var sceneReady = false
     private var filled: Bool { model.seeds.contains(target) }
     private var isPourSequenceActive: Bool { model.isBasketEntering || model.isBasketTilting || model.isPouring }
 
@@ -19,20 +18,12 @@ struct NgaseukSeedPeekView: View {
                 SeedPeek3DSceneView(
                     filled: filled,
                     isPouring: model.isPouring,
-                    active: isVisible && scenePhase == .active,
-                    onFirstFrame: { sceneReady = true }
+                    active: isVisible && scenePhase == .active
                 )
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
                     .ignoresSafeArea()
 
-                if isVisible && !sceneReady {
-                    ReusableLoadingView(
-                        message: "Menyiapkan lubang tanam…",
-                        style: .fullscreen(),
-                        identifier: "ngaseuk.peek.loading"
-                    )
-                }
 
                 if isPourSequenceActive {
                     NgaseukPouringBowl(
@@ -64,11 +55,10 @@ struct NgaseukSeedPeekView: View {
                             Text("Kamu juga bisa menggunakan tombol di bawah.").font(.subheadline)
                         }
                     }
-                    if !dragActive && !filled {
-                        LessonButton(title: model.isBasketEntering ? "Baskom mendekat…" : (model.isBasketTilting ? "Memiringkan baskom…" : (model.isPouring ? "Menuang benih…" : "Tuang \(NgaseukViewModel.seedsPerHole) benih")),
+                    if !dragActive && !filled && !isPourSequenceActive {
+                        LessonButton(title: "Tuang \(NgaseukViewModel.seedsPerHole) benih",
                                      identifier: "ngaseuk.peek.pour",
                                      action: { model.pourSeeds() })
-                            .disabled(isPourSequenceActive)
                     }
                     if !dragActive && !isPourSequenceActive {
                         Button(filled ? "Pilih lubang berikutnya" : "Kembali ke lahan", action: { model.closePeek() })
@@ -89,11 +79,6 @@ struct NgaseukSeedPeekView: View {
             .allowsHitTesting(!dragActive)
         }
         .accessibilityLabel("Tampilan dekat lubang tanam 3 dimensi")
-        .task(id: isVisible) {
-            guard isVisible, !sceneReady else { return }
-            try? await Task.sleep(for: .milliseconds(900))
-            if !sceneReady { sceneReady = true }
-        }
     }
 
     private var statusText: String {

@@ -135,8 +135,8 @@ struct NgaleuitkeunPareView: View {
                                 .resizable()
                                 .scaledToFill()
                                 .opacity(0.12)
-                                .clipShape(RoundedRectangle(cornerRadius: 22))
                         }
+                        .clipShape(RoundedRectangle(cornerRadius: 22))
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: 22)

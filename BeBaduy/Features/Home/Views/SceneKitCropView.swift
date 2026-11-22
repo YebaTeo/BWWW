@@ -108,3 +108,47 @@ struct SceneKitCropView: UIViewRepresentable {
     }
 
 }
+
+/// One prepared menu preview. The destination displays the same Metal view.
+@MainActor
+final class PreparedStagePreview {
+    let phase: PhaseID
+    let view = SCNView(frame: .zero, options: [
+        SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
+    ])
+    let renderer = HomeSceneRenderer()
+
+    init(stage: GrowthStage) {
+        phase = stage.phase
+        renderer.showsTreeFallEffects = false
+        renderer.install(in: view, dryingStageOnly: phase == .ngalantai)
+        renderer.setActive(false, in: view, reduceMotion: true)
+        renderer.update(progress: stage.targetProgress)
+    }
+
+    func prepare() async -> Bool {
+        guard let scene = view.scene else { return false }
+        return await withCheckedContinuation { continuation in
+            view.prepare([scene]) { success in
+                continuation.resume(returning: success)
+            }
+        }
+    }
+}
+
+struct PreparedStageSurface: UIViewRepresentable {
+    let preview: PreparedStagePreview
+    let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
+    func makeCoordinator() -> PreparedStagePreview { preview }
+    func makeUIView(context: Context) -> SCNView { preview.view }
+    func updateUIView(_ view: SCNView, context: Context) {
+        preview.renderer.setActive(active && scenePhase == .active, in: view, reduceMotion: reduceMotion)
+    }
+
+    static func dismantleUIView(_ view: SCNView, coordinator: PreparedStagePreview) {
+        coordinator.renderer.setActive(false, in: view, reduceMotion: true)
+    }
+}

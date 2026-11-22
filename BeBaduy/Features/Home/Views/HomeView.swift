@@ -4,11 +4,12 @@ struct HomeView: View {
     let journey: JourneyViewModel
     let motion: MotionService
     @State private var model = HomeViewModel()
+    @State private var preparingStage: PhaseID?
+    @State private var preparedPreview: PreparedStagePreview?
+    @State private var preparationFailed = false
     @State private var onboardingReady = false
     @State private var selectedTab: HomeTab = .menu
     @State private var isTabCollapsed = false
-    @State private var loadingDestination: HomeRoute?
-    @State private var loadingPreview: UIImage?
     @State private var showsHomeLanding = true
     @State private var landscapeViewportHeight: CGFloat?
     @State private var collectionPath = NavigationPath()
@@ -40,13 +41,6 @@ struct HomeView: View {
                     }
                     .allowsHitTesting(onboardingReady)
                     .accessibilityHidden(!onboardingReady)
-                    if !onboardingReady {
-                        ReusableLoadingView(
-                            message: "Menyiapkan perjalanan…",
-                            style: .fullscreen(backdrop: "HumaSunsetValley"),
-                            identifier: "onboarding.loading"
-                        )
-                    }
                 }
                 .task {
                     try? await Task.sleep(for: .seconds(12))
@@ -60,7 +54,7 @@ struct HomeView: View {
                             showsBackground: selectedTab == .menu && model.path.isEmpty,
                             isActive: selectedTab == .menu && model.path.isEmpty,
                             landscapeViewportHeight: landscapeViewportHeight,
-                            open: { model.path = [.stage($0)] },
+                            open: openStage,
                             onScroll: { oldOffset, newOffset in
                                 updateTabBar(for: .menu, from: oldOffset, to: newOffset)
                             }
@@ -68,7 +62,7 @@ struct HomeView: View {
                         .navigationDestination(for: HomeRoute.self) { route in
                             switch route {
                             case .stage(let phase):
-                                StagePreviewScreen(stage: GrowthStage.allStages[phase.index]) {
+                                StagePreviewScreen(stage: GrowthStage.allStages[phase.index], prepared: preparedPreview?.phase == phase ? preparedPreview : nil) {
                                     startActivity(phase)
                                 }
                             case .transition(let phase):
@@ -84,7 +78,6 @@ struct HomeView: View {
                             case .activity(let phase):
                                 PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
                                     guard model.path.last == .activity(phase) else { return }
-                                    loadingDestination = nil
                                     if phase == .ngaleuitkeunPare {
                                         model.path = []
                                     } else {
@@ -92,12 +85,6 @@ struct HomeView: View {
                                     }
                                 }
                                 .id(phase)
-                                .environment(\.navigationSceneReady, {
-                                    if loadingDestination == .activity(phase) {
-                                        loadingDestination = nil
-                                        loadingPreview = nil
-                                    }
-                                })
                                 .toolbar(.hidden, for: .tabBar)
                             }
                         }
@@ -130,6 +117,40 @@ struct HomeView: View {
                         .frame(height: 70, alignment: .bottom)
                     }
                 }
+                .disabled(preparingStage != nil)
+                .overlay {
+                    if preparingStage != nil {
+                        ZStack {
+                            Color.black.opacity(0.28).ignoresSafeArea()
+                            ReusableLoadingView(message: "Menyiapkan tahap…", style: .card,
+                                                identifier: "menu.stage.loading")
+                        }
+                    }
+                }
+                .task(id: preparingStage) {
+                    guard let phase = preparingStage else { return }
+                    // Let SwiftUI present the menu indicator before building the graph.
+                    do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+                    preparedPreview?.renderer.stopUpdates()
+                    preparedPreview = nil
+                    let preview = PreparedStagePreview(stage: GrowthStage.allStages[phase.index])
+                    let ready = await preview.prepare()
+                    guard !Task.isCancelled, preparingStage == phase else {
+                        preview.renderer.stopUpdates()
+                        return
+                    }
+                    preparingStage = nil
+                    if ready {
+                        preparedPreview = preview
+                        model.path = [.stage(phase)]
+                    } else {
+                        preview.renderer.stopUpdates()
+                        preparationFailed = true
+                    }
+                }
+                .alert("Tahap belum dapat dimuat. Silakan pilih kembali.", isPresented: $preparationFailed) {
+                    Button("Tutup") {}
+                }
                 .tint(AppTheme.heading)
                 .overlay {
                     if let card = selectedCollectionCard {
@@ -139,49 +160,24 @@ struct HomeView: View {
                         .id(card)
                     }
                 }
-                .accessibilityHidden(loadingDestination != nil)
-                .allowsHitTesting(loadingDestination == nil)
-                .overlay {
-                    if loadingDestination != nil {
-                        Color.black.ignoresSafeArea()
-                        if let loadingPreview {
-                            Image(uiImage: loadingPreview).resizable().ignoresSafeArea().accessibilityHidden(true)
-                        }
-                        ReusableLoadingView(
-                            message: "Menyiapkan tahap…",
-                            style: .fullscreen(),
-                            identifier: "navigation.loading"
-                        )
-                    }
-                }
-                .task(id: loadingDestination) {
-                    guard case .activity(let phase) = loadingDestination else { return }
-                    do { try await Task.sleep(for: .milliseconds(30)) } catch { return }
-                    guard loadingDestination == .activity(phase) else { return }
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) { model.open(phase, journey: journey) }
-                    do { try await Task.sleep(for: .seconds(12)) } catch { return }
-                    if loadingDestination == .activity(phase) {
-                        withTransaction(transaction) { model.path = [.stage(phase)] }
-                        loadingPreview = nil
-                        loadingDestination = nil
-                    }
-                }
+
             }
         }
         .preferredColorScheme(.dark)
     }
 
-    private func startActivity(_ phase: PhaseID) {
-        guard journey.progress.isUnlocked(phase), loadingDestination == nil else { return }
-        if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive })?.keyWindow {
-            loadingPreview = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
-                window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
-            }
+    private func openStage(_ phase: PhaseID) {
+        guard preparingStage == nil, journey.progress.isUnlocked(phase) else { return }
+        if preparedPreview?.phase == phase {
+            model.path = [.stage(phase)]
+        } else {
+            preparingStage = phase
         }
-        loadingDestination = .activity(phase)
+    }
+
+    private func startActivity(_ phase: PhaseID) {
+        guard model.path.last == .stage(phase) else { return }
+        model.open(phase, journey: journey)
     }
 
     private func updateTabBar(for tab: HomeTab, from oldOffset: CGFloat, to newOffset: CGFloat) {
@@ -411,6 +407,7 @@ private struct LandingIntroText: View {
 
 private struct StagePreviewScreen: View {
     let stage: GrowthStage
+    let prepared: PreparedStagePreview?
     let openSelectedChapter: () -> Void
     @State private var sceneReady = false
     @State private var isVisible = false
@@ -421,13 +418,19 @@ private struct StagePreviewScreen: View {
         GeometryReader { viewport in
             ZStack(alignment: .bottom) {
                 CinematicAtmosphereView(progress: stage.targetProgress, isActive: isVisible)
-                SceneKitCropView(
-                    progress: stage.targetProgress,
-                    isActive: isVisible,
-                    dryingStageOnly: stage.phase == .ngalantai,
-                    showsTreeFallEffects: false,
-                    onFirstFrame: { sceneReady = true }
-                )
+                Group {
+                    if let prepared {
+                        PreparedStageSurface(preview: prepared, active: isVisible)
+                    } else {
+                        SceneKitCropView(
+                            progress: stage.targetProgress,
+                            isActive: isVisible,
+                            dryingStageOnly: stage.phase == .ngalantai,
+                            showsTreeFallEffects: false,
+                            onFirstFrame: { sceneReady = true }
+                        )
+                    }
+                }
                 .ignoresSafeArea()
                 VStack(spacing: 0) {
                     stageCard
@@ -436,16 +439,9 @@ private struct StagePreviewScreen: View {
                 .frame(maxWidth: 440)
                 .padding(.horizontal, 12)
                 .padding(.bottom, viewport.size.height * 0.14)
-                .allowsHitTesting(sceneReady)
-                .accessibilityHidden(!sceneReady)
+                .allowsHitTesting(prepared != nil || sceneReady)
+                .accessibilityHidden(prepared == nil && !sceneReady)
 
-                if !sceneReady {
-                    ReusableLoadingView(
-                        message: "Menyiapkan tahap…",
-                        style: .fullscreen(),
-                        identifier: "stage.preview.loading"
-                    )
-                }
             }
         }
         .onAppear { isVisible = true }
@@ -538,12 +534,6 @@ private struct ChapterTransitionView: View {
                 } else {
                     ChapterRewardCard(card: .chapter(phase, secondCycle: journey.progress.secondCycle), alreadyOwned: true) { showsInformation = false }
                 }
-            } else if !ready {
-                ReusableLoadingView(
-                    message: "Menyiapkan tahap…",
-                    style: .fullscreen(),
-                    identifier: "transition.loading"
-                )
             }
             if started && !showsInformation {
                 Button("Lewati animasi") {

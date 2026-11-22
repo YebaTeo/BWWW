@@ -9,7 +9,6 @@ struct NarawasView: View {
     @State private var initialized = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.navigationSceneReady) private var navigationSceneReady
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @State private var showsTouchTargets = false
@@ -22,7 +21,7 @@ struct NarawasView: View {
     }
 
     var body: some View {
-        let isLoading = !initialized || model.scene.loadingAssets
+        let isLoading = model.scene.loadingAssets
         ZStack {
             NarawasSurface(scene: model.scene)
                 .ignoresSafeArea()
@@ -41,7 +40,7 @@ struct NarawasView: View {
                 .allowsHitTesting(false)
             }
             if model.scene.assetError != nil && isLoading == false {
-                LessonBackdrop(asset: "LaunchLandscape")
+                Color(red: 0.14, green: 0.09, blue: 0.06)
                     .allowsHitTesting(false)
             }
             if let message {
@@ -49,7 +48,7 @@ struct NarawasView: View {
             } else if isLoading {
                 ReusableLoadingView(
                     message: "Menyiapkan lahan…",
-                    style: .fullscreen(backdrop: "LaunchLandscape"),
+                    style: .fullscreen,
                     identifier: "narawas.loading"
                 )
             } else {
@@ -81,16 +80,12 @@ struct NarawasView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             guard !initialized else { return }
-            // Present the loading state before the synchronous scene setup.
-            do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
             initialized = true
             model.start()
             model.setVisible(true)
             model.configureLookMotion(reduceMotion: reduceMotion)
             model.scene.muted = !ActivityAudio.shared.enabled
             await model.scene.prepareAssets()
-            navigationSceneReady?()
-            await model.scene.loadAudio()
             if message == .explanation { model.scene.showBurnedField() }
         }
         .onChange(of: model.stage) { _, stage in

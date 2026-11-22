@@ -24,9 +24,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private(set) var progress: Double = 0
     private(set) var emberTintLevel = 0
     var muted = false {
-        didSet {
-            audioPlayer?.volume = muted ? 0 : 0.45
-        }
+        didSet { if muted { setFireVolume(0) } }
     }
 
     private weak var view: SCNView?
@@ -117,7 +115,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private var ashNodes: [SCNNode] = []
 
     private(set) var assetError: String?
-    private(set) var loadingAssets = true
+    private(set) var loadingAssets = false
     private var materials: NgahumaMaterials?
     var reduceMotion = false {
         didSet {
@@ -127,8 +125,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private(set) var suspended = false
     private var windTime: Float = 0
     private var elapsed: Double = 0
-    private var audioPlayer: AVAudioPlayer?
-    private var audioURL: URL?
+    private let fireAudio = FirePlayback()
+    @ObservationIgnored private var fireVolumeLevel = 0
 
     private var tap: UITapGestureRecognizer?
     private var pan: UIPanGestureRecognizer?
@@ -259,15 +257,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             return
         } catch {
             assetError = "Tekstur belum dapat dimuat. Ketuk coba lagi."
-        }
-    }
-
-    func loadAudio() async {
-        guard let url = Bundle.main.url(forResource: "ngahuma-fire", withExtension: "wav") else { return }
-        audioURL = url
-        guard !Task.isCancelled else { return }
-        if stage == .burning {
-            startAudio()
         }
     }
 
@@ -2073,7 +2062,6 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             reportFireSettled()
             return
         }
-        startAudio()
         feedback.impactOccurred()
     }
 
@@ -2088,20 +2076,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    private func startAudio() {
-        guard let url = audioURL ?? Bundle.main.url(forResource: "ngahuma-fire", withExtension: "wav"),
-              audioPlayer == nil else { return }
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.numberOfLoops = -1
-            player.volume = 0
-            player.prepareToPlay()
-            player.play()
-            audioPlayer = player
-        } catch {
-            audioPlayer = nil
-        }
+    private func setFireVolume(_ volume: Float) {
+        let level = Int((volume * 100).rounded())
+        guard level != fireVolumeLevel else { return }
+        fireVolumeLevel = level
+        fireAudio.setVolume(Float(level) / 100)
     }
 
     private func advanceFrame(_ link: CADisplayLink) {
@@ -2168,10 +2147,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let tintLevel = Int((fireEnvelope * 24).rounded())
         if emberTintLevel != tintLevel { emberTintLevel = tintLevel }
         fireLight.intensity = CGFloat(fireEnvelope * flicker * 380)
-        if fireEnvelope > 0 && !muted {
-            audioPlayer?.volume = fireEnvelope * 0.48
-            if audioPlayer?.isPlaying == false { audioPlayer?.play() }
-        } else { audioPlayer?.pause() }
+        setFireVolume(muted ? 0 : fireEnvelope * 0.48)
 
         for index in patchPositions.indices {
             let localTime = patchBurnTime(index)
@@ -2446,8 +2422,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         wildRoot.opacity = 0
         wildRoot.isHidden = true
 
-        audioPlayer?.stop()
-        audioPlayer = nil
+        setFireVolume(0)
         progress = 1
     }
 
@@ -2510,8 +2485,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func reset() {
         emberTintLevel = 0
-        audioPlayer?.stop()
-        audioPlayer = nil
+        setFireVolume(0)
         progress = 0
         elapsed = 0
         ignitionTimes.removeAll()
@@ -2531,7 +2505,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         updateWindState()
         if value {
             clearGolokSwing()
-            audioPlayer?.pause()
+            setFireVolume(0)
         }
     }
 
@@ -2542,8 +2516,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         ngoredCycleCompletion = nil
         displayLink?.invalidate()
         displayLink = nil
-        audioPlayer?.stop()
-        audioPlayer = nil
+        setFireVolume(0)
         if let pan { view?.removeGestureRecognizer(pan) }
         pan = nil
         if let tap { view?.removeGestureRecognizer(tap) }
@@ -2992,5 +2965,34 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private func smoothstep(_ edge0: Float, _ edge1: Float, _ value: Float) -> Float {
         let t = max(0, min(1, (value - edge0) / (edge1 - edge0)))
         return t * t * (3 - 2 * t)
+    }
+}
+
+/// All access to the fire loop belongs to this serial queue.
+private final class FirePlayback: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "org.bebaduy.fire-audio", qos: .userInitiated)
+    private var player: AVAudioPlayer?
+
+    func setVolume(_ volume: Float) {
+        queue.async { [self] in
+            guard volume > 0 else {
+                player?.stop()
+                player = nil
+                return
+            }
+            if player == nil {
+                guard let url = Bundle.main.url(forResource: "ngahuma-fire", withExtension: "wav") else { return }
+                do {
+                    let session = AVAudioSession.sharedInstance()
+                    if session.category != .ambient || session.mode != .default {
+                        try session.setCategory(.ambient, mode: .default)
+                    }
+                    player = try AVAudioPlayer(contentsOf: url)
+                    player?.numberOfLoops = -1
+                } catch { return }
+            }
+            player?.volume = volume
+            if player?.isPlaying == false { player?.play() }
+        }
     }
 }

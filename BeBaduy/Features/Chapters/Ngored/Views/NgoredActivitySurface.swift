@@ -131,11 +131,11 @@ struct NgoredActivitySurface: View {
                 if model.scene.loadingAssets {
                     ReusableLoadingView(
                         message: "Menyiapkan lahan…",
-                        style: .fullscreen(backdrop: "LaunchLandscape"),
+                        style: .fullscreen,
                         identifier: "ngored.loading"
                     )
                 } else if let error = model.scene.assetError {
-                    LessonBackdrop(asset: "LaunchLandscape")
+                    Color(red: 0.14, green: 0.09, blue: 0.06)
                         .ignoresSafeArea()
                     VStack(spacing: 16) {
                         Text(error)

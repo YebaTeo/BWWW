@@ -29,14 +29,12 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     @State private var replayingCompletedStage = false
     @State private var isToolRevealed = false
     @State private var card = ActivityCardState()
-    @State private var sceneReady = false
     private var immersive: Bool { flow.screen == .activity || flow.screen == .result }
     private var sceneIsVisible: Bool {
         !((content.id == .ngaseuk && (flow.screen == .activity || flow.screen == .result))
           || (content.id == .mipit && flow.screen == .result))
     }
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.navigationSceneReady) private var navigationSceneReady
     @Environment(\.dismiss) private var dismiss
     private var equipment: (title: String, description: String)? {
         switch content.id {
@@ -74,11 +72,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                                  animateWhileInactive: content.id == .ngalantai && flow.screen == .activity,
                                  rackTransitionTimeConstant: content.id == .ngalantai && flow.screen == .activity ? 0.07 : 0.16,
                                  rackScale: rackScale,
-                                 leuitActivity: flow.screen == .activity ? leuitActivity : nil,
-                                 onFirstFrame: {
-                                     sceneReady = true
-                                     navigationSceneReady?()
-                                 })
+                                 leuitActivity: flow.screen == .activity ? leuitActivity : nil)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
@@ -175,13 +169,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         LessonButton(title: "Ayo lanjut!", identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
                     }
-                }
-                if sceneIsVisible && !sceneReady {
-                    ReusableLoadingView(
-                        message: "Menyiapkan tahap…",
-                        style: .fullscreen(),
-                        identifier: "lesson.loading"
-                    )
                 }
             }
         }
