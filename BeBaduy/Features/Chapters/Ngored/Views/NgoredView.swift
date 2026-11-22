@@ -2,15 +2,19 @@ import SwiftUI
 struct NgoredView: View {
     let journey: JourneyViewModel
     let advance: () -> Void
+    private let wasPreparedBeforeNavigation: Bool
     @State private var model: NgoredViewModel
-    init(journey: JourneyViewModel, motion: (any MotionProviding)? = nil, advance: @escaping () -> Void) {
+    init(journey: JourneyViewModel, motion: (any MotionProviding)? = nil,
+         preparedModel: NgoredViewModel? = nil, advance: @escaping () -> Void) {
         self.journey = journey
         self.advance = advance
-        _model = State(initialValue: NgoredViewModel(motion: motion))
+        wasPreparedBeforeNavigation = preparedModel != nil
+        _model = State(initialValue: preparedModel ?? NgoredViewModel(motion: motion))
     }
     var body: some View {
         PhaseContainerView(content: PhaseContent.content(for: .ngored), session: model.session, journey: journey,
-            prepareActivity: { await model.scene.prepareNgoredField() }, start: start,
+            prepareActivity: wasPreparedBeforeNavigation ? nil : { await model.scene.prepareNgoredField() },
+            start: start,
             restore: { model.session.restore($0) }, advance: advance, suspend: model.suspend, activityVisibility: model.setVisible,
             showsActiveControls: model.step == .cleared || model.step == .secondCleared || model.step == .complete,
             surface: { NgoredActivitySurface(model: model) }, activity: { NgoredActivityView(model: model) },

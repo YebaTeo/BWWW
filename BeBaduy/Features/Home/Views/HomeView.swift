@@ -6,6 +6,10 @@ struct HomeView: View {
     @State private var model = HomeViewModel()
     @State private var preparingStage: PhaseID?
     @State private var preparedPreview: PreparedStagePreview?
+    @State private var preparingActivity: PhaseID?
+    @State private var preparedNarawasModel: NarawasViewModel?
+    @State private var preparedNgoredModel: NgoredViewModel?
+    @State private var activityPreparationFailed = false
     @State private var preparationFailed = false
     @State private var onboardingReady = false
     @State private var selectedTab: HomeTab = .menu
@@ -65,6 +69,24 @@ struct HomeView: View {
                                 StagePreviewScreen(stage: GrowthStage.allStages[phase.index], prepared: preparedPreview?.phase == phase ? preparedPreview : nil) {
                                     startActivity(phase)
                                 }
+                                .disabled(preparingActivity == phase)
+                                .overlay {
+                                    if preparingActivity == phase {
+                                        ZStack {
+                                            Color.black.opacity(0.28).ignoresSafeArea()
+                                            ReusableLoadingView(message: "Menyiapkan lahan…", style: .card,
+                                                                identifier: "stage.activity.loading")
+                                        }
+                                    }
+                                }
+                                .task(id: preparingActivity) {
+                                    guard preparingActivity == phase else { return }
+                                    await prepareActivity(phase)
+                                }
+                                .onDisappear { if preparingActivity == phase { preparingActivity = nil } }
+                                .alert("Lahan belum dapat dimuat. Silakan coba lagi.", isPresented: $activityPreparationFailed) {
+                                    Button("Tutup") {}
+                                }
                             case .transition(let phase):
                                 ChapterTransitionView(phase: phase, journey: journey) {
                                     if let next = journey.continueFrom(phase) {
@@ -76,7 +98,9 @@ struct HomeView: View {
                                 .toolbar(.hidden, for: .navigationBar)
                                 .toolbar(.hidden, for: .tabBar)
                             case .activity(let phase):
-                                PhaseDestinationView(phase: phase, journey: journey, motion: motion) {
+                                PhaseDestinationView(phase: phase, journey: journey, motion: motion,
+                                                     preparedNarawasModel: preparedNarawasModel,
+                                                     preparedNgoredModel: phase == .ngored ? preparedNgoredModel : nil) {
                                     guard model.path.last == .activity(phase) else { return }
                                     if phase == .ngaleuitkeunPare {
                                         model.path = []
@@ -122,8 +146,11 @@ struct HomeView: View {
                     if preparingStage != nil {
                         ZStack {
                             Color.black.opacity(0.28).ignoresSafeArea()
-                            ReusableLoadingView(message: "Menyiapkan tahap…", style: .card,
-                                                identifier: "menu.stage.loading")
+                            ReusableLoadingView(
+                                message: "Menyiapkan tahap…",
+                                style: .card,
+                                identifier: "menu.stage.loading"
+                            )
                         }
                     }
                 }
@@ -176,8 +203,36 @@ struct HomeView: View {
     }
 
     private func startActivity(_ phase: PhaseID) {
-        guard model.path.last == .stage(phase) else { return }
-        model.open(phase, journey: journey)
+        guard model.path.last == .stage(phase), preparingActivity == nil else { return }
+        if phase == .narawas {
+            preparingActivity = phase
+        } else if phase == .ngored {
+            if preparedNgoredModel?.scene.hasPreparedNgoredField == true {
+                model.open(phase, journey: journey)
+            } else {
+                preparingActivity = phase
+            }
+        } else {
+            model.open(phase, journey: journey)
+        }
+    }
+
+    private func prepareActivity(_ phase: PhaseID) async {
+        let ready: Bool
+        if phase == .narawas {
+            let prepared = NarawasViewModel(motion: motion)
+            prepared.start()
+            ready = await prepared.scene.prepareField(forNgored: false)
+            if ready && !Task.isCancelled { preparedNarawasModel = prepared }
+        } else {
+            let prepared = NgoredViewModel(motion: motion)
+            ready = await prepared.scene.prepareNgoredField()
+            if ready && !Task.isCancelled { preparedNgoredModel = prepared }
+        }
+        guard !Task.isCancelled, preparingActivity == phase, model.path.last == .stage(phase) else { return }
+        preparingActivity = nil
+        if ready { model.open(phase, journey: journey) }
+        else { activityPreparationFailed = true }
     }
 
     private func updateTabBar(for tab: HomeTab, from oldOffset: CGFloat, to newOffset: CGFloat) {

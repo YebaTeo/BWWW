@@ -268,14 +268,6 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     Image(systemName: "chevron.left").frame(width: 44, height: 44)
                 }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
                 Spacer()
-                if card.mode == .hidden && session.outcome == nil {
-                    Button {
-                        setHelpVisible(true)
-                        card.showHelp()
-                    } label: {
-                        Image(systemName: "questionmark.circle").frame(width: 44, height: 44)
-                    }.accessibilityLabel("Buka petunjuk").accessibilityIdentifier("activity.help")
-                }
             }.padding(.horizontal, 16)
             if session.outcome != nil {
                 if content.id != .ngaleuitkeunPare { completionCard }

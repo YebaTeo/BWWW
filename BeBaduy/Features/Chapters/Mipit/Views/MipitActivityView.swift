@@ -16,12 +16,6 @@ struct MipitActivityView: View {
                 .accessibilityLabel("Kembali ke beranda")
                 .accessibilityIdentifier("lesson.back")
                 Spacer()
-                if model.step == .harvesting && !showsHelp {
-                    Button { showsHelp = true } label: {
-                        Image(systemName: "questionmark.circle").frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Buka petunjuk")
-                }
             }
             .padding(.horizontal, 16)
 

@@ -163,21 +163,32 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     // MARK: - View Attachment & Lifecycle
 
     private var preparedFieldView: SCNView?
+    var hasPreparedNgoredField: Bool { preparedFieldView != nil }
 
     func prepareNgoredField() async -> Bool {
+        return await prepareField(forNgored: true)
+    }
+
+    func prepareField(forNgored: Bool) async -> Bool {
         if preparedFieldView != nil { return true }
-        let field = SCNView(frame: .zero, options: [
+        let field = SCNView(frame: UIScreen.main.bounds, options: [
             SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
         ])
         configureRenderer(field)
         if cameraNode.camera == nil { configureCamera() }
         await prepareAssets()
         guard !Task.isCancelled, materials != nil, assetError == nil else { return false }
+        if forNgored { showNgoredField() }
         field.pointOfView = cameraNode
-        field.isPlaying = false
-        field.rendersContinuously = false
         let ready = await field.prepare([scnScene])
         guard ready, !Task.isCancelled else { return false }
+        // prepare(_:) compiles resources, while snapshot() forces the first
+        // textured frame to render before this view is handed to SwiftUI.
+        field.isPlaying = true
+        let firstFrame = field.snapshot()
+        field.isPlaying = false
+        field.rendersContinuously = false
+        guard firstFrame.size.width > 0, firstFrame.size.height > 0 else { return false }
         preparedFieldView = field
         return true
     }

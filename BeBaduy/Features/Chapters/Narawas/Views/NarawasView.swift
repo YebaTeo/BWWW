@@ -4,6 +4,7 @@ struct NarawasView: View {
     let journey: JourneyViewModel
     let advance: () -> Void
     @State private var model: NarawasViewModel
+    private let wasPrepared: Bool
     private enum Message { case cleared, burnIntro, ready, explanation }
     @State private var message: Message?
     @State private var initialized = false
@@ -14,10 +15,11 @@ struct NarawasView: View {
     @State private var showsTouchTargets = false
     private let orange = Color(red: 1, green: 0.65, blue: 0.25)
 
-    init(journey: JourneyViewModel, motion: any MotionProviding, advance: @escaping () -> Void) {
+    init(journey: JourneyViewModel, motion: any MotionProviding, preparedModel: NarawasViewModel? = nil, advance: @escaping () -> Void) {
         self.journey = journey
         self.advance = advance
-        _model = State(initialValue: NarawasViewModel(motion: motion))
+        wasPrepared = preparedModel != nil
+        _model = State(initialValue: preparedModel ?? NarawasViewModel(motion: motion))
     }
 
     var body: some View {
@@ -81,11 +83,11 @@ struct NarawasView: View {
         .task {
             guard !initialized else { return }
             initialized = true
-            model.start()
+            if !wasPrepared { model.start() }
             model.setVisible(true)
             model.configureLookMotion(reduceMotion: reduceMotion)
             model.scene.muted = !ActivityAudio.shared.enabled
-            await model.scene.prepareAssets()
+            if !wasPrepared { await model.scene.prepareAssets() }
             if message == .explanation { model.scene.showBurnedField() }
         }
         .onChange(of: model.stage) { _, stage in

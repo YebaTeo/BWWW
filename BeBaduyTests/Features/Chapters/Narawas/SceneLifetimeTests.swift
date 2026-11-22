@@ -9,6 +9,10 @@ final class SceneLifetimeTests: XCTestCase {
         XCTAssertTrue(ready)
         XCTAssertFalse(model.session.isActive)
         let field = try XCTUnwrap(model.scene.takePreparedFieldView())
+        let preparedFrame = XCTAttachment(image: field.snapshot())
+        preparedFrame.name = "Prepared Ngored field"
+        preparedFrame.lifetime = .keepAlways
+        add(preparedFrame)
         let rice = try XCTUnwrap(field.scene?.rootNode.childNode(withName: "ngoredRice_0", recursively: true))
         model.start()
         model.scene.attach(field, prepared: true)

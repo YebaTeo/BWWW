@@ -12,7 +12,7 @@ import XCTest
         if id.hasPrefix("narawas.cut.") || id.hasPrefix("narawas.ignite.") ||
             id.hasPrefix("seed_") || id.hasPrefix("weed_") ||
             id.hasPrefix("bundle_") || id.hasPrefix("space_") {
-            for entry in ["activity.card.start", "narawas.fire.begin", "ngored.field.begin", "activity.help"] {
+            for entry in ["activity.card.start", "narawas.fire.begin", "ngored.field.begin"] {
                 if !button.exists && app.buttons[entry].exists { tap(entry) }
             }
         }
@@ -297,7 +297,7 @@ import XCTest
         assertInformationCard(cue: "ngaseuk.seeds.continue")
         capture("Ngaseuk-middle-planting")
         tap("ngaseuk.seeds.continue")
-        XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["activity.help"].exists)
         let seed = app.descendants(matching: .any)["field.seed"].firstMatch
         XCTAssertTrue(seed.waitForExistence(timeout: 5))
         // The close-up replaces field elements during the gesture. Drag toward
@@ -308,15 +308,13 @@ import XCTest
         XCTAssertTrue(app.staticTexts["1 / 3 lubang berisi benih"].waitForExistence(timeout: 8))
     }
 
-    func testNgaseukPlantingHelpAndCompletion() {
+    func testNgaseukPlantingAndCompletion() {
         prepare(["--uitest-ngaseuk", "--uitest-ngaseuk-motion"]); start()
         waitForNgaseukHoles()
         assertInformationCard(cue: "ngaseuk.seeds.continue")
         tap("ngaseuk.seeds.continue")
-        XCTAssertTrue(app.buttons["activity.help"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["activity.help"].exists)
         capture("Ngaseuk-bottom-seeding")
-        tap("activity.help")
-        assertInformationCard(cue: "activity.card.close")
         for index in 0..<3 { tap("seed_\(index)") }
         next()
         XCTAssertTrue(app.staticTexts["home.stage.title"].waitForExistence(timeout: 5))
@@ -324,6 +322,7 @@ import XCTest
 
     func testOneKoredSwipeUprootsWeed() {
         prepare(["--uitest-ngored"]); tap("phase_ngored"); tap("resume")
+        XCTAssertTrue(app.buttons["lesson.equipment.reveal"].waitForExistence(timeout: 30))
         start()
         assertInformationCard(cue: "ngored.growth.begin")
         capture("Ngored-middle-instructions")
@@ -346,13 +345,7 @@ import XCTest
         let ladderHint = app.staticTexts["Seret tangga bambu ke pintu leuit."]
         XCTAssertTrue(ladderHint.waitForExistence(timeout: 10))
         capture("Leuit-bottom-instructions")
-        tap("activity.help")
-        assertInformationCard(cue: "activity.card.close")
-        capture("Leuit-middle-help")
-        let hint = app.staticTexts["activity.continuation.hint"]
-        XCTAssertTrue(hint.exists)
-        XCTAssertEqual(hint.label, "Tap layar untuk lanjut")
-        XCTAssertTrue(hint.waitForNonExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["activity.help"].exists)
         XCTAssertFalse(app.buttons["lesson.activity.result"].exists)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.27)).tap()
         XCTAssertTrue(ladderHint.waitForExistence(timeout: 5))
@@ -425,11 +418,9 @@ import XCTest
         // Repeating the same ground tap must not light a second patch.
         tapField(0.36, 0.61)
         capture("Narawas-ground-ignition")
-        tap("activity.help")
-        XCTAssertEqual(app.staticTexts["narawas.fire.progress"].label, "1 / 4 lahan dinyalakan")
+        XCTAssertFalse(app.buttons["activity.help"].exists)
         XCTAssertFalse(app.buttons["narawas.finishBurn"].exists)
         XCTAssertFalse(app.buttons["lesson.result.continue"].exists)
-        tap("activity.card.close")
         for (x, y) in [(0.12, 0.57), (0.63, 0.57), (0.88, 0.59)] {
             tapField(x, y)
         }
@@ -455,8 +446,7 @@ import XCTest
         capture("Activity-card-large-text")
         try app.performAccessibilityAudit(for: [.contrast, .dynamicType, .textClipped, .hitRegion])
         tap("activity.card.start"); capture("Activity-field-large-text")
-        tap("activity.help")
-        XCTAssertTrue(app.scrollViews["activity.card.scroll"].exists)
+        XCTAssertFalse(app.buttons["activity.help"].exists)
     }
     func testLargeTextDarkLayoutAndAccessibility() throws {
         prepare(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "--dark-appearance"])
