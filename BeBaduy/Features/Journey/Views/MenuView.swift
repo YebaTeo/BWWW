@@ -27,6 +27,33 @@ struct MenuView: View {
     private var firstStageGap: CGFloat { dynamicTypeSize.isAccessibilitySize ? 185 : 115 }
     private var stageStep: CGFloat { dynamicTypeSize.isAccessibilitySize ? 210 : 145 }
 
+    private var showsRestartButton: Bool {
+        journey.progress.allComplete && visualOverrideUnlockedUpTo == nil
+    }
+
+    private var restartJourneyButton: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                journey.completeCycleAndReturnToMenu()
+            }
+        } label: {
+            Text("Mulai ngahuma lagi")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .padding(.horizontal, 20)
+                .background(AppTheme.action, in: Capsule())
+                .overlay(Capsule().strokeBorder(AppTheme.actionBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("menu.restart")
+        .padding(.horizontal, 27)
+        .padding(.bottom, 24)
+    }
+
     private func stageY(_ index: Int) -> CGFloat {
         103 + (index == 0 ? 0 : firstStageGap + CGFloat(index - 1) * stageStep)
     }
@@ -68,6 +95,11 @@ struct MenuView: View {
                 .id("menu_top")
 
                 stageMap
+
+                if showsRestartButton {
+                    restartJourneyButton
+                        .transition(.opacity)
+                }
             }
             .background { MenuScrollBoundary() }
             .frame(maxWidth: 540)
@@ -298,7 +330,7 @@ struct MenuView: View {
                 }
             }
         }
-        .frame(height: stageY(PhaseID.allCases.count - 1) + 127)
+        .frame(height: stageY(PhaseID.allCases.count - 1) + (showsRestartButton ? 112 : 127))
     }
 
     private func stageMarker(_ phase: PhaseID, unlocked: Bool, isCurrent: Bool) -> some View {

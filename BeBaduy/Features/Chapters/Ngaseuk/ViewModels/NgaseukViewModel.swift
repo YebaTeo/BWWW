@@ -43,7 +43,7 @@ import UIKit
     private func startTutorial() {
         guard tutorialTask == nil else { return }
         tutorialTask = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
             guard let self, !Task.isCancelled else { return }
             self.tutorialTask = nil
             self.proceed()

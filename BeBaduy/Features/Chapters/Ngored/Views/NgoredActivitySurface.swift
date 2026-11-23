@@ -113,7 +113,7 @@ struct NgoredActivitySurface: View {
                     .accessibilityLabel("Pusatkan pandangan")
                     .accessibilityIdentifier("ngored.recenter")
                     .padding(.top, sceneInsets.top)
-                    .padding(.trailing, sceneInsets.trailing + 68)
+                    .padding(.trailing, sceneInsets.trailing + 20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
                 if model.scene.loadingAssets {

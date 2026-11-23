@@ -1,5 +1,6 @@
 enum ChapterCard: String, CaseIterable, Hashable, Identifiable {
-    case lebu, angklung, ngubaran, saung, rengkong, epic
+    case lebu, angklung, ngubaran, saung, unjal, epic
+    case aseuk, kored, etem
 
     case sengon, pungpuhunan, kolecer, gaharu, lantaian, kematian
 
@@ -23,8 +24,11 @@ enum ChapterCard: String, CaseIterable, Hashable, Identifiable {
         case .angklung: "Angklung Buhun"
         case .ngubaran: "Ngubaran Pare (merawat padi)"
         case .saung: "Saung"
-        case .rengkong: "Rengkong"
+        case .unjal: "unjal"
         case .epic: "Pernikahan"
+        case .aseuk: "Aseuk"
+        case .kored: "Kored"
+        case .etem: "Etem"
         case .sengon: "Pohon Sengon"
         case .pungpuhunan: "Pungpuhunan"
         case .kolecer: "Kolecer"
@@ -40,8 +44,11 @@ enum ChapterCard: String, CaseIterable, Hashable, Identifiable {
         case .angklung: "Dimainkan saat perayaan tanam sebagai simbol pernikahan benih pare dan bumi, membawa kegembiraan bagi alam dan seluruh warga."
         case .ngubaran: "Pengobatan pare yang terkena penyakit dengan ramuan alami."
         case .saung: "Pondok untuk beristirahat saat Ngahuma. Terkadang juga digunakan untuk bermalam untuk menjaga pare."
-        case .rengkong: "Bambu besar untuk mengangkut pare kering ke leuit. Suara angin yang melewati rongganya dipercaya memberi napas bagi ruh pare."
+        case .unjal: "Bambu atau kayu untuk mengangkut pare kering ke leuit."
         case .epic: "Pare akan dihaluskan untuk dioleskan ke wajah dan tubuh kedua mempelai sebagai berkat dan pengukuhan perkawinan."
+        case .aseuk: "Tongkat kayu yang digunakan untuk membuat lubang tanam."
+        case .kored: "Cangkul kecil bermata miring untuk membersihkan gulma dan menggemburkan tanah."
+        case .etem: "Alat kecil untuk mipit (mencubit batang padi) saat panen dengan gerakan seperti memetik."
         case .sengon: "Dibiarkan tumbuh liar selama 5–10 tahun sebelum lahan digunakan kembali untuk Ngahuma."
         case .pungpuhunan: "Sekumpulan tanaman obat dan penolak bala yang ditanam di tengah huma yang terbukti bisa menjadi pestisida alami untuk mengusir hama tanaman."
         case .kolecer: "Baling-baling bambu raksasa yang bersuara untuk menghalau kawanan burung dan hama di musim panas saat angin kencang."
@@ -57,14 +64,24 @@ enum ChapterCard: String, CaseIterable, Hashable, Identifiable {
         case .ngaseuk: secondCycle ? .pungpuhunan : .angklung
         case .ngored: secondCycle ? .kolecer : .ngubaran
         case .mipit: secondCycle ? .gaharu : .saung
-        case .ngalantai: secondCycle ? .lantaian : .rengkong
+        case .ngalantai: secondCycle ? .lantaian : .unjal
         case .ngaleuitkeunPare: secondCycle ? .kematian : .epic
+        }
+    }
+
+    static func tool(for phase: PhaseID) -> Self? {
+        switch phase {
+        case .ngaseuk: .aseuk
+        case .ngored: .kored
+        case .mipit: .etem
+        default: nil
         }
     }
 
     // These identifiers are also stored in saved collections.
     var imageName: String {
         if self == .epic { return "HumaSunsetValley" }
+        if self == .aseuk || self == .kored || self == .etem { return "Tool-\(rawValue)" }
         if self != Self.chapter(phase) { return artwork }
         return "Journey-\(phase.rawValue)"
     }
@@ -75,8 +92,11 @@ enum ChapterCard: String, CaseIterable, Hashable, Identifiable {
         case .angklung, .pungpuhunan: .ngaseuk
         case .ngubaran, .kolecer: .ngored
         case .saung, .gaharu: .mipit
-        case .rengkong, .lantaian: .ngalantai
+        case .unjal, .lantaian: .ngalantai
         case .epic, .kematian: .ngaleuitkeunPare
+        case .aseuk: .ngaseuk
+        case .kored: .ngored
+        case .etem: .mipit
         }
     }
 

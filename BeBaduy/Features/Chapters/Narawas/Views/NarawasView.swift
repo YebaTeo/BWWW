@@ -94,7 +94,7 @@ struct NarawasView: View {
             if stage == .complete {
                 if let outcome = model.session.outcome {
                     journey.record(.narawas, outcome: outcome)
-                    advance()
+                    showExplanation()
                 }
             }
         }
@@ -112,26 +112,31 @@ struct NarawasView: View {
     @ViewBuilder private func messageOverlay(_ current: Message) -> some View {
         if current == .explanation {
             GeometryReader { geometry in
-                VStack(spacing: 0) {
-                    ScrollView {
-                        HumaGlassCard {
-                            VStack(spacing: 24) {
-                                Text(PhaseContent.content(for: .narawas).explanation)
+                ZStack {
+                    Color.black.opacity(0.34)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    VStack(spacing: 0) {
+                        ScrollView {
+                            HumaGlassCard {
+                                ReflectionText(content: PhaseContent.content(for: .narawas))
                             }
+                            .frame(width: min(330, max(1, geometry.size.width - 48)),
+                                   height: min(330, max(1, geometry.size.width - 48)) * 480 / 330)
+                            .environment(\.colorScheme, .dark)
+                            .accessibilityIdentifier("lesson.explanation.card")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                            .frame(minHeight: max(0, geometry.size.height - 140))
                         }
-                        .frame(width: min(330, max(1, geometry.size.width - 48)),
-                               height: min(330, max(1, geometry.size.width - 48)) * 480 / 330)
-                        .environment(\.colorScheme, .dark)
-                        .accessibilityIdentifier("lesson.explanation.card")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                        .frame(minHeight: max(0, geometry.size.height - 140))
+                        .scrollBounceBehavior(.basedOnSize)
+                        .accessibilityIdentifier("lesson.explanation.page")
+                        LessonButton(title: "Ayo lanjut!", identifier: "continue", action: advance)
+                            .padding(.horizontal, 24).padding(.vertical, 16)
                     }
-                    .accessibilityIdentifier("lesson.explanation.page")
-                    LessonButton(title: "Ayo lanjut!", identifier: "continue", action: advance)
-                        .padding(.horizontal, 24).padding(.vertical, 16)
+                    .padding(.top, 44)
                 }
-                .padding(.top, 44)
             }
         } else {
             ActivityCardLayout(placement: .middle) {

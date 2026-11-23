@@ -289,6 +289,18 @@ private struct CollectionCardDetails: View {
 
     @ViewBuilder private var artwork: some View {
         switch card {
+        case .aseuk:
+            AseukTool()
+                .frame(width: size.width * 0.30, height: size.height * 0.48)
+                .padding(.top, size.height * 0.08)
+        case .kored:
+            KoredTool()
+                .frame(width: size.width * 0.74, height: size.height * 0.46)
+                .padding(.top, size.height * 0.09)
+        case .etem:
+            Image("mipit_etem").resizable().scaledToFit()
+                .frame(width: size.width * 0.67, height: size.height * 0.46)
+                .padding(.top, size.height * 0.09)
         case .lebu, .ngubaran, .pungpuhunan, .gaharu:
             Image(card.artwork).resizable().scaledToFit()
                 .frame(width: size.width * (card == .lebu ? 0.87 : 0.67), height: size.height * 0.46)
@@ -333,14 +345,19 @@ struct ChapterCardFace: View {
             if front {
                 CollectionCardDetails(card: card, size: CGSize(width: width, height: width * 4 / 3))
             } else {
+                let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
                 Image("ToolRevealWeave")
                     .resizable()
                     .scaledToFill()
                     .frame(width: width, height: width * 4 / 3)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .clipShape(shape)
+                    .overlay {
+                        shape.strokeBorder(.white.opacity(0.18), lineWidth: 0.75)
+                            .allowsHitTesting(false)
+                    }
                     .accessibilityHidden(true)
             }
         }
-        .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+        .shadow(color: .black.opacity(0.45), radius: 14, y: 8)
     }
 }

@@ -15,7 +15,7 @@ struct NgaseukActivityView: View {
                     Text("Tusukkan aseuk tiga kali pada setiap titik. Lubang akan membesar sampai siap ditanami.")
                 case .holesReady:
                     ActivityCardHeading("Keren!")
-                    Text("Nah, sekarang waktunya menabur binih ke setiap lubang agar pare huma bisa mulai tumbuh\n\nSeret benih ke lubang, lalu lepaskan di pusat lubang untuk menanam.")
+                    Text("Nah, sekarang waktunya menabur binih ke setiap lubang agar pare huma bisa mulai tumbuh.")
                 case .seeding:
                     Text("Seret benih dari wadah ke lubang, lalu arahkan ke pusat lubang di tampilan dekat dan lepaskan untuk menanam 4 benih sekaligus.")
                 }
