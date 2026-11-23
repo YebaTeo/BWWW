@@ -60,7 +60,7 @@ struct MipitActivityView: View {
     }
 
     private var harvestCount: some View {
-        Text("\(model.harvested.count) / \(MipitViewModel.harvestCount) malai terkumpul")
+        Text("\(model.harvested.count) / \(MipitViewModel.harvestCount) padi terkumpul")
             .font(.subheadline.monospacedDigit())
     }
 }

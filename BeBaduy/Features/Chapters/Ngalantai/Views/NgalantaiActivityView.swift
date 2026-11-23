@@ -29,7 +29,7 @@ struct NgalantaiActivityView: View {
                 ActivityCardLayout(placement: .middle) {
                     ActivityCardPanel {
                         ActivityCardHeading("Jaga keseimbangan Lantaian bambu!")
-                        Text("Miringkan ponselmu untuk mengimbangi pergeseran beban padi. Jaga bambu tetap rata hingga bar penuh. Saat bambu miring, bar berkurang perlahan.")
+                        Text("Goyangkan ponselmu ke kiri dan kanan agar pocong tidak terjatuh.")
                     }
                     ActivityAcknowledgement(title: "Mulai menjaga keseimbangan", identifier: "ngalantai.balance.continue",
                                             action: model.beginBalance)
@@ -43,16 +43,7 @@ struct NgalantaiActivityView: View {
                         Text(abs(model.balance) < NgalantaiViewModel.balanceTolerance ? "Seimbang · tahan sebentar" : "Arahkan bambu ke tengah")
                     }
                     if model.usesTouch {
-                        ViewThatFits(in: .horizontal) {
-                            HStack(spacing: 16) {
-                                balanceSlider.frame(minWidth: 120)
-                                centerButton.fixedSize(horizontal: true, vertical: false)
-                            }
-                            VStack(spacing: 4) {
-                                balanceSlider
-                                centerButton
-                            }
-                        }
+                        centerButton
                     } else {
                         Button("Gunakan sentuhan", action: model.useTouch)
                             .frame(minHeight: 44)
@@ -88,12 +79,6 @@ struct NgalantaiActivityView: View {
         .sensoryFeedback(.success, trigger: model.step) { previous, current in
             previous == .balancing && current == .awaitingPortrait
         }
-    }
-
-    private var balanceSlider: some View {
-        Slider(value: Binding(get: { model.controlBalance }, set: { model.setBalance($0) }), in: -1...1)
-            .accessibilityLabel("Keseimbangan bambu")
-            .accessibilityIdentifier("ngalantai.balance.slider")
     }
 
     private var centerButton: some View {

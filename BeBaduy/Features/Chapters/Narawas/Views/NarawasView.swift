@@ -12,7 +12,6 @@ struct NarawasView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
-    @State private var showsTouchTargets = false
     private let orange = Color(red: 1, green: 0.65, blue: 0.25)
 
     init(journey: JourneyViewModel, motion: any MotionProviding, preparedModel: NarawasViewModel? = nil, advance: @escaping () -> Void) {
@@ -205,7 +204,7 @@ struct NarawasView: View {
                     motionHint
                 }
                 if model.stage == .clearing || model.stage == .prepared || model.stage == .burning {
-                    if !model.motionActive || voiceOverEnabled || showsTouchTargets {
+                    if !model.motionActive || voiceOverEnabled {
                         ScrollView(.horizontal) {
                             HStack(spacing: 8) {
                                 ForEach(0..<NarawasViewModel.treeCount, id: \.self) { index in
@@ -222,9 +221,6 @@ struct NarawasView: View {
                                 }
                             }
                         }
-                    } else {
-                        Button("Gunakan tombol target") { showsTouchTargets = true }
-                            .font(.caption.weight(.semibold))
                     }
                 }
                 if allLit {
@@ -237,7 +233,7 @@ struct NarawasView: View {
 
     private func fieldInstruction(allLit: Bool) -> String {
         if model.stage == .clearing {
-            return "Arahkan ponselmu ke kiri atau kanan, lalu usap pohon \(NarawasViewModel.tapsPerTree) kali untuk menebangnya!"
+            return "Arahkan ponselmu ke kiri atau kanan, lalu usap pohon untuk menebangnya!"
         }
         if allLit {
             return "Arahkan ponselmu ke kiri atau kanan agar kita bisa memantau api hingga mereda."
