@@ -10,6 +10,7 @@ struct NarawasLookMotion {
     private var referenceHeading = SIMD3<Float>(1, 0, 0)
     private var lastHeading: Float = 0
     private var reference: simd_quatf?
+    private var target = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var filtered = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var lastTime: Double?
     init(smoothingTime: Double = 0.06, stableHeading: Bool = true) {
@@ -18,7 +19,36 @@ struct NarawasLookMotion {
     }
 
     mutating func reset() { self = Self(smoothingTime: smoothingTime, stableHeading: stableHeading) }
+
     mutating func consume(_ sample: MotionSample) -> simd_quatf? {
+        guard let elapsed = updateTarget(from: sample) else { return nil }
+        if elapsed > 0 {
+            let blend = Float(1 - exp(-elapsed / smoothingTime))
+            filtered = simd_normalize(simd_slerp(filtered, target, blend))
+        }
+        return filtered
+    }
+
+    /// Advances smoothed camera orientation once per display frame, even if the sensor timestamp repeated.
+    mutating func step(sample: MotionSample?, dt: TimeInterval) -> simd_quatf? {
+        if let sample {
+            _ = updateTarget(from: sample)
+        }
+        guard reference != nil else { return nil }
+        let stepDt = min(max(dt, 0), 0.1)
+        if stepDt > 0 {
+            let dot = abs(simd_dot(filtered.vector, target.vector))
+            if dot < 0.9999995 {
+                let blend = Float(1 - exp(-stepDt / smoothingTime))
+                filtered = simd_normalize(simd_slerp(filtered, target, blend))
+            } else {
+                filtered = target
+            }
+        }
+        return filtered
+    }
+
+    private mutating func updateTarget(from sample: MotionSample) -> Double? {
         guard sample.time.isFinite, let vector = sample.attitude,
               vector.x.isFinite, vector.y.isFinite, vector.z.isFinite, vector.w.isFinite,
               lastTime == nil || sample.time > lastTime! else { return nil }
@@ -42,7 +72,9 @@ struct NarawasLookMotion {
                 let horizontal = headingAxis - referenceUp * simd_dot(headingAxis, referenceUp)
                 referenceHeading = simd_normalize(horizontal)
             }
-            return filtered
+            target = simd_quatf(angle: 0, axis: [0, 1, 0])
+            filtered = target
+            return 0
         }
         let delta = simd_normalize(reference.inverse * orientation)
         // The delta is in the starting phone frame, where world up can
@@ -52,7 +84,6 @@ struct NarawasLookMotion {
         let originalYaw = yawLength > 0.0001
             ? simd_quatf(vector: yawVector / yawLength)
             : simd_quatf(angle: 0, axis: [0, 1, 0])
-        let target: simd_quatf
         if stableHeading {
             // Screen right stays horizontal while the phone is lifted. Derive
             // only heading from it; the camera's vertical angle remains fixed.
@@ -69,8 +100,6 @@ struct NarawasLookMotion {
         } else {
             target = originalYaw
         }
-        let blend = Float(1 - exp(-elapsed / smoothingTime))
-        filtered = simd_normalize(simd_slerp(filtered, target, blend))
-        return filtered
+        return elapsed
     }
 }

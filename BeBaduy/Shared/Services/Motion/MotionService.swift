@@ -5,26 +5,15 @@ import CoreMotion
     private let manager = CMMotionManager()
     private var generation = 0
     var available: Bool { manager.isDeviceMotionAvailable }
+    var supportsPolling: Bool { true }
+
     func start(handler: @escaping @MainActor (MotionSample?) -> Void) {
         stop()
         guard available else { handler(nil); return }
         let token = generation
         manager.deviceMotionUpdateInterval = 1.0 / 60
         manager.startDeviceMotionUpdates(to: .main) { [weak self] data, error in
-            let sample = data.flatMap { data -> MotionSample? in
-                let gravity = data.gravity
-                let magnitude = (gravity.x * gravity.x + gravity.y * gravity.y + gravity.z * gravity.z).squareRoot()
-                guard magnitude > 0.5 else { return nil }
-                let acceleration = data.userAcceleration
-                // Project onto gravity (`gravity` points toward Earth's center, so `userAcceleration · gravity > 0`
-                // when accelerating downward and `< 0` when accelerating upward).
-                // Negate `downward` so `verticalAcceleration` is negative (< 0) when accelerating DOWNWARD
-                // and positive (> 0) when accelerating UPWARD.
-                let downward = (acceleration.x * gravity.x + acceleration.y * gravity.y + acceleration.z * gravity.z) / magnitude
-                let q = data.attitude.quaternion
-                let rate = data.rotationRate
-                return MotionSample(time: data.timestamp, verticalAcceleration: -downward, roll: data.attitude.roll, gravity: SIMD3(gravity.x, gravity.y, gravity.z), rotationRate: SIMD3(rate.x, rate.y, rate.z), attitude: SIMD4(q.x, q.y, q.z, q.w))
-            }
+            let sample = data.flatMap(Self.makeSample(from:))
             let failed = error != nil || sample == nil
             // Core Motion delivers this callback on OperationQueue.main.
             MainActor.assumeIsolated {
@@ -33,5 +22,42 @@ import CoreMotion
             }
         }
     }
+
+    /// Starts hardware device-motion updates without waking the main run loop on every packet.
+    func beginPolling() {
+        stop()
+        guard available else { return }
+        // Sample at the native IMU rate so vsync polls never miss an update.
+        manager.deviceMotionUpdateInterval = 1.0 / 120.0
+        manager.startDeviceMotionUpdates()
+    }
+
+    func currentSample() -> MotionSample? {
+        guard manager.isDeviceMotionActive, let data = manager.deviceMotion else { return nil }
+        return Self.makeSample(from: data)
+    }
+
     func stop() { generation += 1; manager.stopDeviceMotionUpdates() }
+
+    private nonisolated static func makeSample(from data: CMDeviceMotion) -> MotionSample? {
+        let gravity = data.gravity
+        let magnitude = (gravity.x * gravity.x + gravity.y * gravity.y + gravity.z * gravity.z).squareRoot()
+        guard magnitude > 0.5 else { return nil }
+        let acceleration = data.userAcceleration
+        // Project onto gravity (`gravity` points toward Earth's center, so `userAcceleration · gravity > 0`
+        // when accelerating downward and `< 0` when accelerating upward).
+        // Negate `downward` so `verticalAcceleration` is negative (< 0) when accelerating DOWNWARD
+        // and positive (> 0) when accelerating UPWARD.
+        let downward = (acceleration.x * gravity.x + acceleration.y * gravity.y + acceleration.z * gravity.z) / magnitude
+        let q = data.attitude.quaternion
+        let rate = data.rotationRate
+        return MotionSample(
+            time: data.timestamp,
+            verticalAcceleration: -downward,
+            roll: data.attitude.roll,
+            gravity: SIMD3(gravity.x, gravity.y, gravity.z),
+            rotationRate: SIMD3(rate.x, rate.y, rate.z),
+            attitude: SIMD4(q.x, q.y, q.z, q.w)
+        )
+    }
 }

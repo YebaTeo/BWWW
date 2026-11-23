@@ -11,23 +11,23 @@ import UIKit
 @Observable
 final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
-    var onTreeTapped: ((Int) -> Void)?
-    var onIgnitionRequested: ((Int) -> Void)?
+    @ObservationIgnored var onTreeTapped: ((Int) -> Void)?
+    @ObservationIgnored var onIgnitionRequested: ((Int) -> Void)?
     private var ignited: Dictionary<Int, Double>.Keys { ignitionTimes.keys }
-    private var reportedFireSettled = false
-    var onReady: (() -> Void)?
-    var onFireSettled: (() -> Void)?
-    var activityStage: (() -> NarawasViewModel.Stage)?
+    @ObservationIgnored private var reportedFireSettled = false
+    @ObservationIgnored var onReady: (() -> Void)?
+    @ObservationIgnored var onFireSettled: (() -> Void)?
+    @ObservationIgnored var activityStage: (() -> NarawasViewModel.Stage)?
     private var stage: NarawasViewModel.Stage { activityStage?() ?? .entering }
-    private var ignitionTimes: [Int: Double] = [:]
+    @ObservationIgnored private var ignitionTimes: [Int: Double] = [:]
 
     private(set) var progress: Double = 0
     private(set) var emberTintLevel = 0
-    var muted = false {
+    @ObservationIgnored var muted = false {
         didSet { if muted { setFireVolume(0) } }
     }
 
-    private weak var view: SCNView?
+    @ObservationIgnored private weak var view: SCNView?
     private let scnScene = SCNScene()
     private let worldRoot = SCNNode()
     private let skyLayerRoot = SCNNode()
@@ -50,25 +50,27 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     private let fireLight = SCNLight()
     private let fireGlowNode = SCNNode()
 
-    private var groundMaterial: SCNMaterial?
-    private var skyDomeMaterial: SCNMaterial?
-    private var mountainLayerMaterial: SCNMaterial?
-    private var horizonLayerMaterial: SCNMaterial?
-    private var sunDiskMaterial: SCNMaterial?
-    private var sunHaloMaterial: SCNMaterial?
-    private var atmosphereMoteMaterial: SCNMaterial?
+    @ObservationIgnored private var groundMaterial: SCNMaterial?
+    @ObservationIgnored private var skyDomeMaterial: SCNMaterial?
+    @ObservationIgnored private var mountainLayerMaterial: SCNMaterial?
+    @ObservationIgnored private var horizonLayerMaterial: SCNMaterial?
+    @ObservationIgnored private var sunDiskMaterial: SCNMaterial?
+    @ObservationIgnored private var sunHaloMaterial: SCNMaterial?
+    @ObservationIgnored private var atmosphereMoteMaterial: SCNMaterial?
 
     private final class Blade {
         let pivot: SCNNode
         let phase: Float
         let response: Float
         let restYaw: Float
+        let isWildGrass: Bool
 
-        init(pivot: SCNNode, phase: Float, response: Float, restYaw: Float) {
+        init(pivot: SCNNode, phase: Float, response: Float, restYaw: Float, isWildGrass: Bool) {
             self.pivot = pivot
             self.phase = phase
             self.response = response
             self.restYaw = restYaw
+            self.isWildGrass = isWildGrass
         }
     }
 
@@ -76,6 +78,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let holder: SCNNode
         let trunk: SCNNode
         let canopy: SCNNode
+        let silhouetteMaterials: [SCNMaterial]
         let rootAnchor: SCNNode
         let shadow: SCNNode
         let directionalShadow: SCNNode
@@ -86,56 +89,56 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let fallDirection: Float
     }
 
-    private var golokSwingNode: SCNNode?
-    private var treeEntries: [TreeEntry] = []
-    private var ngoredWeedRoots: [SCNNode] = []
-    private var ngoredWeedRestPositions: [SCNVector3] = []
-    private var uprootedNgoredWeeds = Set<Int>()
-    private var ngoredRiceRoots: [SCNNode] = []
-    private var ngoredRainNodes: [SCNNode] = []
-    private var ngoredRainRequested = false
-    private var ngoredMoonRoot: SCNNode?
-    private var ngoredFieldPresented = false
-    private var treeChopStartTimes: [Int: Double] = [:]
-    private var treeChopProgress: [Int: Float] = [:]
-    private var treeCutStartTimes: [Int: Double] = [:]
-    private var crackedTrees = Set<Int>()
-    private var fallingSoundTrees = Set<Int>()
-    private var impactedTrees = Set<Int>()
-    private var charredPatches = Set<Int>()
-    private var blades: [Blade] = []
-    private var bladePatches: [Int?] = []
-    private var ashPatches: [Int?] = []
-    private var patchPositions: [SCNVector3] = []
-    private var flameSystems: [SCNParticleSystem] = []
-    private var sparkSystems: [SCNParticleSystem] = []
-    private var smokeSystems: [SCNParticleSystem] = []
-    private var groundGlowNodes: [SCNNode] = []
-    private var atmosphereMotes: [(node: SCNNode, baseX: Float, baseZ: Float, minY: Float, maxY: Float, speed: Float, phase: Float)] = []
-    private var ashNodes: [SCNNode] = []
+    @ObservationIgnored private var golokSwingNode: SCNNode?
+    @ObservationIgnored private var treeEntries: [TreeEntry] = []
+    @ObservationIgnored private var ngoredWeedRoots: [SCNNode] = []
+    @ObservationIgnored private var ngoredWeedRestPositions: [SCNVector3] = []
+    @ObservationIgnored private var uprootedNgoredWeeds = Set<Int>()
+    @ObservationIgnored private var ngoredRiceRoots: [SCNNode] = []
+    @ObservationIgnored private var ngoredRainNodes: [SCNNode] = []
+    @ObservationIgnored private var ngoredRainRequested = false
+    @ObservationIgnored private var ngoredMoonRoot: SCNNode?
+    @ObservationIgnored private var ngoredFieldPresented = false
+    @ObservationIgnored private var treeChopStartTimes: [Int: Double] = [:]
+    @ObservationIgnored private var treeChopProgress: [Int: Float] = [:]
+    @ObservationIgnored private var treeCutStartTimes: [Int: Double] = [:]
+    @ObservationIgnored private var crackedTrees = Set<Int>()
+    @ObservationIgnored private var fallingSoundTrees = Set<Int>()
+    @ObservationIgnored private var impactedTrees = Set<Int>()
+    @ObservationIgnored private var charredPatches = Set<Int>()
+    @ObservationIgnored private var blades: [Blade] = []
+    @ObservationIgnored private var bladePatches: [Int?] = []
+    @ObservationIgnored private var ashPatches: [Int?] = []
+    @ObservationIgnored private var patchPositions: [SCNVector3] = []
+    @ObservationIgnored private var flameSystems: [SCNParticleSystem] = []
+    @ObservationIgnored private var sparkSystems: [SCNParticleSystem] = []
+    @ObservationIgnored private var smokeSystems: [SCNParticleSystem] = []
+    @ObservationIgnored private var groundGlowNodes: [SCNNode] = []
+    @ObservationIgnored private var atmosphereMotes: [(node: SCNNode, baseX: Float, baseZ: Float, minY: Float, maxY: Float, speed: Float, phase: Float)] = []
+    @ObservationIgnored private var ashNodes: [SCNNode] = []
 
     private(set) var assetError: String?
     private(set) var loadingAssets = false
-    private var materials: NgahumaMaterials?
-    var reduceMotion = false {
+    @ObservationIgnored private var materials: NgahumaMaterials?
+    @ObservationIgnored var reduceMotion = false {
         didSet {
             updateWindState()
         }
     }
-    private(set) var suspended = false
-    private var windTime: Float = 0
-    private var elapsed: Double = 0
+    @ObservationIgnored private(set) var suspended = false
+    @ObservationIgnored private var windTime: Float = 0
+    @ObservationIgnored private var elapsed: Double = 0
     private let fireAudio = FirePlayback()
     @ObservationIgnored private var fireVolumeLevel = 0
 
-    private var tap: UITapGestureRecognizer?
-    private var pan: UIPanGestureRecognizer?
-    private var swipeAnchorPoint: CGPoint = .zero
-    private var lastSwipePoint: CGPoint = .zero
-    private var lastSlashDirection: CGVector = .zero
-    private var slashedInCurrentStroke = false
-    private(set) var motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
-    private var motionReference = simd_quatf(angle: 0, axis: [0, 1, 0])
+    @ObservationIgnored private var tap: UITapGestureRecognizer?
+    @ObservationIgnored private var pan: UIPanGestureRecognizer?
+    @ObservationIgnored private var swipeAnchorPoint: CGPoint = .zero
+    @ObservationIgnored private var lastSwipePoint: CGPoint = .zero
+    @ObservationIgnored private var lastSlashDirection: CGVector = .zero
+    @ObservationIgnored private var slashedInCurrentStroke = false
+    @ObservationIgnored private(set) var motionOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
+    @ObservationIgnored private var motionReference = simd_quatf(angle: 0, axis: [0, 1, 0])
     private let feedback = UIImpactFeedbackGenerator(style: .medium)
 
     private let soilY: Float = 0.038
@@ -152,18 +155,19 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
     }
     private let frameTarget = FrameTarget()
-    private var frameBudget: SceneFrameBudget?
-    private var displayLink: CADisplayLink?
-    private var lastFrameTimestamp: CFTimeInterval = 0
-    private var ngoredSkyCamera = matrix_identity_float4x4
-    private var ngoredCycleElapsed: TimeInterval = 0
-    private var ngoredCycleDuration: TimeInterval = 0
-    private var ngoredCycleFrame: ((TimeInterval) -> Void)?
-    private var ngoredCycleCompletion: (() -> Void)?
+    @ObservationIgnored var onBeforeRenderFrame: ((TimeInterval) -> Void)?
+    @ObservationIgnored var onCameraUpdated: (() -> Void)?
+    @ObservationIgnored private var displayLink: CADisplayLink?
+    @ObservationIgnored private var lastFrameTimestamp: CFTimeInterval = 0
+    @ObservationIgnored private var ngoredSkyCamera = matrix_identity_float4x4
+    @ObservationIgnored private var ngoredCycleElapsed: TimeInterval = 0
+    @ObservationIgnored private var ngoredCycleDuration: TimeInterval = 0
+    @ObservationIgnored private var ngoredCycleFrame: ((TimeInterval) -> Void)?
+    @ObservationIgnored private var ngoredCycleCompletion: (() -> Void)?
 
     // MARK: - View Attachment & Lifecycle
 
-    private var preparedFieldView: SCNView?
+    @ObservationIgnored private var preparedFieldView: SCNView?
     var hasPreparedNgoredField: Bool { preparedFieldView != nil }
 
     func prepareNgoredField() async -> Bool {
@@ -205,6 +209,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             configureRenderer(view)
             configureCamera()
         } else {
+            view.preferredFramesPerSecond = 60
             view.isPlaying = !suspended
             view.rendersContinuously = !suspended
         }
@@ -217,6 +222,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         pan.delegate = self
         view.addGestureRecognizer(pan)
         self.pan = pan
+        feedback.prepare()
+        visibleTargetFeedback.prepare()
         startDisplayLink()
         if materials != nil && !prepared {
             reset()
@@ -265,11 +272,11 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func startDisplayLink() {
-        guard displayLink == nil, let view else { return }
+        guard displayLink == nil, view != nil else { return }
         frameTarget.owner = self
         let link = CADisplayLink(target: frameTarget, selector: #selector(FrameTarget.tick(_:)))
-        // Match the scene cadence; avoid extra CPU updates on ProMotion displays.
-        frameBudget = SceneFrameBudget(view: view, link: link, normalFPS: 60)
+        // Match the scene cadence directly so Low Power Mode or AirPlay never halves AR fps.
+        link.preferredFramesPerSecond = 60
         link.add(to: .main, forMode: .common)
         link.isPaused = suspended
         displayLink = link
@@ -444,7 +451,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunKeyLight.orthographicScale = 5
         sunKeyLight.zNear = 8
         sunKeyLight.zFar = 26
-        sunKeyLight.shadowMapSize = CGSize(width: 1024, height: 1024)
+        sunKeyLight.shadowSampleCount = 2
+        sunKeyLight.shadowMapSize = CGSize(width: 512, height: 512)
         sunLightNode.light = sunKeyLight
         sunLightNode.position = .init(0, 0, 0)
         sunLightNode.look(at: SCNVector3(-sunPosition.x, soilY - sunPosition.y, -sunPosition.z))
@@ -775,6 +783,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
                 holder: holder,
                 trunk: pivot,
                 canopy: canopy,
+                silhouetteMaterials: upperMeshCopy.materials,
                 rootAnchor: rootAnchor,
                 shadow: shadow,
                 directionalShadow: directionalShadowRoot,
@@ -1168,40 +1177,69 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let entry = treeEntries[index]
         let localCut = SCNVector3(entry.worldBasePosition.x, soilY + entry.pivotOrigin.y + 0.08, entry.worldBasePosition.z)
         let world = worldRoot.convertPosition(localCut, to: nil)
-        return projectVisiblePoint(world, in: view, bounds: view.bounds)
+        return projectVisiblePoint(world, viewportSize: view.bounds.size, bounds: view.bounds)
     }
 
-    func projectedNgoredWeedPoint(at index: Int) -> CGPoint? {
-        guard let view, ngoredWeedRoots.indices.contains(index) else { return nil }
-        let world = ngoredWeedRoots[index].convertPosition(SCNVector3(0, 0.08, 0), to: nil)
-        let bounds = view.bounds.inset(by: UIEdgeInsets(top: 75, left: 24, bottom: 45, right: 24))
-        return projectVisiblePoint(world, in: view, bounds: bounds)
+    func projectedNgoredWeedPoint(at index: Int, in viewportBounds: CGRect? = nil) -> CGPoint? {
+        guard ngoredWeedRoots.indices.contains(index),
+              let targetBounds = resolveProjectionBounds(viewportBounds) else { return nil }
+        let pos = ngoredWeedRoots[index].simdWorldPosition
+        let world = SCNVector3(pos.x, pos.y + 0.08, pos.z)
+        let bounds = targetBounds.inset(by: UIEdgeInsets(top: 75, left: 24, bottom: 45, right: 24))
+        return projectVisiblePoint(world, viewportSize: targetBounds.size, bounds: bounds)
     }
 
     /// Cover the visible blades from soil to tip, with room for a fingertip.
     func ngoredWeedHitArea(at index: Int) -> CGRect? {
         guard let view, ngoredWeedRoots.indices.contains(index) else { return nil }
-        let weed = ngoredWeedRoots[index].presentation
-        let base = view.projectPoint(weed.worldPosition)
-        let tip = view.projectPoint(weed.convertPosition(SCNVector3(0, 0.27, 0), to: nil))
-        guard base.z > 0, base.z < 1, tip.z > 0, tip.z < 1 else { return nil }
-        let area = CGRect(x: CGFloat(min(tip.x, base.x)), y: CGFloat(min(tip.y, base.y)),
-                          width: CGFloat(abs(tip.x - base.x)), height: CGFloat(abs(tip.y - base.y)))
+        let basePos = ngoredWeedRoots[index].simdWorldPosition
+        let size = view.bounds.size
+        guard let base = projectScreenPoint(SCNVector3(basePos.x, basePos.y, basePos.z), viewportSize: size),
+              let tip = projectScreenPoint(SCNVector3(basePos.x, basePos.y + 0.27, basePos.z), viewportSize: size) else {
+            return nil
+        }
+        let area = CGRect(x: min(tip.x, base.x), y: min(tip.y, base.y),
+                          width: abs(tip.x - base.x), height: abs(tip.y - base.y))
             .insetBy(dx: -42, dy: -20)
         return view.bounds.intersects(area) ? area : nil
     }
 
-    private func projectVisiblePoint(_ world: SCNVector3, in view: SCNView, bounds: CGRect) -> CGPoint? {
-        let camPos = simd_make_float3(cameraNode.simdWorldTransform.columns.3)
-        let camForward = -simd_make_float3(cameraNode.simdWorldTransform.columns.2)
-        let worldPos = simd_make_float3(Float(world.x), Float(world.y), Float(world.z))
-        let toNode = worldPos - camPos
-        guard simd_length(toNode) > 0.001 else { return nil }
-        guard simd_dot(simd_normalize(camForward), simd_normalize(toNode)) > 0.25 else { return nil }
-        let projected = view.projectPoint(world)
-        guard projected.z > 0.0 && projected.z < 1.0 else { return nil }
-        let point = CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
+    private func resolveProjectionBounds(_ viewportBounds: CGRect?) -> CGRect? {
+        if let viewportBounds, viewportBounds.width > 1, viewportBounds.height > 1 {
+            return viewportBounds
+        }
+        guard let view, view.bounds.width > 1, view.bounds.height > 1 else { return nil }
+        return view.bounds
+    }
+
+    private func projectVisiblePoint(_ world: SCNVector3, viewportSize: CGSize, bounds: CGRect) -> CGPoint? {
+        guard let point = projectScreenPoint(world, viewportSize: viewportSize) else { return nil }
         return bounds.contains(point) ? point : nil
+    }
+
+    /// Projects directly from `cameraNode`'s live model transform so overlays stay locked to the current frame.
+    private func projectScreenPoint(_ world: SCNVector3, viewportSize: CGSize) -> CGPoint? {
+        guard let camera = cameraNode.camera,
+              viewportSize.width > 1, viewportSize.height > 1 else { return nil }
+        let worldPos = SIMD3<Float>(Float(world.x), Float(world.y), Float(world.z))
+        let cameraTransform = cameraNode.simdTransform
+        let camPos = simd_make_float3(cameraTransform.columns.3)
+        let camForward = -simd_normalize(simd_make_float3(cameraTransform.columns.2))
+        let toNode = worldPos - camPos
+        let distance = simd_length(toNode)
+        guard distance > 0.001, simd_dot(camForward, toNode / distance) > 0.25 else { return nil }
+
+        let viewMatrix = simd_inverse(cameraTransform)
+        let projection = simd_float4x4(camera.projectionTransform(withViewportSize: viewportSize))
+        let clip = projection * (viewMatrix * SIMD4<Float>(worldPos, 1))
+        guard clip.w > 0.0001 else { return nil }
+        let ndcX = clip.x / clip.w
+        let ndcY = clip.y / clip.w
+        guard ndcX.isFinite, ndcY.isFinite else { return nil }
+        return CGPoint(
+            x: CGFloat(ndcX * 0.5 + 0.5) * viewportSize.width,
+            y: CGFloat(0.5 - ndcY * 0.5) * viewportSize.height
+        )
     }
 
     private func buildNgoredRice(using materials: NgahumaMaterials) {
@@ -1425,8 +1463,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         uprootedNgoredWeeds.removeAll()
     }
 
-    private var bladeShapes: [SIMD3<Float>: SCNGeometry] = [:]
-    private var sharedBladeMaterial: SCNMaterial?
+    @ObservationIgnored private var bladeShapes: [SIMD3<Float>: SCNGeometry] = [:]
+    @ObservationIgnored private var sharedBladeMaterial: SCNMaterial?
 
     private func bladeMaterial(using materials: NgahumaMaterials) -> SCNMaterial {
         if let sharedBladeMaterial { return sharedBladeMaterial }
@@ -1481,19 +1519,24 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         pivot.castsShadow = castsShadow
         root.addChildNode(pivot)
 
+        let isWild = root === wildRoot
         let blade = Blade(
             pivot: pivot,
             phase: phase,
             response: response / Float(max(mass, 0.08)),
-            restYaw: yaw
+            restYaw: yaw,
+            isWildGrass: isWild
         )
         blades.append(blade)
-        startBreeze(on: blade)
+        if !isWild || !ngoredFieldPresented {
+            startBreeze(on: blade)
+        }
         return material
     }
 
     private func startBreeze(on blade: Blade) {
-        guard !reduceMotion && !suspended,
+        let active = !reduceMotion && !suspended && (!blade.isWildGrass || !ngoredFieldPresented)
+        guard active,
               blade.pivot.action(forKey: Self.windActionKey) == nil else { return }
         let amplitude = CGFloat(min(0.065, 0.035 + blade.response * 0.004))
         let halfPeriod = 2.8 + Double(blade.phase.truncatingRemainder(dividingBy: 1.4))
@@ -1521,8 +1564,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func updateWindState() {
-        let active = !reduceMotion && !suspended
         for blade in blades {
+            let active = !reduceMotion && !suspended && (!blade.isWildGrass || !ngoredFieldPresented)
             if active {
                 startBreeze(on: blade)
             } else {
@@ -1949,13 +1992,12 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     @ObservationIgnored private var visibleInteractionTargets = Set<AimTarget>()
     @ObservationIgnored private var nextTargetFeedbackCheck: CFTimeInterval = 0
     private let visibleTargetFeedback = UINotificationFeedbackGenerator()
-    var activeWeedTargets: (() -> Range<Int>)?
+    @ObservationIgnored var activeWeedTargets: (() -> Range<Int>)?
 
     func clearLookEdge() {
-        guard lookEdge != nil else { return }
+        guard lookEdge != nil || edgeReturnDegrees != 0 else { return }
         lookEdge = nil
         edgeReturnDegrees = 0
-        edgeImpact = nil
     }
 
     private func updateLookEdge(yaw: Float) {
@@ -1965,12 +2007,15 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
         guard abs(yaw) >= Self.arHalfTurn - 0.001 || lookEdge != nil else { return }
         let remaining = abs(yaw) - (Self.arHalfTurn - .pi / 60)
-        edgeReturnDegrees = max(1, Int(ceil(remaining * 180 / .pi)))
+        let nextDegrees = max(1, Int(ceil(remaining * 180 / .pi)))
+        if edgeReturnDegrees != nextDegrees { edgeReturnDegrees = nextDegrees }
         let side: LookEdge = yaw > 0 ? .left : .right
         guard lookEdge != side else { return }
         lookEdge = side
         if let view {
-            edgeImpact = UIImpactFeedbackGenerator(style: .rigid, view: view)
+            if edgeImpact == nil {
+                edgeImpact = UIImpactFeedbackGenerator(style: .rigid, view: view)
+            }
             edgeImpact?.prepare()
             nextEdgeImpactTime = 0
             pulseLookEdge(at: CACurrentMediaTime())
@@ -1999,6 +2044,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
 
     func beginMotionLook() {
         resetHeading()
+        visibleTargetFeedback.prepare()
         updatePreviewCamera(fixedPosition: true)
         updateVisibleTargetFeedback()
     }
@@ -2038,7 +2084,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         let limitedYaw = max(-Self.arHalfTurn, min(Self.arHalfTurn, heading))
         motionOrientation = simd_quatf(angle: limitedYaw, axis: [0, 1, 0])
         updatePreviewCamera(fixedPosition: fixedPosition)
-        // Target projection only drives haptics; camera motion follows every sample.
+        // Target projection only drives haptics; camera motion follows every frame.
         let now = CACurrentMediaTime()
         if now >= nextTargetFeedbackCheck {
             nextTargetFeedbackCheck = now + 1.0 / 20
@@ -2051,8 +2097,14 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             visibleInteractionTargets.removeAll()
             return
         }
+        let camTransform = cameraNode.simdWorldTransform
+        let camPos = simd_make_float3(camTransform.columns.3)
+        let camForward = -simd_normalize(simd_make_float3(camTransform.columns.2))
         var visible = Set<AimTarget>()
         func consider(_ target: AimTarget, at position: SCNVector3) {
+            let toTarget = SIMD3<Float>(position.x, position.y, position.z) - camPos
+            let dist = simd_length(toTarget)
+            guard dist > 0.001, simd_dot(camForward, toTarget / dist) > 0.2 else { return }
             let point = view.projectPoint(position)
             guard point.z > 0, point.z < 1 else { return }
             let margin: CGFloat = visibleInteractionTargets.contains(target) ? -0.04 : 0.06
@@ -2060,8 +2112,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             if bounds.contains(CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))) { visible.insert(target) }
         }
         if ngoredFieldPresented {
-            for i in activeWeedTargets?() ?? 0..<0 where ngoredWeedRoots.indices.contains(i) && !uprootedNgoredWeeds.contains(i) {
-                consider(.weed(i), at: ngoredWeedRoots[i].presentation.worldPosition)
+            for i in activeWeedTargets?() ?? 0..<0 where ngoredWeedRestPositions.indices.contains(i) && !uprootedNgoredWeeds.contains(i) {
+                let rest = ngoredWeedRestPositions[i]
+                consider(.weed(i), at: SCNVector3(rest.x, rest.y + 0.08, rest.z))
             }
         } else if stage == .clearing {
             for (i, tree) in treeEntries.enumerated() where treeCutStartTimes[i] == nil {
@@ -2076,6 +2129,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         }
         if !visible.subtracting(visibleInteractionTargets).isEmpty {
             visibleTargetFeedback.notificationOccurred(.success)
+            visibleTargetFeedback.prepare()
         }
         visibleInteractionTargets = visible
     }
@@ -2085,15 +2139,20 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         resetHeading()
         updatePreviewCamera(fixedPosition: true)
         feedback.impactOccurred(intensity: 0.45)
+        feedback.prepare()
     }
 
     private func updatePreviewCamera(fixedPosition: Bool = false) {
         let downwardPitch: Float = ngoredFieldPresented ? -0.18 : -0.14
+        SCNTransaction.begin()
+        SCNTransaction.disableActions = true
         cameraNode.simdOrientation = motionOrientation * simd_quatf(angle: downwardPitch, axis: [1, 0, 0])
 
         let forward = motionOrientation.act(SIMD3<Float>(0, 0, -1))
         let parallaxOffset = SIMD3<Float>(-forward.x * 0.14, 0, -forward.z * 0.10)
         cameraNode.simdPosition = SIMD3<Float>(0, 0.54, 0) + (fixedPosition ? .zero : parallaxOffset)
+        SCNTransaction.commit()
+        onCameraUpdated?()
     }
 
     // MARK: - Burning & Frame Update Loop
@@ -2134,10 +2193,20 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     private func advanceFrame(_ link: CADisplayLink) {
-        let dt = lastFrameTimestamp == 0 ? 1.0 / 60.0 : min(link.timestamp - lastFrameTimestamp, 0.1)
+        let dt = lastFrameTimestamp == 0 ? 1.0 / 60.0 : min(max(link.timestamp - lastFrameTimestamp, 0), 0.1)
         lastFrameTimestamp = link.timestamp
         pulseLookEdge(at: link.timestamp)
-        update(dt)
+        stepDisplayFrame(delta: dt)
+    }
+
+    /// Runs one vsync-aligned camera and scene update inside a single disabled SceneKit transaction.
+    func stepDisplayFrame(delta: TimeInterval) {
+        guard !suspended else { return }
+        SCNTransaction.begin()
+        SCNTransaction.disableActions = true
+        onBeforeRenderFrame?(delta)
+        update(delta)
+        SCNTransaction.commit()
     }
 
     private func update(_ delta: Double) {
@@ -2146,42 +2215,49 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         windTime += Float(min(delta, 0.1))
         let now = CACurrentMediaTime()
 
-        // 1. Update HomeView tree wind shader & individual falling animations
-        for index in treeEntries.indices {
-            let fallT: Float
-            if let cutStart = treeCutStartTimes[index] {
-                let duration: Double = reduceMotion ? 0.01 : 0.95
-                fallT = Float(min(1.0, max(0.0, (now - cutStart) / duration)))
-            } else {
-                fallT = 0
+        // 1. Update HomeView tree wind shader & individual falling animations (Narawas only)
+        if !ngoredFieldPresented && stage != .complete {
+            for index in treeEntries.indices where !charredPatches.contains(index) {
+                let fallT: Float
+                if let cutStart = treeCutStartTimes[index] {
+                    let duration: Double = reduceMotion ? 0.01 : 0.95
+                    fallT = Float(min(1.0, max(0.0, (now - cutStart) / duration)))
+                } else {
+                    fallT = 0
+                }
+                applyTreeFallState(index: index, fallT: fallT)
             }
-            applyTreeFallState(index: index, fallT: fallT)
         }
 
         // 1b. Update 3D floating golden dust motes in world space
         //     (During burning, motes transform into fast-rising fiery cinders)
-        let moteTime = reduceMotion ? Float(0) : windTime
-        let burnCinderBoost: Float = stage == .burning ? ignited.map {
-            let time = Float(patchBurnTime($0))
-            return smoothstep(0.0, 1.2, time) * (1.0 - smoothstep(5.5, 7.8, time))
-        }.max() ?? 0 : 0
-        for mote in atmosphereMotes {
-            let effectiveSpeed = mote.speed * (1.0 + burnCinderBoost * 2.5)
-            let rawCycle = (moteTime * effectiveSpeed + mote.phase).truncatingRemainder(dividingBy: 1.0)
-            let cycle = rawCycle < 0 ? rawCycle + 1.0 : rawCycle
-            let y = mote.minY + (mote.maxY - mote.minY) * cycle
-            let swayAmp: Float = 0.065 + burnCinderBoost * 0.085
-            let swayX = sin(moteTime * (0.8 + burnCinderBoost * 1.6) + mote.phase * 6.283) * swayAmp
-            let swayZ = cos(moteTime * (0.65 + burnCinderBoost * 1.3) + mote.phase * 6.283) * swayAmp
-            mote.node.position = SCNVector3(mote.baseX + swayX, y, mote.baseZ + swayZ)
-            mote.node.opacity = CGFloat(sin(cycle * .pi) * (0.72 + burnCinderBoost * 0.26))
+        if !reduceMotion {
+            let moteTime = windTime
+            let burnCinderBoost: Float = stage == .burning ? ignited.map {
+                let time = Float(patchBurnTime($0))
+                return smoothstep(0.0, 1.2, time) * (1.0 - smoothstep(5.5, 7.8, time))
+            }.max() ?? 0 : 0
+            for mote in atmosphereMotes {
+                let effectiveSpeed = mote.speed * (1.0 + burnCinderBoost * 2.5)
+                let rawCycle = (moteTime * effectiveSpeed + mote.phase).truncatingRemainder(dividingBy: 1.0)
+                let cycle = rawCycle < 0 ? rawCycle + 1.0 : rawCycle
+                let y = mote.minY + (mote.maxY - mote.minY) * cycle
+                let swayAmp: Float = 0.065 + burnCinderBoost * 0.085
+                let swayX = sin(moteTime * (0.8 + burnCinderBoost * 1.6) + mote.phase * 6.283) * swayAmp
+                let swayZ = cos(moteTime * (0.65 + burnCinderBoost * 1.3) + mote.phase * 6.283) * swayAmp
+                mote.node.position = SCNVector3(mote.baseX + swayX, y, mote.baseZ + swayZ)
+                mote.node.opacity = CGFloat(sin(cycle * .pi) * (0.72 + burnCinderBoost * 0.26))
+            }
         }
 
         // 2. Update burning choreography
         guard stage == .burning else { return }
 
         elapsed += min(delta, 0.1)
-        progress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / Self.burnDuration, 1) } / Double(max(1, patchPositions.count))
+        let nextProgress = ignited.reduce(0) { $0 + min(patchBurnTime($1) / Self.burnDuration, 1) } / Double(max(1, patchPositions.count))
+        if abs(nextProgress - progress) >= 0.005 || nextProgress >= 1 || progress == 0 {
+            progress = nextProgress
+        }
 
         let flicker = 0.90 + 0.06 * sin(windTime * 4.1) + 0.04 * sin(windTime * 7.3)
         let activePatch = ignited.filter { patchBurnTime($0) < 7.5 }.sorted().first ?? 0
@@ -2407,15 +2483,13 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
             entry.rootAnchor.isHidden = false
         }
 
-        if let materials = entry.canopy.childNode(withName: "treeSilhouette", recursively: false)?.geometry?.materials {
-            for material in materials {
-                material.setValue(windTime + Float(index) * 1.37, forKey: "treeWindTime")
-                material.setValue((!reduceMotion && !suspended) ? Float(0.0038) * (1 - descent) : Float(0), forKey: "treeWindAmplitude")
-                material.setValue(Float(0), forKey: "treeCrownBlend")
-                material.setValue(smoothstep(0.10, 0.45, fallT), forKey: "rootSeparation")
-            }
-            materials.last?.transparency = 0
+        for material in entry.silhouetteMaterials {
+            material.setValue(windTime + Float(index) * 1.37, forKey: "treeWindTime")
+            material.setValue((!reduceMotion && !suspended) ? Float(0.0038) * (1 - descent) : Float(0), forKey: "treeWindAmplitude")
+            material.setValue(Float(0), forKey: "treeCrownBlend")
+            material.setValue(smoothstep(0.10, 0.45, fallT), forKey: "rootSeparation")
         }
+        entry.silhouetteMaterials.last?.transparency = 0
 
         entry.shadow.opacity = 0
         entry.directionalShadow.opacity = 0
@@ -2481,6 +2555,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         emberTintLevel = 0
         if !ngoredFieldPresented { focusNgoredRice() }
         ngoredFieldPresented = true
+        updateWindState()
         updatePreviewCamera(fixedPosition: true)
         fireRoot.isHidden = true
         fireRoot.opacity = 0
@@ -2509,6 +2584,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         cameraNode.camera?.projectionDirection = .vertical
         cameraNode.camera?.fieldOfView = 60
         ngoredSkyCamera = cameraNode.simdWorldTransform
+        onCameraUpdated?()
         mountainLayerRoot.scale.y = 0.56
         sunLightNode.simdOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
         sunKeyLight.castsShadow = true
@@ -2518,7 +2594,8 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
         sunKeyLight.orthographicScale = 3
         sunKeyLight.zNear = 10
         sunKeyLight.zFar = 22
-        sunKeyLight.shadowMapSize = CGSize(width: 1024, height: 1024)
+        sunKeyLight.shadowSampleCount = 2
+        sunKeyLight.shadowMapSize = CGSize(width: 512, height: 512)
         positionNgoredSun(at: 0)
         sunDiskMaterial?.transparency = 1
         sunHaloMaterial?.transparency = 1
@@ -2535,6 +2612,7 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func reset() {
+        ngoredFieldPresented = false
         emberTintLevel = 0
         setFireVolume(0)
         progress = 0
@@ -2561,7 +2639,9 @@ final class NgahumaScene: NSObject, UIGestureRecognizerDelegate {
     }
 
     func stop() {
+        onCameraUpdated = nil
         clearLookEdge()
+        edgeImpact = nil
         clearGolokSwing()
         ngoredCycleFrame = nil
         ngoredCycleCompletion = nil

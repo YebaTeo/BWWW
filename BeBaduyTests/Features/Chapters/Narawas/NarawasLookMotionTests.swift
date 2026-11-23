@@ -1,3 +1,4 @@
+import SceneKit
 import XCTest
 import simd
 @testable import BeBaduy
@@ -164,4 +165,59 @@ final class NarawasLookMotionTests: XCTestCase {
         XCTAssertFalse(model.motionMessage.isEmpty)
         model.suspend()
     }
+
+    func testStepAdvancesSmoothlyWhenSensorTimestampRepeats() throws {
+        var look = NarawasLookMotion()
+        _ = try XCTUnwrap(look.step(sample: sample(0, simd_quatd(angle: 0, axis: [0, 1, 0])), dt: 1.0 / 60))
+        let firstTurn = try XCTUnwrap(look.step(sample: sample(0.016, simd_quatd(angle: 0.6, axis: [0, 1, 0])), dt: 1.0 / 60))
+        let repeatedSample = try XCTUnwrap(look.step(sample: sample(0.016, simd_quatd(angle: 0.6, axis: [0, 1, 0])), dt: 1.0 / 60))
+        XCTAssertGreaterThan(repeatedSample.angle, firstTurn.angle)
+        let nilPoll = try XCTUnwrap(look.step(sample: nil, dt: 1.0 / 60))
+        XCTAssertGreaterThan(nilPoll.angle, repeatedSample.angle)
+    }
+
+    @MainActor func testPollingSessionStepsWithDisplayFramesAndPreservesSixtyFPS() {
+        let motion = PollingFakeMotion()
+        let model = NarawasViewModel(motion: motion)
+        let view = SCNView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        model.start()
+        model.configureLookMotion(reduceMotion: false)
+        model.setVisible(true)
+        model.scene.attach(view)
+        defer {
+            model.setVisible(false)
+            model.scene.stop()
+        }
+
+        XCTAssertEqual(view.preferredFramesPerSecond, 60)
+        XCTAssertTrue(motion.polling)
+        motion.sample = sample(0, simd_quatd(angle: 0, axis: [0, 1, 0]))
+        model.scene.stepDisplayFrame(delta: 1.0 / 60)
+        XCTAssertEqual(model.scene.motionOrientation.angle, 0, accuracy: 0.001)
+
+        motion.sample = sample(0.016, simd_quatd(angle: 0.5, axis: [0, 1, 0]))
+        model.scene.stepDisplayFrame(delta: 1.0 / 60)
+        let frameOneAngle = model.scene.motionOrientation.angle
+        XCTAssertGreaterThan(frameOneAngle, 0.05)
+
+        // Even before the next IMU packet arrives, the display frame keeps smoothing without stalling.
+        model.scene.stepDisplayFrame(delta: 1.0 / 60)
+        XCTAssertGreaterThan(model.scene.motionOrientation.angle, frameOneAngle)
+
+        model.setVisible(false)
+        XCTAssertFalse(motion.polling)
+        XCTAssertNil(model.scene.onBeforeRenderFrame)
+    }
+}
+
+@MainActor
+private final class PollingFakeMotion: MotionProviding {
+    var available = true
+    var supportsPolling: Bool { true }
+    var polling = false
+    var sample: MotionSample?
+    func start(handler: @escaping @MainActor (MotionSample?) -> Void) {}
+    func beginPolling() { polling = true }
+    func currentSample() -> MotionSample? { sample }
+    func stop() { polling = false }
 }

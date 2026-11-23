@@ -45,26 +45,14 @@ struct NgoredActivitySurface: View {
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
-                TimelineView(.animation(minimumInterval: 0.05, paused: scenePhase != .active || !isWeeding)) { _ in
-                    ForEach(Array(currentWeedTargets), id: \.self) { index in
-                        let cut = model.removed.contains(index)
-                        if isWeeding, !cut, let pt = model.scene.projectedNgoredWeedPoint(at: index),
-                           CGRect(origin: .zero, size: geometry.size).contains(pt) {
-                            Text("Gulma")
-                                .font(.caption.monospacedDigit().bold())
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(.black.opacity(0.62), in: Capsule())
-                                .accessibilityElement(children: .ignore)
-                                .accessibilityLabel("Gulma \(index + 1)")
-                                .accessibilityHint("Usap sekali untuk mencabut")
-                                .accessibilityIdentifier("field.weed.\(index)")
-                                .accessibilityAction(named: "Sapukan kored") { strike(index) }
-                                .position(pt)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                }
+                NgoredWeedBadgesView(
+                    scene: model.scene,
+                    targets: currentWeedTargets,
+                    removed: model.removed,
+                    isVisible: isWeeding && scenePhase == .active,
+                    onStrike: strike
+                )
+                .frame(width: geometry.size.width, height: geometry.size.height)
                 if isWeeding && card.mode == .hidden {
                     KoredDragHandle { start, end in
                         swipeWeed(from: start, to: end)
@@ -176,5 +164,162 @@ struct NgoredActivitySurface: View {
                 model.observeRain()
             }
         }
+    }
+}
+
+private struct NgoredWeedBadgesView: UIViewRepresentable {
+    let scene: NgahumaScene
+    let targets: Range<Int>
+    let removed: Set<Int>
+    let isVisible: Bool
+    let onStrike: @MainActor (Int) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(scene: scene) }
+
+    func makeUIView(context: Context) -> OverlayContainerView {
+        let view = OverlayContainerView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        context.coordinator.attach(to: view)
+        context.coordinator.update(targets: targets, removed: removed, isVisible: isVisible, onStrike: onStrike)
+        return view
+    }
+
+    func updateUIView(_ uiView: OverlayContainerView, context: Context) {
+        context.coordinator.update(targets: targets, removed: removed, isVisible: isVisible, onStrike: onStrike)
+    }
+
+    static func dismantleUIView(_ uiView: OverlayContainerView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class OverlayContainerView: UIView {
+        var onLayout: (() -> Void)?
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            onLayout?()
+        }
+    }
+
+    @MainActor
+    final class Coordinator {
+        private let scene: NgahumaScene
+        private weak var container: OverlayContainerView?
+        private var badges: [Int: WeedBadgeView] = [:]
+        private var targets: Range<Int> = 0..<0
+        private var removed: Set<Int> = []
+        private var isVisible = false
+        private var onStrike: (@MainActor (Int) -> Void)?
+
+        init(scene: NgahumaScene) {
+            self.scene = scene
+        }
+
+        func attach(to view: OverlayContainerView) {
+            container = view
+            view.onLayout = { [weak self] in self?.syncPositions() }
+            scene.onCameraUpdated = { [weak self] in self?.syncPositions() }
+        }
+
+        func update(targets: Range<Int>, removed: Set<Int>, isVisible: Bool, onStrike: @escaping @MainActor (Int) -> Void) {
+            self.targets = targets
+            self.removed = removed
+            self.isVisible = isVisible
+            self.onStrike = onStrike
+            if scene.onCameraUpdated == nil {
+                scene.onCameraUpdated = { [weak self] in self?.syncPositions() }
+            }
+            syncPositions()
+        }
+
+        func detach() {
+            scene.onCameraUpdated = nil
+            container?.onLayout = nil
+            container = nil
+        }
+
+        func syncPositions() {
+            guard let container else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            defer { CATransaction.commit() }
+
+            guard isVisible, container.bounds.width > 1, container.bounds.height > 1 else {
+                for badge in badges.values {
+                    badge.isHidden = true
+                    badge.isAccessibilityElement = false
+                }
+                return
+            }
+
+            let activeIndices = Set(targets)
+            for (index, badge) in badges where !activeIndices.contains(index) {
+                badge.isHidden = true
+                badge.isAccessibilityElement = false
+            }
+
+            for index in targets {
+                guard !removed.contains(index),
+                      let point = scene.projectedNgoredWeedPoint(at: index, in: container.bounds),
+                      container.bounds.contains(point) else {
+                    badges[index]?.isHidden = true
+                    badges[index]?.isAccessibilityElement = false
+                    continue
+                }
+                let badge = badgeView(for: index, in: container)
+                badge.isHidden = false
+                badge.isAccessibilityElement = true
+                badge.center = point
+            }
+        }
+
+        private func badgeView(for index: Int, in container: UIView) -> WeedBadgeView {
+            if let existing = badges[index] { return existing }
+            let badge = WeedBadgeView(index: index) { [weak self] weedIndex in
+                self?.onStrike?(weedIndex)
+            }
+            container.addSubview(badge)
+            badges[index] = badge
+            return badge
+        }
+    }
+
+    private final class WeedBadgeView: UIView {
+        private let label = UILabel()
+
+        init(index: Int, onAction: @escaping @MainActor (Int) -> Void) {
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+            backgroundColor = UIColor.black.withAlphaComponent(0.62)
+            layer.cornerCurve = .continuous
+
+            let baseDescriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .caption1)
+            let descriptor = baseDescriptor.withSymbolicTraits(.traitBold) ?? baseDescriptor
+            label.font = UIFont(descriptor: descriptor, size: 0)
+            label.adjustsFontForContentSizeCategory = true
+            label.text = "Gulma"
+            label.textColor = .white
+            label.sizeToFit()
+            addSubview(label)
+
+            let size = CGSize(width: label.bounds.width + 16, height: label.bounds.height + 8)
+            bounds = CGRect(origin: .zero, size: size)
+            label.center = CGPoint(x: size.width / 2, y: size.height / 2)
+            layer.cornerRadius = size.height / 2
+
+            isAccessibilityElement = true
+            accessibilityLabel = "Gulma \(index + 1)"
+            accessibilityHint = "Usap sekali untuk mencabut"
+            accessibilityIdentifier = "field.weed.\(index)"
+            accessibilityCustomActions = [
+                UIAccessibilityCustomAction(name: "Sapukan kored") { _ in
+                    onAction(index)
+                    return true
+                }
+            ]
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError() }
     }
 }

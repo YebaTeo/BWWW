@@ -94,4 +94,33 @@ final class SceneLifetimeTests: XCTestCase {
             XCTAssertNil(releasedRenderer)
         }
     }
+
+    @MainActor func testAnalyticalWeedProjectionMatchesSCNViewImmediatelyAfterRotation() async throws {
+        let renderer = NgahumaScene()
+        let viewport = CGRect(x: 0, y: 0, width: 390, height: 844)
+        let view = SCNView(frame: viewport)
+        renderer.attach(view)
+        defer { renderer.stop() }
+        await renderer.prepareAssets()
+        renderer.showNgoredField()
+        let root = try XCTUnwrap(view.scene?.rootNode)
+        let camera = try XCTUnwrap(root.childNode(withName: "narawasARCamera", recursively: true))
+        view.pointOfView = camera
+
+        // Compare projection against SCNView for a visible weed in frame at rest.
+        renderer.frameNgoredWeedingWithoutMotion()
+        let weed1 = try XCTUnwrap(root.childNode(withName: "ngoredWeed_1", recursively: true))
+        let scnProjected = view.projectPoint(SCNVector3(weed1.position.x, weed1.position.y + 0.08, weed1.position.z))
+        let overlayPoint = try XCTUnwrap(renderer.projectedNgoredWeedPoint(at: 1, in: viewport))
+        XCTAssertEqual(overlayPoint.x, CGFloat(scnProjected.x), accuracy: 1.5)
+        XCTAssertEqual(overlayPoint.y, CGFloat(scnProjected.y), accuracy: 1.5)
+
+        // Immediately after a camera look update, projection reflects the new heading with zero lag.
+        var updateCallbacks = 0
+        renderer.onCameraUpdated = { updateCallbacks += 1 }
+        renderer.applyMotionLook(simd_quatf(angle: 0.15, axis: [0, 1, 0]), fixedPosition: true)
+        XCTAssertEqual(updateCallbacks, 1)
+        let movedPoint = renderer.projectedNgoredWeedPoint(at: 1, in: viewport)
+        XCTAssertNotEqual(movedPoint, overlayPoint)
+    }
 }
