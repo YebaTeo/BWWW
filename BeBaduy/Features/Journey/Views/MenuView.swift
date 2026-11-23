@@ -366,23 +366,18 @@ struct MenuView: View {
                     Image("JourneySoil")
                         .resizable()
                         .frame(width: geometry.size.width, height: geometry.size.height)
-                    Image("JourneyLandscapeSoil")
-                        .resizable()
-                        .frame(width: geometry.size.width, height: viewportHeight * 1.9)
+                    JourneyLandscapeBridgeView(width: geometry.size.width,
+                                               viewportHeight: viewportHeight)
                         .offset(y: -viewportHeight)
-                        .frame(width: geometry.size.width, height: viewportHeight * 0.9, alignment: .top)
+                        .frame(width: geometry.size.width, height: 100, alignment: .top)
                         .clipped()
                         .mask {
-                            LinearGradient(stops: [
-                                .init(color: .white, location: 0),
-                                .init(color: .white, location: 0.78),
-                                .init(color: .clear, location: 1)
-                            ], startPoint: .top, endPoint: .bottom)
+                            LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .bottom)
                         }
                         .overlay(alignment: .top) {
-                            LinearGradient(colors: [.black.opacity(0.42), .clear],
+                            LinearGradient(colors: [.black.opacity(0.22), .clear],
                                            startPoint: .top, endPoint: .bottom)
-                                .frame(height: 130)
+                                .frame(height: 100)
                         }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
