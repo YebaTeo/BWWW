@@ -18,26 +18,52 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
-                            <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="OnboardingLogo" translatesAutoresizingMaskIntoConstraints="NO" id="logo">
-                                <rect key="frame" x="136.5" y="280.8" width="120" height="120"/>
-                                <constraints>
-                                    <constraint firstAttribute="height" constant="120" id="logo-height"/>
-                                    <constraint firstAttribute="width" constant="120" id="logo-width"/>
-                                </constraints>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" image="LaunchSplashBackground.jpg" translatesAutoresizingMaskIntoConstraints="NO" id="splash-background">
+                                <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                             </imageView>
-                            <label contentMode="scaleToFill" text="BeBaduy" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="wordmark">
-                                <rect key="frame" x="143.5" y="414.8" width="106" height="30"/>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchSplashWaves.png" translatesAutoresizingMaskIntoConstraints="NO" id="footer">
+                                <rect key="frame" x="0.0" y="635.85" width="393" height="216.15"/>
+                            </imageView>
+                            <view userInteractionEnabled="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="brand-lockup">
+                                <rect key="frame" x="93" y="347.88" width="201" height="54"/>
+                                <subviews>
+                                    <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchSplashRice.png" translatesAutoresizingMaskIntoConstraints="NO" id="logo">
+                                        <rect key="frame" x="0.0" y="0.0" width="54" height="54"/>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="54" id="logo-height"/>
+                                            <constraint firstAttribute="width" constant="54" id="logo-width"/>
+                                        </constraints>
+                                    </imageView>
+                                    <label userInteractionEnabled="NO" contentMode="scaleToFill" text="BeBaduy" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="wordmark">
+                                        <rect key="frame" x="58" y="6.5" width="143" height="41"/>
+                                        <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                                        <fontDescription key="fontDescription" type="boldSystem" pointSize="34"/>
+                                        <color key="textColor" red="0.357" green="0.396" blue="0.114" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                    </label>
+                                </subviews>
                                 <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                                <fontDescription key="fontDescription" type="boldSystem" pointSize="25"/>
-                                <color key="textColor" red="0.30" green="0.25" blue="0.16" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                            </label>
+                                <constraints>
+                                    <constraint firstItem="logo" firstAttribute="leading" secondItem="brand-lockup" secondAttribute="leading" id="logo-leading"/>
+                                    <constraint firstItem="logo" firstAttribute="top" secondItem="brand-lockup" secondAttribute="top" id="logo-top"/>
+                                    <constraint firstItem="logo" firstAttribute="bottom" secondItem="brand-lockup" secondAttribute="bottom" id="logo-bottom"/>
+                                    <constraint firstItem="wordmark" firstAttribute="leading" secondItem="logo" secondAttribute="trailing" constant="4" id="wordmark-leading"/>
+                                    <constraint firstItem="wordmark" firstAttribute="trailing" secondItem="brand-lockup" secondAttribute="trailing" id="wordmark-trailing"/>
+                                    <constraint firstItem="wordmark" firstAttribute="centerY" secondItem="logo" secondAttribute="centerY" id="wordmark-center-y"/>
+                                </constraints>
+                            </view>
                         </subviews>
-                        <color key="backgroundColor" red="0.992" green="0.970" blue="0.942" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" red="0.80" green="0.69" blue="0.63" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
-                            <constraint firstItem="logo" firstAttribute="centerX" secondItem="launch-view" secondAttribute="centerX" id="logo-x"/>
-                            <constraint firstItem="logo" firstAttribute="centerY" secondItem="launch-view" secondAttribute="centerY" multiplier="0.8" id="logo-y"/>
-                            <constraint firstItem="wordmark" firstAttribute="centerX" secondItem="logo" secondAttribute="centerX" id="wordmark-x"/>
-                            <constraint firstItem="wordmark" firstAttribute="top" secondItem="logo" secondAttribute="bottom" constant="14" id="wordmark-top"/>
+                            <constraint firstItem="splash-background" firstAttribute="top" secondItem="launch-view" secondAttribute="top" id="splash-background-top"/>
+                            <constraint firstItem="splash-background" firstAttribute="bottom" secondItem="launch-view" secondAttribute="bottom" id="splash-background-bottom"/>
+                            <constraint firstItem="splash-background" firstAttribute="leading" secondItem="launch-view" secondAttribute="leading" id="splash-background-leading"/>
+                            <constraint firstItem="splash-background" firstAttribute="trailing" secondItem="launch-view" secondAttribute="trailing" id="splash-background-trailing"/>
+                            <constraint firstItem="footer" firstAttribute="bottom" secondItem="launch-view" secondAttribute="bottom" id="footer-bottom"/>
+                            <constraint firstItem="footer" firstAttribute="leading" secondItem="launch-view" secondAttribute="leading" id="footer-leading"/>
+                            <constraint firstItem="footer" firstAttribute="trailing" secondItem="launch-view" secondAttribute="trailing" id="footer-trailing"/>
+                            <constraint firstItem="footer" firstAttribute="height" secondItem="launch-view" secondAttribute="width" multiplier="0.55" id="footer-height"/>
+                            <constraint firstItem="brand-lockup" firstAttribute="centerX" secondItem="launch-view" secondAttribute="centerX" constant="-3" id="lockup-x"/>
+                            <constraint firstItem="brand-lockup" firstAttribute="centerY" secondItem="launch-view" secondAttribute="centerY" multiplier="0.88" id="lockup-y"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -47,6 +73,8 @@
         </scene>
     </scenes>
     <resources>
-        <image name="OnboardingLogo" width="1024" height="1024"/>
+        <image name="LaunchSplashBackground.jpg" width="538" height="1024"/>
+        <image name="LaunchSplashWaves.png" width="1206" height="549"/>
+        <image name="LaunchSplashRice.png" width="630" height="630"/>
     </resources>
 </document>

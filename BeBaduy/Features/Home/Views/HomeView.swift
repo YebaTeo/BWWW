@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     let journey: JourneyViewModel
@@ -296,7 +297,7 @@ private struct LandingToMenuTransition: View {
                 ZStack {
                     MenuView(
                         journey: journey,
-                        showsBackground: false,
+                        showsBackground: true,
                         isActive: false,
                         showsIntroText: false,
                         transitionTopInset: safeGeometry.safeAreaInsets.top,
@@ -381,7 +382,7 @@ private struct LandingToMenuTransition: View {
 
     private func runLaunchMorph() async {
         guard launchMorphActive else { return }
-        do { try await Task.sleep(for: .milliseconds(70)) } catch { return }
+        do { try await Task.sleep(for: .milliseconds(60)) } catch { return }
         guard launchMorphActive else { return }
         if reduceMotion {
             withAnimation(.easeOut(duration: 0.24)) {
@@ -396,15 +397,15 @@ private struct LandingToMenuTransition: View {
         withAnimation(.easeOut(duration: 0.22)) {
             wordmarkOpacity = 0
         }
-        withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.62)) {
+        withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.64)) {
             morphProgress = 1
         }
-        do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+        do { try await Task.sleep(for: .milliseconds(280)) } catch { return }
         guard launchMorphActive else { return }
         withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.38)) {
             introReveal = 1
         }
-        do { try await Task.sleep(for: .milliseconds(480)) } catch { return }
+        do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
         launchMorphActive = false
     }
 
@@ -489,27 +490,45 @@ private struct LaunchToHomeMorphOverlay: View, Animatable {
     }
 
     var body: some View {
-        let centerX = width / 2
-        let centerY = height * LaunchSplashStyle.logoVerticalFraction
+        let layout = LaunchSplashStyle.lockupGeometry(in: CGSize(width: width, height: height))
+        let targetCenter = CGPoint(x: width / 2, y: height * LaunchSplashStyle.homeRiceVerticalFraction)
         let targetSize = JourneyLandscapeBridgeView.riceEmblemSize(width: width, viewportHeight: height)
         let startScale = targetSize > 0 ? LaunchSplashStyle.logoSize / targetSize : 1
-        let currentScale = startScale + (1 - startScale) * morphProgress
-        let backdropOpacity = Double(max(0, 1 - morphProgress * 1.18))
-        let appIconOpacity = Double(max(0, 1 - morphProgress * 1.35))
-        let riceOpacity = reduceMotion
-            ? Double(morphProgress) * 0.94
-            : Double(min(1, morphProgress / 0.16)) * 0.94
+        let t = Double(morphProgress)
+        let backdropOpacity = max(0, 1 - t * 1.15)
+        let wavesOpacity = max(0, 1 - t * 1.40)
 
         ZStack(alignment: .top) {
             LaunchSplashStyle.backgroundColor
                 .opacity(backdropOpacity)
 
+            if let background = UIImage(named: "LaunchSplashBackground.jpg") {
+                Image(uiImage: background)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: width, height: height)
+                    .clipped()
+                    .opacity(backdropOpacity)
+            }
+
+            if let waves = UIImage(named: "LaunchSplashWaves.png") {
+                Image(uiImage: waves)
+                    .resizable()
+                    .frame(width: width, height: width * LaunchSplashStyle.footerHeightFraction)
+                    .frame(width: width, height: height, alignment: .bottom)
+                    .offset(y: reduceMotion ? 0 : morphProgress * 20)
+                    .opacity(wavesOpacity)
+            }
+
             Text("BeBaduy")
-                .font(.system(size: 25, weight: .bold))
+                .font(.system(size: LaunchSplashStyle.wordmarkSize, weight: .bold))
                 .foregroundStyle(LaunchSplashStyle.wordmarkColor)
+                .fixedSize()
                 .opacity(wordmarkOpacity)
-                .frame(maxWidth: .infinity)
-                .offset(y: centerY + LaunchSplashStyle.logoSize / 2 + LaunchSplashStyle.wordmarkSpacing + (reduceMotion ? 0 : (1 - wordmarkOpacity) * 4))
+                .position(
+                    x: layout.wordmarkCenter.x + (reduceMotion ? 0 : CGFloat(1 - wordmarkOpacity) * 8),
+                    y: layout.wordmarkCenter.y
+                )
 
             if reduceMotion {
                 Image("JourneyLogoRice")
@@ -517,37 +536,36 @@ private struct LaunchToHomeMorphOverlay: View, Animatable {
                     .scaledToFit()
                     .saturation(0.68)
                     .brightness(0.08)
-                    .opacity(riceOpacity)
-                    .shadow(color: .white.opacity(0.72 * Double(morphProgress)), radius: 10)
-                    .shadow(color: JourneyLandscapeBridgeView.riceGlow.opacity(0.48 * Double(morphProgress)), radius: 28)
+                    .opacity(t * 0.94)
+                    .shadow(color: .white.opacity(0.72 * t), radius: 10)
+                    .shadow(color: JourneyLandscapeBridgeView.riceGlow.opacity(0.48 * t), radius: 28)
                     .frame(width: targetSize, height: targetSize)
-                    .position(x: centerX, y: centerY)
+                    .position(targetCenter)
 
-                Image("OnboardingLogo")
+                if let rice = UIImage(named: "LaunchSplashRice.png") {
+                    Image(uiImage: rice)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: LaunchSplashStyle.logoSize, height: LaunchSplashStyle.logoSize)
+                        .opacity(1 - t)
+                        .position(layout.riceCenter)
+                }
+            } else {
+                let currentScale = startScale + (1 - startScale) * morphProgress
+                let currentX = layout.riceCenter.x + (targetCenter.x - layout.riceCenter.x) * morphProgress
+                let currentY = layout.riceCenter.y + (targetCenter.y - layout.riceCenter.y) * morphProgress
+
+                Image("JourneyLogoRice")
                     .resizable()
                     .scaledToFit()
-                    .opacity(Double(1 - morphProgress))
-                    .frame(width: LaunchSplashStyle.logoSize, height: LaunchSplashStyle.logoSize)
-                    .position(x: centerX, y: centerY)
-            } else {
-                ZStack {
-                    Image("JourneyLogoRice")
-                        .resizable()
-                        .scaledToFit()
-                        .saturation(0.68)
-                        .brightness(0.08)
-                        .opacity(riceOpacity)
-                        .shadow(color: .white.opacity(0.72 * Double(morphProgress)), radius: 10)
-                        .shadow(color: JourneyLandscapeBridgeView.riceGlow.opacity(0.48 * Double(morphProgress)), radius: 28)
-
-                    Image("OnboardingLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .opacity(appIconOpacity)
-                }
-                .frame(width: targetSize, height: targetSize)
-                .scaleEffect(currentScale)
-                .position(x: centerX, y: centerY)
+                    .saturation(1 - 0.32 * t)
+                    .brightness(0.08 * t)
+                    .opacity(1 - 0.06 * t)
+                    .shadow(color: .white.opacity(0.72 * t), radius: 10)
+                    .shadow(color: JourneyLandscapeBridgeView.riceGlow.opacity(0.48 * t), radius: 28)
+                    .frame(width: targetSize, height: targetSize)
+                    .scaleEffect(currentScale)
+                    .position(x: currentX, y: currentY)
             }
         }
         .frame(width: width, height: height)
