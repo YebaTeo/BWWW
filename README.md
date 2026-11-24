@@ -40,7 +40,7 @@ Built natively for iPhone (**iOS 26.0+**) with **zero third-party dependencies**
 2. Select the **BeBaduy** scheme and an installed iPhone Simulator (or a physical iPhone — keep the existing signing settings for device builds).
 3. Press **Run** (`⌘R`).
 
-> **Note on project files:** The project uses Xcode filesystem-synchronized roots (`BeBaduy`, `BeBaduyTests`, `BeBaduyUITests`). Add or remove files directly inside their feature folders and Xcode will pick them up automatically. Do **not** run legacy `scripts/generate_project.py` over the current project, as it overwrites project settings.
+> **Note on project files:** The project uses Xcode filesystem-synchronized roots (`BeBaduy`, `BeBaduyTests`, `BeBaduyUITests`). Add or remove files directly inside their feature folders and Xcode will pick them up automatically.
 
 ### Build & Run Tests from Terminal
 ```bash
