@@ -236,6 +236,99 @@ private struct CollectionCardDetails: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        if card.isTool {
+            toolCardBody
+        } else {
+            standardCardBody
+        }
+    }
+
+    @ViewBuilder private var toolCardBody: some View {
+        let scale = size.width / 336
+        let shape = RoundedRectangle(cornerRadius: preview ? 10 : 18, style: .continuous)
+        ZStack {
+            Color(red: 0.17, green: 0.13, blue: 0.12)
+            if preview {
+                VStack(spacing: 8 * scale) {
+                    Text(card.title)
+                        .font(typeSize.isAccessibilitySize ? .headline : .system(size: max(15, size.width * 0.115), weight: .bold))
+                        .foregroundStyle(AppTheme.heading)
+                        .accessibilityAddTraits(.isHeader)
+
+                    toolArtwork
+                        .frame(maxWidth: .infinity)
+                        .frame(height: size.height * 0.56)
+                        .accessibilityHidden(true)
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12 * scale)
+                .padding(.vertical, 14 * scale)
+            } else {
+                let illustrationHeight = size.height * 0.46
+                ViewThatFits(in: .vertical) {
+                    toolDetails(illustrationHeight: illustrationHeight)
+                    ScrollView { toolDetails(illustrationHeight: illustrationHeight) }
+                        .scrollEdgeEffectHidden()
+                }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 24)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(shape)
+        .overlay {
+            if preview {
+                shape.strokeBorder(AppTheme.heading.opacity(0.6), lineWidth: 0.75)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func toolDetails(illustrationHeight: CGFloat) -> some View {
+        VStack(spacing: 16) {
+            Text(card.title)
+                .font(.title.bold())
+                .foregroundStyle(AppTheme.heading)
+                .accessibilityAddTraits(.isHeader)
+
+            toolArtwork
+                .frame(maxWidth: .infinity)
+                .frame(height: illustrationHeight)
+                .accessibilityHidden(true)
+
+            Text(card.description)
+                .font(.body)
+                .foregroundStyle(AppTheme.cream)
+                .accessibilityIdentifier("collection.card.explanation")
+        }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private var toolArtwork: some View {
+        let scale = size.width / 336
+        switch card {
+        case .aseuk:
+            AseukTool(interactive: !preview, autoRotate: !preview)
+                .frame(width: preview ? size.width * 0.26 : 68 * scale)
+        case .kored:
+            KoredTool()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .etem:
+            Image("mipit_etem")
+                .resizable()
+                .scaledToFit()
+                .frame(
+                    maxWidth: preview ? size.width * 0.72 : 160 * scale,
+                    maxHeight: preview ? size.height * 0.50 : 140 * scale
+                )
+        default:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private var standardCardBody: some View {
         let scale = size.width / 336
         ZStack(alignment: .topLeading) {
             Image(card.level == .epic ? "CardBaseEpic" : "CardBaseNormal")
@@ -289,19 +382,7 @@ private struct CollectionCardDetails: View {
 
     @ViewBuilder private var artwork: some View {
         switch card {
-        case .aseuk:
-            AseukTool()
-                .frame(width: size.width * 0.30, height: size.height * 0.48)
-                .padding(.top, size.height * 0.08)
-        case .kored:
-            KoredTool()
-                .frame(width: size.width * 0.74, height: size.height * 0.46)
-                .padding(.top, size.height * 0.09)
-        case .etem:
-            Image("mipit_etem").resizable().scaledToFit()
-                .frame(width: size.width * 0.67, height: size.height * 0.46)
-                .padding(.top, size.height * 0.09)
-        case .lebu, .ngubaran, .pungpuhunan, .gaharu:
+        case .lebu, .ngubaran, .pungpuhunan, .garu:
             Image(card.artwork).resizable().scaledToFit()
                 .frame(width: size.width * (card == .lebu ? 0.87 : 0.67), height: size.height * 0.46)
                 .padding(.top, size.height * 0.10)

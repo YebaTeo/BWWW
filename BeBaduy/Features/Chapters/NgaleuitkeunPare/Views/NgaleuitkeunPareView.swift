@@ -147,36 +147,15 @@ struct NgaleuitkeunPareView: View {
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("journey.completed")
                 Spacer(minLength: 24)
-                let cardHeight = min(500, geometry.size.height * 0.58)
-                ScrollView {
+                let cardWidth = min(330, max(1, geometry.size.width - 48))
+                let cardHeight = min(cardWidth * 480 / 330, max(220, geometry.size.height - 230))
+                HumaGlassCard {
                     Text(completion.message)
-                        .font(.system(size: 18))
-                        .lineSpacing(5)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(Color(red: 0.23, green: 0.12, blue: 0.06))
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 32)
-                        .frame(minHeight: cardHeight)
+                        .lineSpacing(4)
                 }
-                .scrollBounceBehavior(.basedOnSize)
-                .frame(maxWidth: 340, maxHeight: cardHeight)
-                .background {
-                    RoundedRectangle(cornerRadius: 22)
-                        .fill(Color(red: 1, green: 0.96, blue: 0.89).opacity(0.94))
-                        .overlay {
-                            Image("HumaTenunPattern")
-                                .resizable()
-                                .scaledToFill()
-                                .opacity(0.12)
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 22))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22)
-                        .strokeBorder(Color(red: 0.92, green: 0.56, blue: 0.20), lineWidth: 1.5)
-                }
-                .padding(.horizontal, 30)
+                .frame(width: cardWidth, height: cardHeight)
+                .environment(\.colorScheme, .dark)
+                .padding(.horizontal, 24)
                 Spacer(minLength: 24)
                 Button { withAnimation(.easeOut(duration: 0.22)) { finaleStep = .opening } } label: {
                     Text("Selesai")
