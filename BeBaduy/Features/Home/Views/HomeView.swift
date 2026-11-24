@@ -738,8 +738,8 @@ private struct StagePreviewScreen: View {
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(ivory)
                 .frame(maxWidth: .infinity, minHeight: 50)
-                .background(Color(red: 0.86, green: 0.35, blue: 0.01), in: Capsule())
-                .overlay(Capsule().strokeBorder(Color(red: 1, green: 0.62, blue: 0.24), lineWidth: 1))
+                .background(AppTheme.action, in: Capsule())
+                .overlay(Capsule().strokeBorder(AppTheme.actionBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("resume")
@@ -838,22 +838,30 @@ struct ChapterRewardCard: View {
     @State private var tapped = false
     @State private var turned = false
     @State private var readable = false
+    @State private var showsAlreadyOwnedBadge = false
 
     var body: some View {
         GeometryReader { bounds in
-            let width = min(330, bounds.size.width * 0.85, max(120, (bounds.size.height - 96) * 0.7))
-            VStack(spacing: 16) {
-                Spacer(minLength: 0)
-                ChapterCardFace(card: card, width: width, front: turned)
-                .overlay(alignment: .top) {
-                    if alreadyOwned && readable {
+            let maxCardHeight = max(180, bounds.size.height - 230)
+            let width = min(330, bounds.size.width - 64, maxCardHeight * 0.75)
+            VStack(spacing: 22) {
+                ZStack {
+                    CardRevealPrompt(
+                        title: "Kamu mendapat kartu baru!",
+                        subtitle: "Ketuk untuk melihatnya.",
+                        isVisible: (reduceMotion || emerging) && !tapped
+                    )
+                    if alreadyOwned && showsAlreadyOwnedBadge {
                         Label("Sudah ada di koleksi", systemImage: "checkmark.circle.fill")
                             .font(.caption.weight(.semibold))
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             .background(.black.opacity(0.88), in: Capsule())
-                            .padding(.top, 10)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
                     }
                 }
+                .padding(.horizontal, 24)
+                ChapterCardFace(card: card, width: width, front: turned)
                 .rotation3DEffect(.degrees(reduceMotion ? 0 : angle), axis: (0, 1, 0))
                 .scaleEffect(reduceMotion || emerging ? 1 : card.isEpic ? 0.22 : 1.45)
                 .opacity(reduceMotion || emerging ? 1 : 0)
@@ -872,16 +880,25 @@ struct ChapterRewardCard: View {
                     }
                 }
                 Spacer(minLength: 0)
-                LessonButton(title: card.isEpic ? "Kembali ke menu" : "Ayo lanjut!",
+                LessonButton(title: card.isEpic || card == .kematian ? "Kembali ke menu" : "Ayo lanjut!",
                              identifier: "continue", action: continueJourney)
                     .opacity(readable ? 1 : 0).disabled(!readable).accessibilityHidden(!readable)
                     .padding(.horizontal, 24)
             }
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
+            .padding(.top, 48)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(.white)
-        .background(.black.opacity(reduceMotion || emerging ? 0.52 : 0))
+        .background {
+            LinearGradient(
+                colors: [.black.opacity(0.42), .black.opacity(0.62)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .opacity(reduceMotion || emerging ? 1 : 0)
+        }
         .task(id: isPresented) {
             guard isPresented else { return }
             if reduceMotion { emerging = true; return }
@@ -908,6 +925,28 @@ struct ChapterRewardCard: View {
                 angle = 0
             } completion: { readable = true }
         }
+        .task(id: readable) {
+            guard alreadyOwned, readable else {
+                showsAlreadyOwnedBadge = false
+                return
+            }
+            if reduceMotion {
+                showsAlreadyOwnedBadge = true
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showsAlreadyOwnedBadge = true
+                }
+            }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            guard !Task.isCancelled else { return }
+            if reduceMotion {
+                showsAlreadyOwnedBadge = false
+            } else {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    showsAlreadyOwnedBadge = false
+                }
+            }
+        }
     }
 }
 
@@ -933,6 +972,7 @@ private enum HomeTab: Hashable {
 private struct CollapsibleHomeTabBar: View {
     @Binding var selection: HomeTab
     @Binding var isCollapsed: Bool
+    private let selectedColor = Color(red: 120.0 / 255, green: 60.0 / 255, blue: 0) // #783C00
 
     var body: some View {
         HStack(spacing: 2) {
@@ -942,6 +982,7 @@ private struct CollapsibleHomeTabBar: View {
                 } label: {
                     Image(systemName: selection.symbol)
                         .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(selectedColor)
                         .frame(width: 52, height: 52)
                 }
                 .accessibilityLabel("Buka tab")
@@ -966,7 +1007,7 @@ private struct CollapsibleHomeTabBar: View {
                 Text(tab.title)
                     .font(.system(size: 12, weight: .semibold))
             }
-            .foregroundStyle(selection == tab ? AppTheme.orange : .black)
+            .foregroundStyle(selection == tab ? selectedColor : .black)
             .frame(width: 82, height: 52)
             .background(selection == tab ? .white.opacity(0.36) : .clear, in: Capsule())
         }

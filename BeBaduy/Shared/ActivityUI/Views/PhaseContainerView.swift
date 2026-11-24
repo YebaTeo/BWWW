@@ -39,6 +39,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
     }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var equipment: (title: String, description: String)? {
         switch content.id {
         case .ngaseuk: ("Aseuk", "Tongkat kayu yang digunakan untuk membuat lubang tanam.")
@@ -90,6 +91,22 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                 .accessibilityHidden(true)
                 .allowsHitTesting(false)
 
+                if flow.screen == .equipment {
+                    LinearGradient(
+                        colors: [.black.opacity(0.42), .black.opacity(0.62)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+                } else if flow.screen == .explanation {
+                    Color.black.opacity(0.34)
+                        .ignoresSafeArea()
+                        .accessibilityHidden(true)
+                        .allowsHitTesting(false)
+                }
+
                 if immersive {
                     surface().environment(card)
                         .environment(\.activitySceneInsets, geometry.safeAreaInsets)
@@ -105,24 +122,37 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                         Color.clear
                     case .equipment:
                         if let equipment {
+                            let maxCardHeight = max(180, geometry.size.height - 250)
+                            let cardWidth = min(330, geometry.size.width - 64, maxCardHeight * 0.75)
                             ScrollView {
                                 VStack(spacing: 22) {
-                                    Text(isToolRevealed ? "Ketuk kartu untuk menutupnya." : "Ada alat apa di balik kartu ini?\n\nKetuk untuk melihatnya!")
-                                        .multilineTextAlignment(.center)
-                                        .foregroundStyle(AppTheme.cream)
+                                    CardRevealPrompt(
+                                        title: "Kamu mendapat alat baru!",
+                                        subtitle: "Ketuk untuk melihatnya.",
+                                        isVisible: !isToolRevealed
+                                    )
+                                    .padding(.horizontal, 24)
                                     ToolRevealCard(title: equipment.title, description: equipment.description,
                                                    isRevealed: $isToolRevealed) {
                                         equipmentArtwork
                                     }
-                                    if isToolRevealed {
-                                        LessonButton(title: "Mulai aktivitas", identifier: "lesson.begin", action: begin)
-                                            .frame(maxWidth: 330)
+                                    .onChange(of: isToolRevealed) { _, isRevealed in
+                                        guard isRevealed else { return }
+                                        journey.revealToolCard(for: content.id)
                                     }
+                                    .frame(width: cardWidth)
+                                    LessonButton(title: "Mulai aktivitas", identifier: "lesson.begin", action: begin)
+                                        .frame(maxWidth: cardWidth)
+                                        .opacity(isToolRevealed ? 1 : 0)
+                                        .disabled(!isToolRevealed)
+                                        .accessibilityHidden(!isToolRevealed)
+                                        .animation(reduceMotion ? nil : .easeOut(duration: 0.24), value: isToolRevealed)
                                 }
-                                .padding(.horizontal, 32)
-                                .padding(.vertical, 24)
-                                .frame(maxWidth: .infinity)
+                                .padding(.top, 8)
+                                .padding(.bottom, 24)
+                                .frame(maxWidth: .infinity, alignment: .top)
                             }
+                            .scrollBounceBehavior(.basedOnSize)
                         }
                     case .activity:
                         if usesContextCards {
@@ -168,7 +198,9 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 24)
                             .frame(minHeight: max(0, geometry.size.height - 180))
-                        }.accessibilityIdentifier("lesson.explanation.page")
+                        }
+                        .scrollBounceBehavior(.basedOnSize)
+                        .accessibilityIdentifier("lesson.explanation.page")
                         LessonButton(title: "Ayo lanjut!", identifier: "continue", action: advance)
                             .padding(.horizontal, 24).padding(.vertical, 16)
                     }
@@ -224,7 +256,10 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         .onChange(of: session.event) { _, _ in
             if let outcome = session.outcome {
                 journey.record(content.id, outcome: outcome)
-                if content.id != .ngaleuitkeunPare { advance() }
+                if content.id != .ngaleuitkeunPare {
+                    flow.completed()
+                    flow.explain()
+                }
             }
         }
         .onChange(of: flow.screen) { _, value in
@@ -261,38 +296,41 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         usesContextCards && flow.screen == .activity && card.mode != .hidden
     }
 
+    @ViewBuilder
     private var activityOverlay: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left").frame(width: 44, height: 44)
-                }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
-                Spacer()
-            }.padding(.horizontal, 16)
-            if session.outcome != nil {
-                if content.id != .ngaleuitkeunPare { completionCard }
-            } else if card.mode != .hidden || showsActiveControls {
-                ActivityCardLayout(placement: .middle) {
-                    activity()
-                        .disabled(!session.isActive)
-                    if card.mode == .help {
-                        ActivityAcknowledgement(title: "Kembali ke aktivitas", identifier: "activity.card.close") {
-                            card.dismiss()
+        if !(session.outcome != nil && content.id == .ngaleuitkeunPare) {
+            VStack(spacing: 8) {
+                HStack {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left").frame(width: 44, height: 44)
+                    }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
+                    Spacer()
+                }.padding(.horizontal, 16)
+                if session.outcome != nil {
+                    completionCard
+                } else if card.mode != .hidden || showsActiveControls {
+                    ActivityCardLayout(placement: .middle) {
+                        activity()
+                            .disabled(!session.isActive)
+                        if card.mode == .help {
+                            ActivityAcknowledgement(title: "Kembali ke aktivitas", identifier: "activity.card.close") {
+                                card.dismiss()
+                            }
+                            Button {
+                                ActivityAudio.shared.enabled.toggle()
+                            } label: {
+                                Label(ActivityAudio.shared.enabled ? "Suara aktif" : "Suara nonaktif",
+                                      systemImage: ActivityAudio.shared.enabled ? "speaker.wave.2" : "speaker.slash")
+                                    .frame(minHeight: 44)
+                            }
+                            .accessibilityIdentifier("activity.sound")
                         }
-                        Button {
-                            ActivityAudio.shared.enabled.toggle()
-                        } label: {
-                            Label(ActivityAudio.shared.enabled ? "Suara aktif" : "Suara nonaktif",
-                                  systemImage: ActivityAudio.shared.enabled ? "speaker.wave.2" : "speaker.slash")
-                                .frame(minHeight: 44)
-                        }
-                        .accessibilityIdentifier("activity.sound")
                     }
+                    .environment(card)
+                    .id(card.revision)
+                } else {
+                    Spacer(minLength: 0)
                 }
-                .environment(card)
-                .id(card.revision)
-            } else {
-                Spacer(minLength: 0)
             }
         }
     }
@@ -313,7 +351,9 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
                     .background(.ultraThinMaterial, in: Circle())
             }.accessibilityLabel("Kembali ke beranda").accessibilityIdentifier("lesson.back")
             Spacer()
-            Text("\(content.id.index + 1) / \(PhaseID.allCases.count)").font(.caption.monospacedDigit())
+            if flow.screen != .equipment && flow.screen != .explanation {
+                Text("\(content.id.index + 1) / \(PhaseID.allCases.count)").font(.caption.monospacedDigit())
+            }
             Spacer()
             Color.clear.frame(width: 44, height: 44)
         }.padding(.horizontal, 20).padding(.vertical, 8)
@@ -323,7 +363,7 @@ struct PhaseContainerView<Activity: View, Surface: View, Description: View>: Vie
         case .ngaseuk:
             AseukTool(interactive: true, autoRotate: true, showsLoading: true).frame(width: 68)
         case .ngored:
-            KoredTool(showsLoading: true).frame(width: 150, height: 120)
+            KoredTool(showsLoading: true).frame(maxWidth: .infinity, maxHeight: .infinity)
         case .mipit:
             Image("mipit_etem").resizable().scaledToFit().frame(maxWidth: 160, maxHeight: 140)
         default:

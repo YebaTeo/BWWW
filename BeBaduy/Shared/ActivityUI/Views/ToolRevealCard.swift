@@ -1,5 +1,31 @@
 import SwiftUI
 
+/// Shared prompt shown above woven reveal cards before they flip.
+struct CardRevealPrompt: View {
+    let title: String
+    let subtitle: String
+    var isVisible = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+                .accessibilityAddTraits(.isHeader)
+
+            Text(subtitle)
+                .font(.body.italic())
+                .foregroundStyle(.white.opacity(0.92))
+        }
+        .multilineTextAlignment(.center)
+        .shadow(color: .black.opacity(0.45), radius: 6, y: 2)
+        .opacity(isVisible ? 1 : 0)
+        .accessibilityHidden(!isVisible)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.24), value: isVisible)
+    }
+}
+
 /// A tool card that can flip between its woven and illustrated sides. The caller supplies the illustration and owns the reveal state.
 struct ToolRevealCard<Artwork: View>: View {
     let title: String
@@ -23,7 +49,8 @@ struct ToolRevealCard<Artwork: View>: View {
                     .padding(.horizontal, 22)
                     .padding(.vertical, 24)
                 }
-                .contentShape(RoundedRectangle(cornerRadius: 18))
+                .shadow(color: .black.opacity(0.45), radius: 14, y: 8)
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .onTapGesture { isRevealed = false }
                 .accessibilityElement(children: .contain)
                 .accessibilityAction(named: Text("Tutup kartu alat")) { isRevealed = false }
@@ -36,7 +63,7 @@ struct ToolRevealCard<Artwork: View>: View {
                     Button {
                         isRevealed = true
                     } label: {
-                        Color.clear.contentShape(RoundedRectangle(cornerRadius: 18))
+                        Color.clear.contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Buka kartu alat")
@@ -49,7 +76,7 @@ struct ToolRevealCard<Artwork: View>: View {
     private func details(illustrationHeight: CGFloat) -> some View {
         VStack(spacing: 16) {
             Text(title)
-                .font(.headline)
+                .font(.title.bold())
                 .foregroundStyle(AppTheme.heading)
                 .accessibilityAddTraits(.isHeader)
 
@@ -77,7 +104,7 @@ struct WovenRevealFaces<Front: View>: View, Animatable {
         set { angle = newValue }
     }
 
-    private let shape = RoundedRectangle(cornerRadius: 18)
+    private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
     var body: some View {
         GeometryReader { geometry in
@@ -92,15 +119,17 @@ struct WovenRevealFaces<Front: View>: View, Animatable {
                         .resizable()
                         .scaledToFill()
                         .frame(width: geometry.size.width, height: geometry.size.height)
-                        .overlay(.black.opacity(0.32))
                         .accessibilityHidden(true)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipShape(shape)
             .overlay {
-                shape.strokeBorder(AppTheme.heading.opacity(0.6), lineWidth: 0.75)
-                    .allowsHitTesting(false)
+                shape.strokeBorder(
+                    showingFront ? AppTheme.heading.opacity(0.6) : .white.opacity(0.18),
+                    lineWidth: 0.75
+                )
+                .allowsHitTesting(false)
             }
             .rotation3DEffect(.degrees(showingFront ? angle - 180 : angle),
                               axis: (x: 0, y: 1, z: 0), perspective: 0.45)
@@ -117,11 +146,11 @@ private struct ToolRevealPreview<Artwork: View>: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                Text("Ada alat apa di balik kartu ini?\n\nKetuk untuk melihatnya!")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(AppTheme.cream)
-                    .opacity(isRevealed ? 0 : 1)
-                    .accessibilityHidden(isRevealed)
+                CardRevealPrompt(
+                    title: "Kamu mendapat alat baru!",
+                    subtitle: "Ketuk untuk melihatnya.",
+                    isVisible: !isRevealed
+                )
 
                 ToolRevealCard(title: title, description: description, isRevealed: $isRevealed,
                                artwork: artwork)
@@ -137,7 +166,13 @@ private struct ToolRevealPreview<Artwork: View>: View {
                     .scaledToFill()
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
-                    .overlay(.black.opacity(0.45))
+                    .overlay(
+                        LinearGradient(
+                            colors: [.black.opacity(0.42), .black.opacity(0.62)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
             }
             .ignoresSafeArea()
         }
@@ -152,7 +187,7 @@ private struct ToolRevealPreview<Artwork: View>: View {
 
 #Preview("Tool reveal · Kored") {
     ToolRevealPreview(title: "Kored", description: "Cangkul kecil bermata miring untuk membersihkan gulma dan menggemburkan tanah.") {
-        KoredTool().frame(width: 150, height: 120)
+        KoredTool().frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

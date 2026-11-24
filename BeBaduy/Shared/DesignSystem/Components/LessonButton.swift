@@ -7,14 +7,14 @@ struct LessonButton: View {
     var body: some View {
         Button(action: action) {
             Text(title).font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.cream)
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .padding(.horizontal, 20)
                 .background(AppTheme.action, in: Capsule())
-                .overlay(Capsule().stroke(AppTheme.cream.opacity(0.45), lineWidth: 1))
+                .overlay(Capsule().strokeBorder(AppTheme.actionBorder, lineWidth: 1))
         }.buttonStyle(.plain).accessibilityIdentifier(identifier)
     }
 }

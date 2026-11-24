@@ -40,6 +40,11 @@ struct NgaleuitkeunPareView: View {
                     .transition(.opacity)
                 }
 
+                if finaleStep == .explanation {
+                    explanationOverlay
+                        .transition(.opacity)
+                }
+
                 if finaleStep == .summary {
                     summaryOverlay
                         .transition(.opacity)
@@ -54,12 +59,12 @@ struct NgaleuitkeunPareView: View {
 
                 // The epic card is laid out while the summary is visible. The
                 // same SceneKit renderer continues under every finale state.
-                if finaleStep != .result {
+                if finaleStep == .summary || finaleStep == .opening || finaleStep == .card {
                     let reward = ChapterCard.chapter(.ngaleuitkeunPare, secondCycle: journey.progress.secondCycle)
                     ChapterRewardCard(card: reward,
                                       alreadyOwned: !journey.newlyEarnedCards.contains(reward),
                                       isPresented: finaleStep == .card) {
-                        journey.completeCycleAndReturnToMenu()
+                        journey.finishJourney()
                         advance()
                     }
                     .opacity(finaleStep == .card ? 1 : 0)
@@ -77,7 +82,7 @@ struct NgaleuitkeunPareView: View {
             guard model.session.outcome != nil else { return }
             do { try await Task.sleep(for: .seconds(2.2)) } catch { return }
             guard !Task.isCancelled, finaleStep == .result else { return }
-            withAnimation(.easeInOut(duration: 0.32)) { finaleStep = .summary }
+            withAnimation(.easeInOut(duration: 0.32)) { finaleStep = .explanation }
         }
         .task(id: finaleStep == .opening && scenePhase == .active) {
             guard finaleStep == .opening, scenePhase == .active else { return }
@@ -104,6 +109,32 @@ struct NgaleuitkeunPareView: View {
         }
     }
 
+    private var explanationOverlay: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                ScrollView {
+                    HumaGlassCard {
+                        NgaleuitkeunPareDescriptionView()
+                    }
+                    .frame(width: min(330, max(1, geometry.size.width - 48)),
+                           height: min(330, max(1, geometry.size.width - 48)) * 480 / 330)
+                    .environment(\.colorScheme, .dark)
+                    .accessibilityIdentifier("lesson.explanation.card")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .frame(minHeight: max(0, geometry.size.height - 140))
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .accessibilityIdentifier("lesson.explanation.page")
+                LessonButton(title: "Ayo lanjut!", identifier: "continue") {
+                    withAnimation(.easeInOut(duration: 0.32)) { finaleStep = .summary }
+                }
+                .padding(.horizontal, 24).padding(.vertical, 16)
+            }
+            .padding(.top, 44)
+        }
+    }
+
     private var summaryOverlay: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -116,41 +147,23 @@ struct NgaleuitkeunPareView: View {
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("journey.completed")
                 Spacer(minLength: 24)
-                ScrollView {
+                let cardWidth = min(330, max(1, geometry.size.width - 48))
+                let cardHeight = min(cardWidth * 480 / 330, max(220, geometry.size.height - 230))
+                HumaGlassCard {
                     Text(completion.message)
-                        .font(.system(size: 18))
-                        .lineSpacing(5)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(Color(red: 0.23, green: 0.12, blue: 0.06))
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 38)
+                        .lineSpacing(4)
                 }
-                .frame(maxWidth: 340, maxHeight: min(500, geometry.size.height * 0.58))
-                .background {
-                    RoundedRectangle(cornerRadius: 22)
-                        .fill(Color(red: 1, green: 0.96, blue: 0.89).opacity(0.94))
-                        .overlay {
-                            Image("HumaTenunPattern")
-                                .resizable()
-                                .scaledToFill()
-                                .opacity(0.12)
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 22))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22)
-                        .strokeBorder(Color(red: 0.92, green: 0.56, blue: 0.20), lineWidth: 1.5)
-                }
-                .padding(.horizontal, 30)
+                .frame(width: cardWidth, height: cardHeight)
+                .environment(\.colorScheme, .dark)
+                .padding(.horizontal, 24)
                 Spacer(minLength: 24)
                 Button { withAnimation(.easeOut(duration: 0.22)) { finaleStep = .opening } } label: {
                     Text("Selesai")
                         .font(.system(size: 17, weight: .medium))
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .foregroundStyle(.white)
-                        .background(Color(red: 0.86, green: 0.35, blue: 0.01), in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color(red: 1, green: 0.62, blue: 0.24)))
+                        .background(AppTheme.action, in: Capsule())
+                        .overlay(Capsule().strokeBorder(AppTheme.actionBorder, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("journey.finish")
@@ -164,6 +177,7 @@ struct NgaleuitkeunPareView: View {
 
 private enum FinaleStep {
     case result
+    case explanation
     case summary
     case opening
     case card

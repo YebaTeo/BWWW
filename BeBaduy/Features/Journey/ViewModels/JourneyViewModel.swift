@@ -43,6 +43,11 @@ import Observation
         newlyEarnedCards = ChapterCard.all.filter { !$0.isEarned(in: previous) && $0.isEarned(in: progress) }
         persist()
     }
+    func revealToolCard(for phase: PhaseID) {
+        guard let card = ChapterCard.tool(for: phase), !card.isEarned(in: progress) else { return }
+        progress.earnedCardIDs.insert(card.imageName)
+        persist()
+    }
     func continueFrom(_ phase: PhaseID) -> PhaseID? {
         guard progress.record(for: phase).explanationAvailable, let next = phase.next else { return nil }
         open(next); return next

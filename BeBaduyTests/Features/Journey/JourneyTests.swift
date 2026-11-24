@@ -185,7 +185,7 @@ final class JourneyTests: XCTestCase {
         XCTAssertFalse(journey.consumePendingMenuCycleReset())
 
         let relaunched = JourneyViewModel(store: store)
-        let secondSet: [ChapterCard] = [.sengon, .pungpuhunan, .kolecer, .gaharu, .lantaian, .kematian]
+        let secondSet: [ChapterCard] = [.sengon, .pungpuhunan, .kolecer, .garu, .lantaian, .kematian]
         XCTAssertEqual(ChapterCard.all.filter { $0.isEarned(in: relaunched.progress) }, PhaseID.allCases.map { .chapter($0) })
         for (phase, reward) in zip(PhaseID.allCases, secondSet) {
             relaunched.record(phase, outcome: .observed)

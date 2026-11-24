@@ -141,7 +141,7 @@ private struct KoredSceneView: UIViewRepresentable {
             cameraNode.camera = camera
             // Center the framing on the full haft, whose top now rises above
             // the blade root. Keeping the old low look-at point cropped it.
-            cameraNode.position = SCNVector3(0, 0, bladeCentered ? 2.15 : 1.55)
+            cameraNode.position = SCNVector3(0, 0, bladeCentered ? 2.15 : 1.08)
             cameraNode.look(at: SCNVector3(0, 0, 0))
             scene.rootNode.addChildNode(cameraNode)
 
