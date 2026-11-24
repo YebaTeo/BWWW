@@ -219,10 +219,12 @@ struct CollectionCardPresentation: View {
         .ignoresSafeArea()
         .task(id: card) {
             if reduceMotion {
+                ActivityAudio.shared.play(.cardFlip)
                 isFaceUp = true
                 return
             }
             do { try await Task.sleep(for: .milliseconds(420)) } catch { return }
+            ActivityAudio.shared.play(.cardFlip)
             withAnimation(.easeInOut(duration: 0.62)) { isFaceUp = true }
         }
     }

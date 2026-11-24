@@ -907,14 +907,20 @@ struct ChapterRewardCard: View {
         }
         .task(id: tapped) {
             guard tapped else { return }
-            if reduceMotion { emerging = true; glow = 0; angle = 0; turned = true; readable = true; return }
+            if reduceMotion {
+                ActivityAudio.shared.play(.cardGlow)
+                ActivityAudio.shared.play(.cardFlip)
+                emerging = true; glow = 0; angle = 0; turned = true; readable = true; return
+            }
             guard !readable else { return }
             do {
+                ActivityAudio.shared.play(.cardGlow)
                 withAnimation(.easeOut(duration: 0.32)) { glow = 1 }
                 try await Task.sleep(for: .milliseconds(320))
                 withAnimation(.easeOut(duration: 0.58)) { emerging = true }
                 withAnimation(.easeInOut(duration: 0.85)) { glow = 0 }
                 try await Task.sleep(for: .milliseconds(440))
+                ActivityAudio.shared.play(.cardFlip)
                 withAnimation(.easeIn(duration: 0.2)) { angle = -90 }
                 try await Task.sleep(for: .milliseconds(200))
             } catch { return }

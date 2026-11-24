@@ -51,9 +51,9 @@ struct ToolRevealCard<Artwork: View>: View {
                 }
                 .shadow(color: .black.opacity(0.45), radius: 14, y: 8)
                 .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .onTapGesture { isRevealed = false }
+                .onTapGesture { flip(to: false) }
                 .accessibilityElement(children: .contain)
-                .accessibilityAction(named: Text("Tutup kartu alat")) { isRevealed = false }
+                .accessibilityAction(named: Text("Tutup kartu alat")) { flip(to: false) }
                 .accessibilityHidden(!isRevealed)
                 .allowsHitTesting(isRevealed)
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: isRevealed)
@@ -61,7 +61,7 @@ struct ToolRevealCard<Artwork: View>: View {
             .overlay {
                 if !isRevealed {
                     Button {
-                        isRevealed = true
+                        flip(to: true)
                     } label: {
                         Color.clear.contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
@@ -71,6 +71,12 @@ struct ToolRevealCard<Artwork: View>: View {
                     .accessibilityHint("Menampilkan nama, gambar, dan kegunaan alat.")
                 }
             }
+    }
+
+    private func flip(to revealed: Bool) {
+        guard isRevealed != revealed else { return }
+        ActivityAudio.shared.play(.cardFlip)
+        isRevealed = revealed
     }
 
     private func details(illustrationHeight: CGFloat) -> some View {

@@ -14,6 +14,8 @@ import Observation
         case harvest
         case bamboo
         case rain
+        case cardFlip
+        case cardGlow
     }
 
     static let shared = ActivityAudio()
@@ -57,7 +59,11 @@ private final class ActivityPlayback: @unchecked Sendable {
             loopPlayer = nil
         }
         let resource = cue == .ignite ? "ngahuma-ignite" : "activity-\(cue.rawValue)"
-        guard let url = Bundle.main.url(forResource: resource, withExtension: "wav") else { return }
+        let fileExtension = switch cue {
+        case .cardFlip, .cardGlow: "mp3"
+        default: "wav"
+        }
+        guard let url = Bundle.main.url(forResource: resource, withExtension: fileExtension) else { return }
         do {
             let session = AVAudioSession.sharedInstance()
             if session.category != .ambient || session.mode != .default {
@@ -75,7 +81,12 @@ private final class ActivityPlayback: @unchecked Sendable {
                     oldest.stop()
                     activePlayers.removeFirst()
                 }
-                player.volume = cue == .ignite ? 1.0 : 0.78
+                player.volume = switch cue {
+                case .ignite: 1.0
+                case .cardFlip: 0.9
+                case .cardGlow: 0.85
+                default: 0.78
+                }
                 player.play()
                 activePlayers.append(player)
             }
